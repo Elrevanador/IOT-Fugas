@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "author": "Sistema deteccion de fugas",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-breadboard-half", "id": "bb1", "top": -22.2, "left": 406, "attrs": {} },
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp1", "top": 91.1, "left": 292.6, "attrs": {} },
+    {
+      "type": "board-bmp180",
+      "id": "bmp1",
+      "top": 207.04,
+      "left": 653.06,
+      "attrs": { "pressure": "82250", "temperature": "24" }
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -3.2,
+      "left": 744.8,
+      "attrs": { "pins": "i2c" }
+    },
+    {
+      "type": "wokwi-clock-generator",
+      "id": "clk1",
+      "top": -19.2,
+      "left": 336,
+      "attrs": { "frequency": "20" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledG",
+      "top": -13.2,
+      "left": 474.2,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rG",
+      "top": 32.75,
+      "left": 441.6,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledO",
+      "top": -13.2,
+      "left": 541.4,
+      "attrs": { "color": "orange" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rO",
+      "top": 42.35,
+      "left": 508.8,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledR",
+      "top": -13.2,
+      "left": 618.2,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rR",
+      "top": 51.95,
+      "left": 585.6,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 60,
+      "left": 549,
+      "attrs": { "volume": "0.7", "mode": "smooth" }
+    }
+  ],
+  "connections": [
+    [ "bmp1:VCC", "esp1:3V3", "red", [ "v0" ] ],
+    [ "bmp1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+    [ "bmp1:SDA", "esp1:D21", "green", [ "v0" ] ],
+    [ "bmp1:SCL", "esp1:D22", "blue", [ "v0" ] ],
+
+    [ "lcd1:VCC", "esp1:5V", "red", [ "v0" ] ],
+    [ "lcd1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+    [ "lcd1:SDA", "esp1:D21", "green", [ "v0" ] ],
+    [ "lcd1:SCL", "esp1:D22", "blue", [ "v0" ] ],
+
+    [ "clk1:CLK", "esp1:D27", "orange", [ "v0" ] ],
+    [ "clk1:VCC", "esp1:3V3", "red", [ "v0" ] ],
+    [ "clk1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+
+    [ "esp1:D2", "rG:1", "green", [ "v0" ] ],
+    [ "rG:2", "ledG:A", "green", [ "v0" ] ],
+    [ "ledG:C", "esp1:GND.1", "black", [ "v0" ] ],
+
+    [ "esp1:D15", "rO:1", "orange", [ "v0" ] ],
+    [ "rO:2", "ledO:A", "orange", [ "v0" ] ],
+    [ "ledO:C", "esp1:GND.1", "black", [ "v0" ] ],
+
+    [ "esp1:D4", "rR:1", "red", [ "v0" ] ],
+    [ "rR:2", "ledR:A", "red", [ "v0" ] ],
+    [ "ledR:C", "esp1:GND.1", "black", [ "v0" ] ],
+
+    [ "esp1:RX2", "bz1:2", "red", [ "h105.3", "v105.3", "h76.8" ] ],
+    [ "bz1:1", "esp1:GND.2", "black", [ "v0" ] ]
+  ],
+  "serialMonitor": { "display": "always", "newline": "lf" },
+  "dependencies": {}
+}

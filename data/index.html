@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema IoT — Detección de Fugas · Barrio Libertador</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<aside>
+  <div class="logo-block">
+    <div class="logo-mark">💧</div>
+    <div class="logo-title">IoT Water Monitor</div>
+    <div class="logo-sub">Barrio Libertador · Riohacha</div>
+  </div>
+  <nav>
+    <div class="nav-sec">Principal</div>
+    <a class="active" href="#">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Panel de control</span>
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>Gráficas históricas</span>
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span>Alertas</span>
+    </a>
+    <div class="nav-sec">Plataformas</div>
+    <a href="https://thingspeak.com" target="_blank">
+      <svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      <span>ThingSpeak</span>
+    </a>
+    <a href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12h1M21 12h1M12 2v1M12 21v1M4.22 4.22l.71.71M19.07 19.07l.71.71M4.22 19.78l.71-.71M19.07 4.93l.71-.71"/></svg>
+      <span>Configuración</span>
+    </a>
+  </nav>
+  <div class="conn-block">
+    <div id="conn-badge" class="conn-badge sim"><span class="blink"></span>&nbsp;SIMULACIÓN</div>
+    <p style="font-size:9px;color:var(--hint);margin-top:5px;font-family:var(--mono)" id="conn-ip">Buscando ESP32...</p>
+  </div>
+</aside>
+
+<main>
+
+  <div class="topbar">
+    <div>
+      <h2>Sistema de Detección de Fugas — Tiempo Real</h2>
+      <p>ESP32 · YF-S201 · BMP180 · LCD 16×2 · LEDs · Buzzer · ThingSpeak</p>
+    </div>
+    <div class="topbar-r">
+      <div id="state-pill" class="pill ok"><span class="blink"></span>&nbsp;NORMAL</div>
+      <div class="clock-b" id="clock">--:--:--</div>
+    </div>
+  </div>
+
+  <div id="alert-banner">
+    <div class="a-icon">⚠</div>
+    <div class="a-text">
+      <strong id="a-title">FUGA CONFIRMADA — intervención requerida</strong>
+      <span id="a-desc">Flujo y presión superaron los umbrales críticos de forma sostenida.</span>
+    </div>
+    <button class="btn-dis" onclick="dismissAlert()">✓ Confirmar</button>
+  </div>
+
+  <div class="content">
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-acc" style="background:var(--teal)"></div>
+        <div class="kpi-lbl">Flujo actual</div>
+        <div class="kpi-val" id="k-flow">0.00</div>
+        <div class="kpi-unit">L / min · YF-S201</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-acc" style="background:var(--blue)"></div>
+        <div class="kpi-lbl">Presión</div>
+        <div class="kpi-val" id="k-pres">---</div>
+        <div class="kpi-unit">kPa · BMP180</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-acc" id="risk-acc" style="background:var(--ok)"></div>
+        <div class="kpi-lbl">Nivel de riesgo</div>
+        <div class="kpi-val" id="k-risk">0</div>
+        <div class="kpi-unit">% (0–100)</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-acc" id="state-acc" style="background:var(--ok)"></div>
+        <div class="kpi-lbl">Estado</div>
+        <div id="k-state" class="state-pill ok" style="border-color:rgba(34,197,94,.3)"><span>●</span>&nbsp;NORMAL</div>
+        <div class="kpi-unit" id="k-state-sub">Sin anomalías</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-acc" id="sensor-acc" style="background:var(--ok)"></div>
+        <div class="kpi-lbl">Sensor BMP180</div>
+        <div class="kpi-val" id="k-sensor" style="font-size:15px;color:var(--ok)">OK ✓</div>
+        <div class="kpi-unit">I2C · SDA 21 · SCL 22</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-acc" style="background:var(--warn)"></div>
+        <div class="kpi-lbl">Tiempo sesión</div>
+        <div class="kpi-val" id="k-uptime" style="font-size:17px">00:00</div>
+        <div class="kpi-unit">mm : ss</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Flujo de agua</div>
+            <div class="card-sub">YF-S201 pin 27 · ISR RISING · EMA α=0.60 · umbral fuga ≥ 2.2 L/min</div>
+          </div>
+          <div class="pill teal" style="font-size:9px;padding:3px 8px">L/min</div>
+        </div>
+        <div class="chart-wrap"><canvas id="chartFlujo"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Presión atmosférica</div>
+            <div class="card-sub">BMP180 · I2C · EMA α=0.60 · recuperación ≥ 101.5 kPa</div>
+          </div>
+          <div class="pill neutral" style="font-size:9px;padding:3px 8px">kPa</div>
+        </div>
+        <div class="chart-wrap"><canvas id="chartPresion"></canvas></div>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="chart-card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Registro de eventos</div>
+            <div class="card-sub">Sesión actual — máx. 10 entradas</div>
+          </div>
+        </div>
+        <div id="log-box"></div>
+
+        <div class="cnt-panel">
+          <div class="sec-title">Contadores internos ESP32</div>
+          <div class="cnt-wrap">
+            <div class="cnt-lbl">Cnt. alerta</div>
+            <div class="cnt-track"><div class="cnt-fill" id="bar-a" style="width:0%;background:var(--warn)"></div></div>
+            <div class="cnt-num" id="cnt-a">0</div>
+            <span style="font-family:var(--mono);font-size:9px;color:var(--hint);margin-left:3px">/10</span>
+          </div>
+          <div class="cnt-wrap">
+            <div class="cnt-lbl">Cnt. crítico</div>
+            <div class="cnt-track"><div class="cnt-fill" id="bar-c" style="width:0%;background:var(--danger)"></div></div>
+            <div class="cnt-num" id="cnt-c">0</div>
+            <span style="font-family:var(--mono);font-size:9px;color:var(--hint);margin-left:3px">/10</span>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="th-row"><span class="th-lbl">Umbral alerta flujo</span><span class="th-val" style="color:var(--warn)">≥ 1.0 L/min</span></div>
+            <div class="th-row"><span class="th-lbl">Umbral alerta presión</span><span class="th-val" style="color:var(--warn)">≤ 101.5 kPa</span></div>
+            <div class="th-row"><span class="th-lbl">Umbral fuga flujo</span><span class="th-val" style="color:var(--danger)">≥ 2.2 L/min</span></div>
+            <div class="th-row"><span class="th-lbl">Umbral fuga presión</span><span class="th-val" style="color:var(--danger)">≤ 99.0 kPa</span></div>
+            <div class="th-row"><span class="th-lbl">Recuperación a NORMAL</span><span class="th-val" style="color:var(--ok)">presión ≥ 101.5 kPa</span></div>
+            <div class="th-row"><span class="th-lbl">Lecturas requeridas alerta</span><span class="th-val">2 consecutivas</span></div>
+            <div class="th-row"><span class="th-lbl">Lecturas requeridas fuga</span><span class="th-val">2 consecutivas</span></div>
+            <div class="th-row"><span class="th-lbl">Intervalo de medición</span><span class="th-val">2 000 ms</span></div>
+            <div class="th-row"><span class="th-lbl">Envío ThingSpeak</span><span class="th-val">15 000 ms</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="card-title" style="margin-bottom:12px">Estado físico del circuito</div>
+
+        <div class="led-row">
+          <div class="led-dot off" id="led-v"></div>
+          <div style="flex:1">
+            <div class="led-name">LED Verde</div>
+            <div class="led-desc">NORMAL — encendido fijo</div>
+          </div>
+          <div class="led-pin">Pin 2</div>
+        </div>
+        <div class="led-row">
+          <div class="led-dot off" id="led-n"></div>
+          <div style="flex:1">
+            <div class="led-name">LED Naranja</div>
+            <div class="led-desc">ALERTA — parpadeo 300 ms</div>
+          </div>
+          <div class="led-pin">Pin 15</div>
+        </div>
+        <div class="led-row">
+          <div class="led-dot off" id="led-r"></div>
+          <div style="flex:1">
+            <div class="led-name">LED Rojo</div>
+            <div class="led-desc">FUGA — fijo / ERROR — parpadeo 700 ms</div>
+          </div>
+          <div class="led-pin">Pin 4</div>
+        </div>
+
+        <div class="buzzer" id="buzzer">
+          <span id="buz-icon">🔇</span>
+          <span class="buz-txt" id="buz-txt">Buzzer apagado</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--hint);margin-left:auto">Pin 16 · 1500 Hz</span>
+        </div>
+
+        <div style="margin-top:14px">
+          <div class="sec-title">Dispositivo &amp; plataformas</div>
+          <div class="th-row"><span class="th-lbl">Microcontrolador</span><span class="th-val" style="color:var(--ok)">ESP32 ✓</span></div>
+          <div class="th-row"><span class="th-lbl">Sensor flujo</span><span class="th-val" style="color:var(--ok)">YF-S201 ✓</span></div>
+          <div class="th-row"><span class="th-lbl">Sensor presión</span><span class="th-val" id="bmp-st" style="color:var(--ok)">BMP180 ✓</span></div>
+          <div class="th-row"><span class="th-lbl">Display</span><span class="th-val" style="color:var(--ok)">LCD 16×2 I2C 0x27 ✓</span></div>
+          <div class="th-row"><span class="th-lbl">WiFi</span><span class="th-val" id="wifi-st" style="color:var(--ok)">Wokwi-GUEST ✓</span></div>
+          <div class="th-row"><span class="th-lbl">ThingSpeak envíos</span><span class="th-val" id="ts-cnt" style="font-family:var(--mono)">0</span></div>
+          <div class="th-row"><span class="th-lbl">API Key</span><span class="th-val" style="font-family:var(--mono);font-size:10px;color:var(--hint)">NNVV6NM3…</span></div>
+        </div>
+
+        <a href="https://thingspeak.com" target="_blank" class="ts-link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          Ver canal en ThingSpeak
+          <span style="margin-left:auto;font-size:9px;opacity:.6">F1 F2 F3 F4 →</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span>💧 YF-S201 · pin 27 · ISR RISING</span>
+    <span>🌡 BMP180 · I2C</span>
+    <span id="sb-st">Estado: NORMAL</span>
+    <span style="margin-left:auto" id="sb-lec">Lecturas: 0</span>
+    <span id="sb-ts">ThingSpeak: 0 envíos</span>
+  </div>
+</main>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
