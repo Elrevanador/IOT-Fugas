@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard IoT Water Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="../config.js" defer></script>
+    <script src="../common.js" defer></script>
+    <script src="./app.js" defer></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="dashboard">
+    <div class="backdrop"></div>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Wokwi + ESP32 + Railway</p>
+          <h1>Dashboard público de monitoreo de fugas.</h1>
+          <p class="subcopy">
+            Visualiza el estado del circuito y los datos históricos en una página independiente de login.
+          </p>
+          <div class="hero-actions">
+            <a href="../login/" class="button secondary">Iniciar sesión</a>
+            <a href="#dashboard" class="button">Ver tablero</a>
+          </div>
+        </div>
+        <div class="hero-status">
+          <div class="status-card">
+            <span class="status-label">Conexión dispositivo</span>
+            <strong id="deviceStatus">Sin datos</strong>
+            <span id="lastSeen">Esperando lectura</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Estado actual</span>
+            <strong id="stateHeadline">SIN_DATOS</strong>
+            <span id="stateSummary">El panel público se actualizará cada 2 segundos.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-grid" id="dashboard">
+        <article class="panel metric-panel">
+          <div class="panel-head">
+            <h2>Lectura actual</h2>
+            <span class="pill" id="statePill">SIN_DATOS</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <span>Flujo</span>
+              <strong id="metricFlow">--</strong>
+              <small>L/min</small>
+            </div>
+            <div class="metric">
+              <span>Presión</span>
+              <strong id="metricPressure">--</strong>
+              <small>kPa</small>
+            </div>
+            <div class="metric">
+              <span>Riesgo</span>
+              <strong id="metricRisk">--</strong>
+              <small>%</small>
+            </div>
+            <div class="metric">
+              <span>Dispositivo</span>
+              <strong id="metricDevice">--</strong>
+              <small>Origen de datos</small>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel operator-panel">
+          <div class="panel-head">
+            <h2>Operador</h2>
+            <span class="operator-badge" id="operatorBadge">Lectura pública</span>
+          </div>
+          <div class="panel-body">
+            <p id="authMessage" class="helper">
+              Accede desde la página de inicio de sesión para confirmar alertas.
+            </p>
+            <div class="operator-actions dashboard-actions">
+              <a href="../login/" class="button secondary">Ir a iniciar sesión</a>
+              <button type="button" id="logoutBtn" class="ghost">Cerrar sesión</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <h2>Flujo histórico</h2>
+            <span class="mono">60 muestras</span>
+          </div>
+          <canvas id="flowChart"></canvas>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <h2>Presión histórica</h2>
+            <span class="mono">Actualización cada 2 s</span>
+          </div>
+          <canvas id="pressureChart"></canvas>
+        </article>
+
+        <article class="panel circuit-panel">
+          <div class="panel-head">
+            <h2>Estado físico del circuito</h2>
+            <span class="mono">ESP32 · Wokwi</span>
+          </div>
+          <div class="circuit-grid">
+            <div class="circuit-item">
+              <span class="led led-green" id="ledGreen"></span>
+              <div>
+                <strong>LED verde</strong>
+                <small>NORMAL fijo</small>
+              </div>
+            </div>
+            <div class="circuit-item">
+              <span class="led led-amber" id="ledAmber"></span>
+              <div>
+                <strong>LED naranja</strong>
+                <small>ALERTA intermitente</small>
+              </div>
+            </div>
+            <div class="circuit-item">
+              <span class="led led-red" id="ledRed"></span>
+              <div>
+                <strong>LED rojo</strong>
+                <small>FUGA o ERROR</small>
+              </div>
+            </div>
+            <div class="circuit-item buzzer" id="buzzerState">
+              <span class="buzzer-icon">)))</span>
+              <div>
+                <strong>Buzzer</strong>
+                <small id="buzzerText">Apagado</small>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel alerts-panel">
+          <div class="panel-head">
+            <h2>Alertas recientes</h2>
+            <span class="mono">máx. 20</span>
+          </div>
+          <ul id="alertsList" class="alerts-list"></ul>
+        </article>
+
+        <article class="panel table-panel">
+          <div class="panel-head">
+            <h2>Lecturas recientes</h2>
+            <span class="mono">Últimas 60</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Hora</th>
+                  <th>Dispositivo</th>
+                  <th>Flujo</th>
+                  <th>Presión</th>
+                  <th>Riesgo</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="readingsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

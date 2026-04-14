@@ -1,0 +1,13 @@
+{
+  "name": "iot-water-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node ./scripts/build-static.mjs",
+    "dev": "serve . -l ${PORT:-8000}",
+    "start": "npm run build && serve dist -l ${PORT:-8000}"
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}

@@ -1,0 +1,23 @@
+@import url('../styles.css');
+
+/* Ajustes de estilo específicos del dashboard */
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.dashboard-actions {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.operator-actions.dashboard-actions {
+  justify-content: space-between;
+}
+
+.table-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+}

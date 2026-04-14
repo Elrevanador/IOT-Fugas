@@ -1,8 +1,0 @@
-[wokwi]
-version = 1
-firmware = "build/IOt.ino.merged.bin"
-elf = "build/IOt.ino.elf"
-
-[[net.forward]]
-from = "localhost:8180"
-to = "target:80"

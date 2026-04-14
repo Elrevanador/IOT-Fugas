@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iniciar sesión - IoT Water Monitor</title>
+    <script src="../config.js" defer></script>
+    <script src="../common.js" defer></script>
+    <script src="./app.js" defer></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="login">
+    <div class="backdrop"></div>
+    <main class="shell login-shell">
+      <section class="login-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Wokwi + ESP32 + Railway</p>
+          <h1>Accede como operador.</h1>
+          <p class="subcopy">
+            Esta página está separada del dashboard público. Inicia sesión para confirmar alertas.
+          </p>
+        </div>
+
+        <article class="panel auth-panel">
+          <div class="panel-head">
+            <h2>Inicio de sesión</h2>
+          </div>
+          <form id="loginForm" class="login-form">
+            <input id="email" type="email" placeholder="Email" autocomplete="username" />
+            <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+            <div class="operator-actions">
+              <button type="submit">Iniciar sesión</button>
+            </div>
+          </form>
+          <p id="authMessage" class="helper">
+            Introduce tu correo y contraseña para confirmar alertas desde el dashboard.
+          </p>
+          <div class="helper-links">
+            <a href="../dashboard/" class="button secondary">Ver dashboard público</a>
+            <a href="../register/" class="button secondary">Crear cuenta</a>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
