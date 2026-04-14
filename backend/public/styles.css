@@ -48,6 +48,7 @@ body {
   line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 .backdrop {
@@ -180,7 +181,7 @@ body {
 
 .hero {
   display: grid;
-  grid-template-columns: 1.55fr 1fr;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
   gap: clamp(14px, 3vw, 22px);
   align-items: stretch;
   margin-bottom: clamp(16px, 3vw, 24px);
@@ -264,8 +265,16 @@ body {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: clamp(14px, 2.5vw, 18px);
+}
+
+.hero > *,
+.dashboard-grid > *,
+.metrics > *,
+.circuit-grid > *,
+.simulation-details > * {
+  min-width: 0;
 }
 
 .panel {
@@ -320,7 +329,7 @@ body {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -665,6 +674,8 @@ button.ghost,
   -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-sm);
   margin: 0 -2px;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
 }
 
 table {
@@ -704,10 +715,11 @@ tbody tr:hover {
 @media (max-width: 1100px) {
   .hero,
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .metric-panel,
+  .simulation-panel,
   .operator-panel,
   .chart-panel,
   .circuit-panel,
