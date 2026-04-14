@@ -187,9 +187,12 @@ const renderAlerts = (recentAlerts) => {
     const meta = document.createElement("div");
     meta.className = "alert-copy";
     meta.innerHTML = `
-      <strong>${alert.severity}</strong>
-      <span>${alert.deviceName || `ID ${alert.deviceId}`} · ${formatTs(alert.ts)}</span>
-      <p>${alert.message}</p>
+      <div class="alert-headline">
+        <strong>${alert.severity}</strong>
+        <span class="alert-time">${formatTs(alert.ts)}</span>
+      </div>
+      <span class="alert-device">${alert.deviceName || `ID ${alert.deviceId}`}</span>
+      <p class="alert-message">${alert.message}</p>
     `;
 
     const button = document.createElement("button");

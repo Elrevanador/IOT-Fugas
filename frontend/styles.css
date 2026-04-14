@@ -645,11 +645,12 @@ button.ghost,
 .alert-item {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 11px 12px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.03);
+  align-items: start;
 }
 
 .alert-item[data-severity="FUGA"] {
@@ -660,10 +661,22 @@ button.ghost,
   border-color: rgba(240, 180, 41, 0.22);
 }
 
+.alert-copy {
+  min-width: 0;
+}
+
+.alert-headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .alert-copy strong {
   display: block;
-  margin-bottom: 4px;
-  font-size: 0.875rem;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.2;
 }
 
 .alert-copy span,
@@ -674,16 +687,39 @@ button.ghost,
   font-size: 0.8125rem;
 }
 
-.alert-copy p {
-  margin: 8px 0 0;
+.alert-time,
+.alert-device {
+  display: block;
+  line-height: 1.35;
+}
+
+.alert-time {
+  flex-shrink: 0;
+  font-size: 0.69rem;
+  text-align: right;
+}
+
+.alert-device {
+  margin-top: 3px;
+  font-size: 0.72rem;
+}
+
+.alert-message {
+  margin: 5px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.38;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .ack-btn {
-  align-self: start;
-  min-width: 120px;
-  font-size: 0.8125rem;
-  padding: 10px 14px;
-  min-height: 42px;
+  align-self: center;
+  min-width: 96px;
+  font-size: 0.74rem;
+  padding: 8px 12px;
+  min-height: 36px;
 }
 
 .table-wrap {
@@ -799,6 +835,15 @@ tbody tr:hover {
     justify-content: center;
     text-align: center;
     min-width: 0;
+  }
+
+  .alert-item {
+    grid-template-columns: 1fr;
+  }
+
+  .ack-btn {
+    width: 100%;
+    justify-self: stretch;
   }
 }
 
