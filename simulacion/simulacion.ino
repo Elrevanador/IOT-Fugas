@@ -43,6 +43,24 @@ int lastReportedRisk       = -1;
 EstadoSistema lastReportedState = ESTADO_NORMAL;
 bool lastReportedSensorOK  = true;
 
+static void printJsonEstado(const SystemState &s) {
+  Serial.print("{\"device\":\"");
+  Serial.print(DEVICE_NAME);
+  Serial.print("\",\"flow_lmin\":");
+  Serial.print(s.flujoLmin, 2);
+  Serial.print(",\"pressure_kpa\":");
+  Serial.print(s.presionKPa, 2);
+  Serial.print(",\"risk\":");
+  Serial.print(s.nivelRiesgo);
+  Serial.print(",\"state\":\"");
+  Serial.print(estadoTexto(s.estadoSistema));
+  Serial.print("\",\"sensor_ok\":");
+  Serial.print(s.sensorOK ? "true" : "false");
+  Serial.print(",\"backend_online\":");
+  Serial.print(s.backendOnline ? "true" : "false");
+  Serial.println("}");
+}
+
 // ---------------- Interrupcion ----------------
 void IRAM_ATTR onPulse() {
   state.pulseCount++;
@@ -69,6 +87,7 @@ void setup() {
   lastBlink   = millis();
 
   Serial.println("Sistema listo");
+  Serial.println("Comandos seriales: HELP, PING, STATUS, FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
 }
 
 // ---------------- Loop ----------------
@@ -87,12 +106,19 @@ void loop() {
       state.contadorCritico,
       state.nivelRiesgo
     );
+
+    // Permite demostrar actuadores y cambios de estado desde monitor serial.
+    if (commandHasForcedState()) {
+      state.estadoSistema = commandForcedState();
+    }
+
     actualizarLCD(lcd, state, lastLCDUpdate);
 
     Serial.print("Estado: ");       Serial.println(estadoTexto(state.estadoSistema));
     Serial.print("Nivel riesgo: "); Serial.println(state.nivelRiesgo);
     Serial.print("Cnt alerta: ");   Serial.println(state.contadorAlerta);
     Serial.print("Cnt critico: ");  Serial.println(state.contadorCritico);
+    printJsonEstado(state);
     Serial.println();
 
     lastMeasure = now;

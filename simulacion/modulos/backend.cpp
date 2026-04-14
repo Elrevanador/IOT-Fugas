@@ -1,9 +1,18 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <cstring>
 #include "modulos/config.h"
 #include "modulos/backend.h"
 #include "modulos/wifi_mod.h"
+
+#ifndef BACKEND_ALLOW_INSECURE_TLS
+#define BACKEND_ALLOW_INSECURE_TLS 1
+#endif
+
+#ifndef BACKEND_ROOT_CA_PEM
+#define BACKEND_ROOT_CA_PEM ""
+#endif
 
 String backendBaseUrl() {
   return BACKEND_MODE == BACKEND_PUBLIC ? String(BACKEND_BASE_URL_PUBLIC) : String(BACKEND_BASE_URL_LOCAL);
@@ -52,7 +61,20 @@ void enviarBackend(SystemState &state) {
 
   bool httpIniciado = false;
   if (backendUsaHttps(url)) {
+#if BACKEND_ALLOW_INSECURE_TLS
     secureClient.setInsecure();
+#else
+    if (std::strlen(BACKEND_ROOT_CA_PEM) > 0) {
+      secureClient.setCACert(BACKEND_ROOT_CA_PEM);
+    } else {
+      state.backendOnline = false;
+      state.backendLastCode = -2;
+      state.backendLastMsg = "TLS seguro requiere BACKEND_ROOT_CA_PEM";
+      Serial.println("TLS seguro habilitado, pero falta BACKEND_ROOT_CA_PEM.");
+      Serial.println("Define BACKEND_ROOT_CA_PEM o usa BACKEND_ALLOW_INSECURE_TLS=1 solo en desarrollo.");
+      return;
+    }
+#endif
     httpIniciado = http.begin(secureClient, url);
   } else {
     httpIniciado = http.begin(client, url);

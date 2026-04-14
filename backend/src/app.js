@@ -55,6 +55,12 @@ const isDevelopmentNetworkOrigin = (origin) => {
 };
 
 app.use(express.json());
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  next();
+});
 app.use(
   cors({
     origin: (origin, callback) => {

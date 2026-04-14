@@ -32,3 +32,10 @@
   display: inline-flex;
   justify-content: center;
 }
+
+@media (max-width: 640px) {
+  .login-panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+}

@@ -51,6 +51,14 @@ if [[ -d "$LOCAL_LIBRARIES_DIR" ]]; then
   COMPILE_ARGS+=(--libraries "$LOCAL_LIBRARIES_DIR")
 fi
 
+if [[ -n "${ARDUINO_BUILD_PROPERTIES:-}" ]]; then
+  echo "==> Aplicando build properties personalizadas"
+  while IFS= read -r build_property; do
+    [[ -z "$build_property" ]] && continue
+    COMPILE_ARGS+=(--build-property "$build_property")
+  done <<< "$ARDUINO_BUILD_PROPERTIES"
+fi
+
 echo "==> Compilando $SKETCH_NAME"
 arduino-cli compile "${COMPILE_ARGS[@]}" "$ROOT_DIR"
 APP_BIN="$BUILD_DIR/$SKETCH_NAME.bin"

@@ -48,6 +48,13 @@ Si cambias `simulacion/simulacion.ino`, ejecuta:
 ./build_wokwi_bundle.sh
 ```
 
+Puedes inyectar secretos/configuracion de compilacion sin editar el repo usando `ARDUINO_BUILD_PROPERTIES`. Ejemplo:
+
+```bash
+export ARDUINO_BUILD_PROPERTIES=$'build.extra_flags=-DINGEST_API_KEY_VALUE=\"tu_clave\" -DBACKEND_ALLOW_INSECURE_TLS=0'
+./build_wokwi_bundle.sh
+```
+
 El script sincroniza las dependencias declaradas en `simulacion/libraries.txt` antes de compilar y prioriza las librerias locales en `simulacion/libraries/`, para evitar diferencias entre Wokwi y `arduino-cli` local.
 
 La libreria `LiquidCrystal_I2C` se deja versionada dentro del proyecto para evitar el warning de arquitectura AVR que generan instalaciones antiguas de `LiquidCrystal I2C`.
@@ -77,7 +84,7 @@ Copia `backend/.env.example` a `backend/.env` y ajusta:
 - `FRONTEND_ORIGIN`
 - `DB_SYNC_ALTER`
 
-En Railway configura las mismas variables como variables del servicio. `INGEST_API_KEY` debe coincidir con la constante `INGEST_API_KEY` de `simulacion/simulacion.ino`.
+En Railway configura las mismas variables como variables del servicio. `INGEST_API_KEY` debe coincidir con la clave inyectada al compilar la simulacion (`INGEST_API_KEY_VALUE`).
 
 ### Ejecutar
 
@@ -128,7 +135,7 @@ npm run dev
 Header requerido:
 
 ```http
-x-device-key: wokwi-dev-ingest-key
+x-device-key: <tu_ingest_api_key>
 ```
 
 ## Modo local y modo público
@@ -146,12 +153,12 @@ Para que ambos escenarios funcionen correctamente:
    - deja `DB_SYNC_ALTER=false` salvo que estes trabajando contra una base local desechable
    - establece `FRONTEND_ORIGIN=http://localhost:8000,http://127.0.0.1:8000`
    - asegúrate de tener el backend local corriendo en `http://host.wokwi.internal:3000`
-   - usa `INGEST_API_KEY=wokwi-dev-ingest-key`
+   - usa una `INGEST_API_KEY` propia y segura (no de ejemplo)
 
 2. En Railway:
    - cambia `BACKEND_MODE` a `BACKEND_PUBLIC`
    - actualiza `BACKEND_BASE_URL_PUBLIC` con la URL de tu backend de Railway
-   - configura la misma `INGEST_API_KEY` en las variables de entorno de Railway y en `simulacion/modulos/config.cpp`
+   - configura la misma `INGEST_API_KEY` en Railway y en el build de simulacion (macro `INGEST_API_KEY_VALUE`)
 
 El repositorio deja `BACKEND_LOCAL` como valor predeterminado para facilitar las pruebas locales, pero el despliegue Railway debe usar `BACKEND_PUBLIC` y la URL real del servicio.
 
@@ -197,7 +204,7 @@ Nombra los servicios exactamente asi para poder copiar y pegar las variables sin
 NODE_ENV=production
 DB_SYNC_ALTER=false
 JWT_SECRET=pon_aqui_un_secreto_largo_y_random
-INGEST_API_KEY=wokwi-dev-ingest-key
+INGEST_API_KEY=pon_una_clave_larga_y_random_para_dispositivos
 
 DB_HOST=${{MySQL.MYSQLHOST}}
 DB_PORT=${{MySQL.MYSQLPORT}}
