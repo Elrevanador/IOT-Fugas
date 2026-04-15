@@ -77,18 +77,20 @@
     }
   ],
   "connections": [
+    [ "esp1:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp1:RX0", "$serialMonitor:TX", "", [] ],
+
     [ "bmp1:VCC", "esp1:3V3", "red", [ "v0" ] ],
     [ "bmp1:GND", "esp1:GND.1", "black", [ "v0" ] ],
     [ "bmp1:SDA", "esp1:D21", "green", [ "v0" ] ],
     [ "bmp1:SCL", "esp1:D22", "blue", [ "v0" ] ],
 
-    [ "lcd1:VCC", "esp1:5V", "red", [ "v0" ] ],
+    [ "lcd1:VCC", "esp1:VIN", "red", [ "v0" ] ],
     [ "lcd1:GND", "esp1:GND.1", "black", [ "v0" ] ],
     [ "lcd1:SDA", "esp1:D21", "green", [ "v0" ] ],
     [ "lcd1:SCL", "esp1:D22", "blue", [ "v0" ] ],
 
     [ "clk1:CLK", "esp1:D27", "orange", [ "v0" ] ],
-    [ "clk1:VCC", "esp1:3V3", "red", [ "v0" ] ],
     [ "clk1:GND", "esp1:GND.1", "black", [ "v0" ] ],
 
     [ "esp1:D2", "rG:1", "green", [ "v0" ] ],
