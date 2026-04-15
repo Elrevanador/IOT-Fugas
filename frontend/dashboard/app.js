@@ -358,6 +358,11 @@ const loadDashboard = async () => {
 const createChart = (canvasId, color, label) => {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return null;
+  if (typeof window.Chart !== "function") {
+    console.warn("Chart.js no esta disponible. El dashboard seguira cargando sin graficos.");
+    return null;
+  }
+
   return new Chart(canvas, {
     type: "line",
     data: {
@@ -396,8 +401,6 @@ const createChart = (canvasId, color, label) => {
 };
 
 const initDashboardPage = async () => {
-  flowChart = createChart("flowChart", "#00c2a8", "Flujo");
-  pressureChart = createChart("pressureChart", "#f59e0b", "Presión");
   token = localStorage.getItem("token") || "";
   setDashboardVisibility(false);
 
@@ -408,6 +411,9 @@ const initDashboardPage = async () => {
   if (!isAuthenticated) {
     return;
   }
+
+  flowChart = createChart("flowChart", "#00c2a8", "Flujo");
+  pressureChart = createChart("pressureChart", "#f59e0b", "Presión");
 
   if (dashboardEls.logoutBtn) {
     dashboardEls.logoutBtn.addEventListener("click", () => {
@@ -426,11 +432,15 @@ const initDashboardPage = async () => {
   startDashboardStream();
 };
 
-window.addEventListener("load", async () => {
+window.addEventListener("load", () => {
   const page = document.body.dataset.page || "dashboard";
-  if (page === "dashboard") {
-    await initDashboardPage();
-  }
+  if (page !== "dashboard") return;
+
+  initDashboardPage().catch((error) => {
+    console.error("No se pudo inicializar el dashboard.", error);
+    setDashboardVisibility(false);
+    setAuthGateMessage("No fue posible abrir el monitor. Recarga la página o vuelve a iniciar sesión.", "error");
+  });
 });
 
 window.addEventListener("beforeunload", () => {
