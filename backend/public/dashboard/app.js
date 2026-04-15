@@ -21,6 +21,9 @@ const stateSummaryMap = {
 };
 
 const dashboardEls = {
+  dashboardContent: document.getElementById("dashboardContent"),
+  authGate: document.getElementById("authGate"),
+  authGateMessage: document.getElementById("authGateMessage"),
   deviceStatus: document.getElementById("deviceStatus"),
   lastSeen: document.getElementById("lastSeen"),
   stateHeadline: document.getElementById("stateHeadline"),
@@ -47,6 +50,26 @@ const dashboardEls = {
   ledRed: document.getElementById("ledRed"),
   buzzerState: document.getElementById("buzzerState"),
   buzzerText: document.getElementById("buzzerText")
+};
+
+const clearSession = () => {
+  localStorage.removeItem("token");
+  token = "";
+};
+
+const setDashboardVisibility = (isAuthenticated) => {
+  if (dashboardEls.dashboardContent) {
+    dashboardEls.dashboardContent.hidden = !isAuthenticated;
+  }
+  if (dashboardEls.authGate) {
+    dashboardEls.authGate.hidden = isAuthenticated;
+  }
+};
+
+const setAuthGateMessage = (message, state = "info") => {
+  if (!dashboardEls.authGateMessage) return;
+  dashboardEls.authGateMessage.textContent = message;
+  dashboardEls.authGateMessage.dataset.state = state;
 };
 
 const applyTone = (element, state) => {
@@ -107,18 +130,38 @@ const renderSimulationState = (payload) => {
   }
 };
 
-const updateAuthUI = () => {
-  const isAuthenticated = Boolean(token);
+const updateAuthUI = (isAuthenticated = Boolean(token)) => {
   if (dashboardEls.operatorBadge) {
-    dashboardEls.operatorBadge.textContent = isAuthenticated ? "Modo operador" : "Lectura pública";
+    dashboardEls.operatorBadge.textContent = isAuthenticated ? "Modo operador" : "Acceso requerido";
   }
   if (dashboardEls.authMessage) {
     dashboardEls.authMessage.textContent = isAuthenticated
       ? "Estás autenticado. Puedes confirmar alertas desde el dashboard."
-      : "Accede desde la página de inicio de sesión para confirmar alertas.";
+      : "Inicia sesión para habilitar el dashboard y gestionar alertas.";
   }
   if (dashboardEls.logoutBtn) {
     dashboardEls.logoutBtn.style.display = isAuthenticated ? "inline-flex" : "none";
+  }
+};
+
+const validateSession = async () => {
+  if (!token) {
+    setAuthGateMessage("Inicia sesión o regístrate para acceder al monitor.", "info");
+    return false;
+  }
+
+  try {
+    await api("/api/auth/me");
+    return true;
+  } catch (error) {
+    if (error.status === 401) {
+      clearSession();
+      setAuthGateMessage("Tu sesión expiró o no es válida. Inicia sesión o regístrate para continuar.", "error");
+      return false;
+    }
+
+    setAuthGateMessage(error.message, "error");
+    return false;
   }
 };
 
@@ -197,7 +240,7 @@ const renderAlerts = (recentAlerts) => {
 
     const button = document.createElement("button");
     button.className = "ack-btn";
-    button.textContent = alert.acknowledged ? "Confirmada" : token ? "Confirmar" : "Login requerido";
+    button.textContent = alert.acknowledged ? "Confirmada" : token ? "Confirmar" : "Acceso requerido";
     button.disabled = alert.acknowledged || !token;
 
     if (!alert.acknowledged && token) {
@@ -208,10 +251,14 @@ const renderAlerts = (recentAlerts) => {
           await loadDashboard();
         } catch (error) {
           if (error.status === 401) {
-            localStorage.removeItem("token");
-            token = "";
-            updateAuthUI();
+            clearSession();
+            clearDashboardPolling();
+            closeDashboardStream();
+            updateAuthUI(false);
+            setDashboardVisibility(false);
+            setAuthGateMessage("Tu sesión expiró. Inicia sesión o regístrate para continuar.", "error");
             if (dashboardEls.authMessage) dashboardEls.authMessage.textContent = "Sesión expirada. Inicia sesión de nuevo.";
+            window.location.href = "../login/";
           }
         }
       });
@@ -283,20 +330,9 @@ const handleDashboardStreamPayload = (event) => {
 };
 
 const startDashboardStream = () => {
-  if (typeof window.EventSource !== "function") {
-    ensureDashboardPolling(2000);
-    return;
-  }
-
-  closeDashboardStream();
-  dashboardStream = new EventSource(`${API_BASE_URL}/api/public/dashboard/stream`);
-  dashboardStream.addEventListener("open", () => {
-    clearDashboardPolling();
-  });
-  dashboardStream.addEventListener("dashboard", handleDashboardStreamPayload);
-  dashboardStream.addEventListener("error", () => {
-    ensureDashboardPolling(2000);
-  });
+  // El dashboard ahora exige Authorization y EventSource no envia ese header
+  // de forma nativa, por eso mantenemos refresco autenticado por polling.
+  ensureDashboardPolling(2000);
 };
 
 const loadDashboard = async () => {
@@ -363,13 +399,24 @@ const initDashboardPage = async () => {
   flowChart = createChart("flowChart", "#00c2a8", "Flujo");
   pressureChart = createChart("pressureChart", "#f59e0b", "Presión");
   token = localStorage.getItem("token") || "";
-  updateAuthUI();
+  setDashboardVisibility(false);
+
+  const isAuthenticated = await validateSession();
+  updateAuthUI(isAuthenticated);
+  setDashboardVisibility(isAuthenticated);
+
+  if (!isAuthenticated) {
+    return;
+  }
 
   if (dashboardEls.logoutBtn) {
     dashboardEls.logoutBtn.addEventListener("click", () => {
-      localStorage.removeItem("token");
-      token = "";
-      updateAuthUI();
+      clearSession();
+      clearDashboardPolling();
+      closeDashboardStream();
+      updateAuthUI(false);
+      setDashboardVisibility(false);
+      setAuthGateMessage("Has cerrado sesión. Inicia nuevamente o regístrate si necesitas una cuenta.", "info");
       window.location.href = "../login/";
     });
   }

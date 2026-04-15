@@ -8,6 +8,23 @@
   margin-top: 18px;
 }
 
+.auth-gate {
+  align-items: stretch;
+}
+
+.auth-gate-panel {
+  padding: clamp(20px, 4vw, 28px);
+}
+
+.auth-gate-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .dashboard-actions {
   flex-wrap: wrap;
   justify-content: space-between;
@@ -18,17 +35,19 @@
 }
 
 .simulation-panel {
-  grid-column: span 12;
+  flex: 1 1 100%;
 }
 
 .simulation-details {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
 }
 
 .simulation-detail {
+  flex: 1 1 160px;
+  min-width: 0;
   padding: 16px;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.03);
@@ -50,7 +69,7 @@
 }
 
 .simulation-detail-wide {
-  grid-column: span 2;
+  flex: 2 1 320px;
 }
 
 .payload-card {
@@ -97,12 +116,8 @@
 }
 
 @media (max-width: 1100px) {
-  .simulation-details {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .simulation-detail-wide {
-    grid-column: span 2;
+    flex-basis: 240px;
   }
 }
 
@@ -117,11 +132,11 @@
   }
 
   .simulation-details {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
   .simulation-detail-wide {
-    grid-column: span 1;
+    flex-basis: auto;
   }
 
   .payload-card {

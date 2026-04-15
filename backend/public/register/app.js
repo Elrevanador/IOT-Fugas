@@ -37,12 +37,27 @@ const applyRegisterFieldErrors = (details = []) => {
   });
 };
 
-const initRegisterPage = () => {
+const resolveExistingSession = async () => {
   const token = localStorage.getItem("token") || "";
-  if (token) {
-    window.location.href = "../dashboard/";
-    return;
+  if (!token) {
+    return false;
   }
+
+  try {
+    await api("/api/auth/me");
+    window.location.href = "../dashboard/";
+    return true;
+  } catch (error) {
+    if (error.status === 401) {
+      localStorage.removeItem("token");
+    }
+    return false;
+  }
+};
+
+const initRegisterPage = async () => {
+  const hasValidSession = await resolveExistingSession();
+  if (hasValidSession) return;
 
   if (!registerEls.registerForm) return;
 
@@ -53,7 +68,7 @@ const initRegisterPage = () => {
       field.removeAttribute("data-error");
       field.removeAttribute("title");
       if (registerEls.registerMessage?.dataset.state === "error") {
-        setRegisterMessage("Crea una cuenta para confirmar alertas desde el dashboard.", "info");
+        setRegisterMessage("Crea una cuenta para entrar al monitor y gestionar alertas.", "info");
       }
     });
   });
@@ -86,4 +101,8 @@ const initRegisterPage = () => {
   });
 };
 
-window.addEventListener("load", initRegisterPage);
+window.addEventListener("load", () => {
+  initRegisterPage().catch((error) => {
+    console.error("No se pudo inicializar la pantalla de registro.", error);
+  });
+});

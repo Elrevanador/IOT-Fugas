@@ -39,4 +39,19 @@ const login = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login };
+const me = async (req, res, next) => {
+  try {
+    return res.json({
+      ok: true,
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        nombre: req.user.nombre
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { register, login, me };

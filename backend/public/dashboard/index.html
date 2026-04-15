@@ -29,203 +29,228 @@
         </nav>
       </header>
 
-      <section class="hero">
+      <section id="authGate" class="hero auth-gate">
         <div class="hero-copy">
-          <p class="eyebrow">Telemetría continua</p>
-          <h1>Supervisión profesional de presión y flujo ante fugas.</h1>
-          <p class="subcopy">
-            Panel de lectura pública con histórico, alertas y estado del circuito físico. Los operadores confirman incidencias desde un acceso restringido.
+          <p class="eyebrow">Acceso restringido</p>
+          <h1>Inicie sesión para ver el monitor.</h1>
+          <p id="authGateMessage" class="subcopy">
+            Validando sesión activa...
           </p>
           <div class="hero-actions">
-            <a href="../login/" class="button secondary">Acceso operadores</a>
-            <a href="#dashboard" class="button">Ir a métricas</a>
+            <a href="../login/" class="button">Iniciar sesión</a>
+            <a href="../register/" class="button secondary">Registrarse</a>
           </div>
         </div>
-        <div class="hero-status">
-          <div class="status-card">
-            <span class="status-label">Dispositivo</span>
-            <strong id="deviceStatus">Sin datos</strong>
-            <span id="lastSeen">Esperando lectura</span>
+        <article class="panel auth-gate-panel">
+          <div class="panel-head">
+            <h2>Antes de entrar</h2>
           </div>
-          <div class="status-card">
-            <span class="status-label">Estado del sistema</span>
-            <strong id="stateHeadline">SIN_DATOS</strong>
-            <span id="stateSummary">Actualización automática cada 2 s y canal en tiempo real.</span>
-          </div>
-        </div>
+          <ul class="auth-gate-list">
+            <li>Consulte el dashboard solo con una cuenta activa.</li>
+            <li>Si aún no tiene acceso, puede crear una cuenta desde registro.</li>
+            <li>Las acciones sobre alertas se habilitan únicamente con sesión válida.</li>
+          </ul>
+        </article>
       </section>
 
-      <section class="dashboard-grid" id="dashboard">
-        <article class="panel metric-panel">
-          <div class="panel-head">
-            <h2>Métricas instantáneas</h2>
-            <span class="pill" id="statePill">SIN_DATOS</span>
-          </div>
-          <div class="metrics">
-            <div class="metric">
-              <span>Caudal</span>
-              <strong id="metricFlow">--</strong>
-              <small>L/min</small>
-            </div>
-            <div class="metric">
-              <span>Presión</span>
-              <strong id="metricPressure">--</strong>
-              <small>kPa</small>
-            </div>
-            <div class="metric">
-              <span>Índice de riesgo</span>
-              <strong id="metricRisk">--</strong>
-              <small>%</small>
-            </div>
-            <div class="metric">
-              <span>Origen</span>
-              <strong id="metricDevice">--</strong>
-              <small>Dispositivo</small>
-            </div>
-          </div>
-        </article>
-
-        <article class="panel operator-panel">
-          <div class="panel-head">
-            <h2>Consola de operador</h2>
-            <span class="operator-badge" id="operatorBadge">Lectura pública</span>
-          </div>
-          <div class="panel-body">
-            <p id="authMessage" class="helper">
-              Inicie sesión para reconocer y cerrar alertas desde este entorno.
+      <div id="dashboardContent" hidden>
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">Telemetría continua</p>
+            <h1>Supervisión profesional de presión y flujo ante fugas.</h1>
+            <p class="subcopy">
+              Panel operativo con histórico, alertas y estado del circuito físico. El acceso está limitado a operadores autenticados.
             </p>
-            <div class="operator-actions dashboard-actions">
-              <a href="../login/" class="button secondary">Ir al acceso</a>
-              <button type="button" id="logoutBtn" class="ghost">Cerrar sesión</button>
+            <div class="hero-actions">
+              <a href="#dashboard" class="button">Ir a métricas</a>
             </div>
           </div>
-        </article>
+          <div class="hero-status">
+            <div class="status-card">
+              <span class="status-label">Dispositivo</span>
+              <strong id="deviceStatus">Sin datos</strong>
+              <span id="lastSeen">Esperando lectura</span>
+            </div>
+            <div class="status-card">
+              <span class="status-label">Estado del sistema</span>
+              <strong id="stateHeadline">SIN_DATOS</strong>
+              <span id="stateSummary">Actualización automática cada 2 s y canal en tiempo real.</span>
+            </div>
+          </div>
+        </section>
 
-        <article class="panel simulation-panel">
-          <div class="panel-head">
-            <h2>Resumen de telemetría</h2>
-            <span class="mono" id="simulationConnection">Sin datos</span>
-          </div>
-          <div class="simulation-details">
-            <div class="simulation-detail">
-              <span>Estado lógico</span>
-              <strong id="simulationState">SIN_DATOS</strong>
+        <section class="dashboard-grid" id="dashboard">
+          <article class="panel metric-panel">
+            <div class="panel-head">
+              <h2>Métricas instantáneas</h2>
+              <span class="pill" id="statePill">SIN_DATOS</span>
             </div>
-            <div class="simulation-detail">
-              <span>Última muestra</span>
-              <strong id="simulationUpdatedAt">--</strong>
-            </div>
-            <div class="simulation-detail">
-              <span>Lecturas</span>
-              <strong id="simulationSamples">0</strong>
-            </div>
-            <div class="simulation-detail">
-              <span>Alertas</span>
-              <strong id="simulationAlerts">0</strong>
-            </div>
-            <div class="simulation-detail simulation-detail-wide">
-              <span>Última alerta</span>
-              <strong id="simulationLastAlert">Sin alertas</strong>
-            </div>
-          </div>
-          <div class="payload-card">
-            <div class="panel-head compact">
-              <h3>Último payload (API)</h3>
-              <span class="mono">JSON</span>
-            </div>
-            <pre id="simulationPayload" class="payload-view">Sin payload disponible.</pre>
-          </div>
-        </article>
-
-        <div class="dashboard-lower">
-          <div class="dashboard-column dashboard-column--main">
-            <article class="panel chart-panel">
-              <div class="panel-head">
-                <h2>Tendencia de caudal</h2>
-                <span class="mono">60 puntos</span>
+            <div class="metrics">
+              <div class="metric">
+                <span>Caudal</span>
+                <strong id="metricFlow">--</strong>
+                <small>L/min</small>
               </div>
-              <canvas id="flowChart" aria-label="Gráfico histórico de caudal"></canvas>
-            </article>
-
-            <article class="panel circuit-panel">
-              <div class="panel-head">
-                <h2>Indicadores en campo</h2>
-                <span class="mono">ESP32 · Wokwi</span>
+              <div class="metric">
+                <span>Presión</span>
+                <strong id="metricPressure">--</strong>
+                <small>kPa</small>
               </div>
-              <div class="circuit-grid">
-                <div class="circuit-item">
-                  <span class="led led-green" id="ledGreen"></span>
-                  <div>
-                    <strong>Normal</strong>
-                    <small>LED verde · operación nominal</small>
+              <div class="metric">
+                <span>Índice de riesgo</span>
+                <strong id="metricRisk">--</strong>
+                <small>%</small>
+              </div>
+              <div class="metric">
+                <span>Origen</span>
+                <strong id="metricDevice">--</strong>
+                <small>Dispositivo</small>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel operator-panel">
+            <div class="panel-head">
+              <h2>Consola de operador</h2>
+              <span class="operator-badge" id="operatorBadge">Acceso requerido</span>
+            </div>
+            <div class="panel-body">
+              <p id="authMessage" class="helper">
+                Inicie sesión para reconocer y cerrar alertas desde este entorno.
+              </p>
+              <div class="operator-actions dashboard-actions">
+                <a href="../login/" class="button secondary">Ir al acceso</a>
+                <button type="button" id="logoutBtn" class="ghost">Cerrar sesión</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel simulation-panel">
+            <div class="panel-head">
+              <h2>Resumen de telemetría</h2>
+              <span class="mono" id="simulationConnection">Sin datos</span>
+            </div>
+            <div class="simulation-details">
+              <div class="simulation-detail">
+                <span>Estado lógico</span>
+                <strong id="simulationState">SIN_DATOS</strong>
+              </div>
+              <div class="simulation-detail">
+                <span>Última muestra</span>
+                <strong id="simulationUpdatedAt">--</strong>
+              </div>
+              <div class="simulation-detail">
+                <span>Lecturas</span>
+                <strong id="simulationSamples">0</strong>
+              </div>
+              <div class="simulation-detail">
+                <span>Alertas</span>
+                <strong id="simulationAlerts">0</strong>
+              </div>
+              <div class="simulation-detail simulation-detail-wide">
+                <span>Última alerta</span>
+                <strong id="simulationLastAlert">Sin alertas</strong>
+              </div>
+            </div>
+            <div class="payload-card">
+              <div class="panel-head compact">
+                <h3>Último payload (API)</h3>
+                <span class="mono">JSON</span>
+              </div>
+              <pre id="simulationPayload" class="payload-view">Sin payload disponible.</pre>
+            </div>
+          </article>
+
+          <div class="dashboard-lower">
+            <div class="dashboard-column dashboard-column--main">
+              <article class="panel chart-panel">
+                <div class="panel-head">
+                  <h2>Tendencia de caudal</h2>
+                  <span class="mono">60 puntos</span>
+                </div>
+                <canvas id="flowChart" aria-label="Gráfico histórico de caudal"></canvas>
+              </article>
+
+              <article class="panel circuit-panel">
+                <div class="panel-head">
+                  <h2>Indicadores en campo</h2>
+                  <span class="mono">ESP32 · Wokwi</span>
+                </div>
+                <div class="circuit-grid">
+                  <div class="circuit-item">
+                    <span class="led led-green" id="ledGreen"></span>
+                    <div>
+                      <strong>Normal</strong>
+                      <small>LED verde · operación nominal</small>
+                    </div>
+                  </div>
+                  <div class="circuit-item">
+                    <span class="led led-amber" id="ledAmber"></span>
+                    <div>
+                      <strong>Alerta</strong>
+                      <small>LED ámbar · intermitente</small>
+                    </div>
+                  </div>
+                  <div class="circuit-item">
+                    <span class="led led-red" id="ledRed"></span>
+                    <div>
+                      <strong>Crítico</strong>
+                      <small>LED rojo · fuga o fallo</small>
+                    </div>
+                  </div>
+                  <div class="circuit-item buzzer" id="buzzerState">
+                    <span class="buzzer-icon" aria-hidden="true">⌁</span>
+                    <div>
+                      <strong>Alarma sonora</strong>
+                      <small id="buzzerText">Inactiva</small>
+                    </div>
                   </div>
                 </div>
-                <div class="circuit-item">
-                  <span class="led led-amber" id="ledAmber"></span>
-                  <div>
-                    <strong>Alerta</strong>
-                    <small>LED ámbar · intermitente</small>
-                  </div>
-                </div>
-                <div class="circuit-item">
-                  <span class="led led-red" id="ledRed"></span>
-                  <div>
-                    <strong>Crítico</strong>
-                    <small>LED rojo · fuga o fallo</small>
-                  </div>
-                </div>
-                <div class="circuit-item buzzer" id="buzzerState">
-                  <span class="buzzer-icon" aria-hidden="true">⌁</span>
-                  <div>
-                    <strong>Alarma sonora</strong>
-                    <small id="buzzerText">Inactiva</small>
-                  </div>
-                </div>
-              </div>
-            </article>
+              </article>
 
-            <article class="panel table-panel">
-              <div class="panel-head">
-                <h2>Historial de lecturas</h2>
-                <span class="mono">últimas 60</span>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Hora</th>
-                      <th>Dispositivo</th>
-                      <th>Caudal</th>
-                      <th>Presión</th>
-                      <th>Riesgo</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody id="readingsTable"></tbody>
-                </table>
-              </div>
-            </article>
+              <article class="panel table-panel">
+                <div class="panel-head">
+                  <h2>Historial de lecturas</h2>
+                  <span class="mono">últimas 60</span>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Hora</th>
+                        <th>Dispositivo</th>
+                        <th>Caudal</th>
+                        <th>Presión</th>
+                        <th>Riesgo</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="readingsTable"></tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <div class="dashboard-column dashboard-column--side">
+              <article class="panel chart-panel">
+                <div class="panel-head">
+                  <h2>Tendencia de presión</h2>
+                  <span class="mono">Δ 2 s</span>
+                </div>
+                <canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas>
+              </article>
+
+              <article class="panel alerts-panel">
+                <div class="panel-head">
+                  <h2>Registro de alertas</h2>
+                  <span class="mono">hasta 20</span>
+                </div>
+                <ul id="alertsList" class="alerts-list"></ul>
+              </article>
+            </div>
           </div>
-
-          <div class="dashboard-column dashboard-column--side">
-            <article class="panel chart-panel">
-              <div class="panel-head">
-                <h2>Tendencia de presión</h2>
-                <span class="mono">Δ 2 s</span>
-              </div>
-              <canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas>
-            </article>
-
-            <article class="panel alerts-panel">
-              <div class="panel-head">
-                <h2>Registro de alertas</h2>
-                <span class="mono">hasta 20</span>
-              </div>
-              <ul id="alertsList" class="alerts-list"></ul>
-            </article>
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   </body>
 </html>

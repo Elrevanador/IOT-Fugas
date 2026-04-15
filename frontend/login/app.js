@@ -35,12 +35,27 @@ const applyLoginFieldErrors = (details = []) => {
   });
 };
 
-const initLoginPage = () => {
+const resolveExistingSession = async () => {
   const token = localStorage.getItem("token") || "";
-  if (token) {
-    window.location.href = "../dashboard/";
-    return;
+  if (!token) {
+    return false;
   }
+
+  try {
+    await api("/api/auth/me");
+    window.location.href = "../dashboard/";
+    return true;
+  } catch (error) {
+    if (error.status === 401) {
+      localStorage.removeItem("token");
+    }
+    return false;
+  }
+};
+
+const initLoginPage = async () => {
+  const hasValidSession = await resolveExistingSession();
+  if (hasValidSession) return;
 
   if (!loginEls.loginForm) return;
 
@@ -51,7 +66,7 @@ const initLoginPage = () => {
       field.removeAttribute("data-error");
       field.removeAttribute("title");
       if (loginEls.authMessage?.dataset.state === "error") {
-        setLoginMessage("Introduce tu correo y contraseña para confirmar alertas desde el dashboard.", "info");
+        setLoginMessage("Introduce tu correo y contraseña para entrar al monitor.", "info");
       }
     });
   });
@@ -84,4 +99,8 @@ const initLoginPage = () => {
   });
 };
 
-window.addEventListener("load", initLoginPage);
+window.addEventListener("load", () => {
+  initLoginPage().catch((error) => {
+    console.error("No se pudo inicializar la pantalla de login.", error);
+  });
+});
