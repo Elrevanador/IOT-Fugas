@@ -137,88 +137,94 @@
           </div>
         </article>
 
-        <article class="panel chart-panel">
-          <div class="panel-head">
-            <h2>Tendencia de caudal</h2>
-            <span class="mono">60 puntos</span>
-          </div>
-          <canvas id="flowChart" aria-label="Gráfico histórico de caudal"></canvas>
-        </article>
-
-        <article class="panel chart-panel">
-          <div class="panel-head">
-            <h2>Tendencia de presión</h2>
-            <span class="mono">Δ 2 s</span>
-          </div>
-          <canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas>
-        </article>
-
-        <article class="panel circuit-panel">
-          <div class="panel-head">
-            <h2>Indicadores en campo</h2>
-            <span class="mono">ESP32 · Wokwi</span>
-          </div>
-          <div class="circuit-grid">
-            <div class="circuit-item">
-              <span class="led led-green" id="ledGreen"></span>
-              <div>
-                <strong>Normal</strong>
-                <small>LED verde · operación nominal</small>
+        <div class="dashboard-lower">
+          <div class="dashboard-column dashboard-column--main">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <h2>Tendencia de caudal</h2>
+                <span class="mono">60 puntos</span>
               </div>
-            </div>
-            <div class="circuit-item">
-              <span class="led led-amber" id="ledAmber"></span>
-              <div>
-                <strong>Alerta</strong>
-                <small>LED ámbar · intermitente</small>
-              </div>
-            </div>
-            <div class="circuit-item">
-              <span class="led led-red" id="ledRed"></span>
-              <div>
-                <strong>Crítico</strong>
-                <small>LED rojo · fuga o fallo</small>
-              </div>
-            </div>
-            <div class="circuit-item buzzer" id="buzzerState">
-              <span class="buzzer-icon" aria-hidden="true">⌁</span>
-              <div>
-                <strong>Alarma sonora</strong>
-                <small id="buzzerText">Inactiva</small>
-              </div>
-            </div>
-          </div>
-        </article>
+              <canvas id="flowChart" aria-label="Gráfico histórico de caudal"></canvas>
+            </article>
 
-        <article class="panel alerts-panel">
-          <div class="panel-head">
-            <h2>Registro de alertas</h2>
-            <span class="mono">hasta 20</span>
-          </div>
-          <ul id="alertsList" class="alerts-list"></ul>
-        </article>
+            <article class="panel circuit-panel">
+              <div class="panel-head">
+                <h2>Indicadores en campo</h2>
+                <span class="mono">ESP32 · Wokwi</span>
+              </div>
+              <div class="circuit-grid">
+                <div class="circuit-item">
+                  <span class="led led-green" id="ledGreen"></span>
+                  <div>
+                    <strong>Normal</strong>
+                    <small>LED verde · operación nominal</small>
+                  </div>
+                </div>
+                <div class="circuit-item">
+                  <span class="led led-amber" id="ledAmber"></span>
+                  <div>
+                    <strong>Alerta</strong>
+                    <small>LED ámbar · intermitente</small>
+                  </div>
+                </div>
+                <div class="circuit-item">
+                  <span class="led led-red" id="ledRed"></span>
+                  <div>
+                    <strong>Crítico</strong>
+                    <small>LED rojo · fuga o fallo</small>
+                  </div>
+                </div>
+                <div class="circuit-item buzzer" id="buzzerState">
+                  <span class="buzzer-icon" aria-hidden="true">⌁</span>
+                  <div>
+                    <strong>Alarma sonora</strong>
+                    <small id="buzzerText">Inactiva</small>
+                  </div>
+                </div>
+              </div>
+            </article>
 
-        <article class="panel table-panel">
-          <div class="panel-head">
-            <h2>Historial de lecturas</h2>
-            <span class="mono">últimas 60</span>
+            <article class="panel table-panel">
+              <div class="panel-head">
+                <h2>Historial de lecturas</h2>
+                <span class="mono">últimas 60</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <th>Dispositivo</th>
+                      <th>Caudal</th>
+                      <th>Presión</th>
+                      <th>Riesgo</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="readingsTable"></tbody>
+                </table>
+              </div>
+            </article>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Hora</th>
-                  <th>Dispositivo</th>
-                  <th>Caudal</th>
-                  <th>Presión</th>
-                  <th>Riesgo</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody id="readingsTable"></tbody>
-            </table>
+
+          <div class="dashboard-column dashboard-column--side">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <h2>Tendencia de presión</h2>
+                <span class="mono">Δ 2 s</span>
+              </div>
+              <canvas id="pressureChart" aria-label="Gráfico histórico de presión"></canvas>
+            </article>
+
+            <article class="panel alerts-panel">
+              <div class="panel-head">
+                <h2>Registro de alertas</h2>
+                <span class="mono">hasta 20</span>
+              </div>
+              <ul id="alertsList" class="alerts-list"></ul>
+            </article>
           </div>
-        </article>
+        </div>
       </section>
     </main>
   </body>
