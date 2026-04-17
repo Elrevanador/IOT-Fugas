@@ -52,6 +52,7 @@ const dashboardEls = {
   buzzerState: document.getElementById("buzzerState"),
   buzzerText: document.getElementById("buzzerText"),
   floatingAlert: document.getElementById("floatingAlert"),
+  floatingAlertBackdrop: document.getElementById("floatingAlertBackdrop"),
   floatingAlertEyebrow: document.getElementById("floatingAlertEyebrow"),
   floatingAlertTitle: document.getElementById("floatingAlertTitle"),
   floatingAlertMessage: document.getElementById("floatingAlertMessage"),
@@ -98,9 +99,33 @@ const syncCircuit = (state) => {
   if (dashboardEls.buzzerText) dashboardEls.buzzerText.textContent = state === "FUGA" ? "Activo por fuga confirmada" : "Apagado";
 };
 
+const circuitStatusText = (deviceOnline, lastSeenAt) => {
+  if (deviceOnline) {
+    return {
+      headline: "Circuito activo",
+      detail: "Monitoreo en tiempo real"
+    };
+  }
+
+  if (lastSeenAt) {
+    return {
+      headline: "Circuito inactivo",
+      detail: `Última activación: ${formatTs(lastSeenAt)}`
+    };
+  }
+
+  return {
+    headline: "Circuito sin datos",
+    detail: "Aún no se registra activación"
+  };
+};
+
 const hideFloatingAlert = () => {
   if (!dashboardEls.floatingAlert) return;
   dashboardEls.floatingAlert.hidden = true;
+  if (dashboardEls.floatingAlertBackdrop) {
+    dashboardEls.floatingAlertBackdrop.hidden = true;
+  }
 };
 
 const updateFloatingAlert = (currentState, latestReading, latestAlert, lastSeenAt) => {
@@ -125,6 +150,9 @@ const updateFloatingAlert = (currentState, latestReading, latestAlert, lastSeenA
 
   dashboardEls.floatingAlert.dataset.severity = currentState;
   dashboardEls.floatingAlert.hidden = false;
+  if (dashboardEls.floatingAlertBackdrop) {
+    dashboardEls.floatingAlertBackdrop.hidden = false;
+  }
   if (dashboardEls.floatingAlertEyebrow) {
     dashboardEls.floatingAlertEyebrow.textContent = isLeak ? "Fuga confirmada" : "Alerta activa";
   }
@@ -150,9 +178,10 @@ const updateFloatingAlert = (currentState, latestReading, latestAlert, lastSeenA
 const renderSimulationState = (payload) => {
   const { latestReading, currentState, lastSeenAt, deviceOnline, recentReadings, recentAlerts } = payload;
   const latestAlert = recentAlerts[0] || null;
+  const circuitStatus = circuitStatusText(deviceOnline, lastSeenAt);
 
   if (dashboardEls.simulationConnection) {
-    dashboardEls.simulationConnection.textContent = deviceOnline ? "Telemetría activa" : "Sin telemetría reciente";
+    dashboardEls.simulationConnection.textContent = circuitStatus.headline;
   }
   if (dashboardEls.simulationState) {
     dashboardEls.simulationState.textContent = currentState || "SIN_DATOS";
@@ -226,11 +255,12 @@ const validateSession = async () => {
 };
 
 const renderLatestReading = (latestReading, deviceOnline, lastSeenAt, currentState) => {
+  const circuitStatus = circuitStatusText(deviceOnline, lastSeenAt);
   applyTone(dashboardEls.statePill, currentState);
   if (dashboardEls.stateHeadline) dashboardEls.stateHeadline.textContent = currentState;
   if (dashboardEls.stateSummary) dashboardEls.stateSummary.textContent = stateSummaryMap[currentState] || stateSummaryMap.SIN_DATOS;
-  if (dashboardEls.deviceStatus) dashboardEls.deviceStatus.textContent = deviceOnline ? "ESP32 en línea" : "Sin telemetría reciente";
-  if (dashboardEls.lastSeen) dashboardEls.lastSeen.textContent = lastSeenAt ? `Última lectura: ${formatTs(lastSeenAt)}` : "Esperando lectura";
+  if (dashboardEls.deviceStatus) dashboardEls.deviceStatus.textContent = circuitStatus.headline;
+  if (dashboardEls.lastSeen) dashboardEls.lastSeen.textContent = circuitStatus.detail;
 
   if (!latestReading) {
     if (dashboardEls.metricFlow) dashboardEls.metricFlow.textContent = "--";

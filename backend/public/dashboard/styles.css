@@ -13,22 +13,32 @@
   white-space: nowrap;
 }
 
+.floating-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  background:
+    radial-gradient(circle at center, rgba(15, 24, 28, 0.22), rgba(5, 8, 10, 0.6));
+  backdrop-filter: blur(6px);
+}
+
 .floating-alert {
   position: fixed;
-  top: 24px;
-  right: 24px;
-  z-index: 50;
-  width: min(380px, calc(100vw - 32px));
-  border-radius: 24px;
+  top: 50%;
+  left: 50%;
+  z-index: 49;
+  width: min(520px, calc(100vw - 32px));
+  border-radius: 28px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background:
     linear-gradient(160deg, rgba(14, 25, 31, 0.96), rgba(8, 14, 18, 0.92)),
     radial-gradient(circle at top right, rgba(255, 174, 0, 0.28), transparent 46%);
   box-shadow:
-    0 22px 70px rgba(0, 0, 0, 0.38),
+    0 38px 110px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.04) inset;
   backdrop-filter: blur(18px);
+  transform: translate(-50%, -50%);
 }
 
 .floating-alert[data-severity="ALERTA"] {
@@ -61,8 +71,8 @@
 .floating-alert__body {
   position: relative;
   display: grid;
-  gap: 14px;
-  padding: 20px 20px 18px;
+  gap: 16px;
+  padding: 24px 24px 22px;
 }
 
 .floating-alert__head {
@@ -114,7 +124,7 @@
 
 .floating-alert__title {
   font-family: var(--display);
-  font-size: 1.28rem;
+  font-size: 1.5rem;
   line-height: 1.15;
   color: #fff9ef;
 }
@@ -128,7 +138,7 @@
 .floating-alert__stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .floating-alert__stat {
@@ -288,11 +298,7 @@
   }
 
   .floating-alert {
-    top: auto;
-    right: 16px;
-    bottom: 16px;
-    left: 16px;
-    width: auto;
+    width: min(92vw, 520px);
   }
 
   .floating-alert__body {
