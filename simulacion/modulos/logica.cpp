@@ -44,6 +44,16 @@ EstadoSistema evaluarEstado(
     return ESTADO_ERROR;
   }
 
+  // Recuperacion rapida: si la presion ya regreso claramente y el flujo no luce
+  // anomalo, soltamos la alerta sin esperar a que los contadores se descarguen.
+  if (presionKPa >= PRESION_RECUPERACION_NORMAL + 0.8f &&
+      flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT + 0.25f) {
+    contadorAlerta = 0;
+    contadorCritico = 0;
+    nivelRiesgo = min(nivelRiesgo, 15);
+    return ESTADO_NORMAL;
+  }
+
   if (presionKPa >= PRESION_RECUPERACION_NORMAL) {
     contadorAlerta = 0;
     contadorCritico = 0;

@@ -14,6 +14,38 @@
   </head>
   <body data-page="dashboard">
     <div class="backdrop" aria-hidden="true"></div>
+    <aside id="floatingAlert" class="floating-alert" hidden aria-live="polite">
+      <div class="floating-alert__glow" aria-hidden="true"></div>
+      <div class="floating-alert__body">
+        <div class="floating-alert__head">
+          <span id="floatingAlertEyebrow" class="floating-alert__eyebrow">Monitoreo estable</span>
+          <button type="button" id="floatingAlertClose" class="floating-alert__close" aria-label="Ocultar alerta flotante">×</button>
+        </div>
+        <strong id="floatingAlertTitle" class="floating-alert__title">Sin eventos críticos</strong>
+        <p id="floatingAlertMessage" class="floating-alert__message">
+          La ventana flotante aparecerá automáticamente cuando el sistema entre en alerta o fuga.
+        </p>
+        <div class="floating-alert__stats">
+          <div class="floating-alert__stat">
+            <span>Estado</span>
+            <strong id="floatingAlertState">SIN_DATOS</strong>
+          </div>
+          <div class="floating-alert__stat">
+            <span>Riesgo</span>
+            <strong id="floatingAlertRisk">--</strong>
+          </div>
+          <div class="floating-alert__stat">
+            <span>Presión</span>
+            <strong id="floatingAlertPressure">--</strong>
+          </div>
+          <div class="floating-alert__stat">
+            <span>Caudal</span>
+            <strong id="floatingAlertFlow">--</strong>
+          </div>
+        </div>
+        <span id="floatingAlertTimestamp" class="floating-alert__timestamp">Esperando telemetría</span>
+      </div>
+    </aside>
     <main class="shell shell--with-header">
       <header class="site-header">
         <a class="brand" href="./">
@@ -23,10 +55,13 @@
             <span class="brand-tagline">Monitoreo de fugas · ESP32 &amp; nube</span>
           </span>
         </a>
-        <nav class="site-nav" aria-label="Navegación principal">
-          <a href="./" aria-current="page">Monitor en vivo</a>
-          <a href="../login/">Acceso operadores</a>
-        </nav>
+        <div class="header-actions">
+          <nav class="site-nav" aria-label="Navegación principal">
+            <a href="./" aria-current="page">Monitor en vivo</a>
+            <a href="../login/">Acceso operadores</a>
+          </nav>
+          <button type="button" id="logoutBtn" class="ghost header-logout">Cerrar sesión</button>
+        </div>
       </header>
 
       <section id="authGate" class="hero auth-gate">
@@ -120,7 +155,6 @@
               </p>
               <div class="operator-actions dashboard-actions">
                 <a href="../login/" class="button secondary">Ir al acceso</a>
-                <button type="button" id="logoutBtn" class="ghost">Cerrar sesión</button>
               </div>
             </div>
           </article>

@@ -16,7 +16,7 @@ void initSensores(Adafruit_BMP085 &bmp, SystemState &state) {
 
 }
 
-void readSensores(Adafruit_BMP085 &bmp, SystemState &state) {
+void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sampleIntervalMs) {
   noInterrupts();
   uint32_t pulses = state.pulseCount;
   state.pulseCount = 0;
@@ -28,7 +28,12 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state) {
 
   long presionPa = bmp.readPressure();
 
-  float frequencyHz = pulses / 2.0;
+  float sampleSeconds = sampleIntervalMs / 1000.0f;
+  if (sampleSeconds <= 0.0f) {
+    sampleSeconds = 1.0f;
+  }
+
+  float frequencyHz = pulses / sampleSeconds;
   float nuevoFlujo = frequencyHz / 7.5;
   float nuevaPresion = 0.0;
 
@@ -49,8 +54,25 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state) {
     state.presionKPa = nuevaPresion;
     state.primeraLectura = false;
   } else {
-    state.flujoLmin  = state.flujoLmin * 0.40 + nuevoFlujo * 0.60;
-    state.presionKPa = state.presionKPa * 0.40 + nuevaPresion * 0.60;
+    // Hacemos el suavizado asimetrico:
+    // cuando el sistema parece recuperarse, priorizamos mucho mas la lectura nueva
+    // para que cambios manuales de presion/flujo se reflejen casi de inmediato.
+    float deltaFlujo = nuevoFlujo - state.flujoLmin;
+    float deltaPresion = nuevaPresion - state.presionKPa;
+
+    float pesoNuevoFlujo = nuevoFlujo < state.flujoLmin ? 0.97f : 0.80f;
+    float pesoNuevoPresion = nuevaPresion > state.presionKPa ? 0.97f : 0.80f;
+
+    // Si hay una recuperacion marcada, aplicamos casi un "snap" al valor nuevo.
+    if (deltaPresion >= 1.5f) {
+      pesoNuevoPresion = 1.0f;
+    }
+    if (deltaFlujo <= -0.8f) {
+      pesoNuevoFlujo = 1.0f;
+    }
+
+    state.flujoLmin = state.flujoLmin * (1.0f - pesoNuevoFlujo) + nuevoFlujo * pesoNuevoFlujo;
+    state.presionKPa = state.presionKPa * (1.0f - pesoNuevoPresion) + nuevaPresion * pesoNuevoPresion;
   }
 
   Serial.println("----- LECTURA -----");

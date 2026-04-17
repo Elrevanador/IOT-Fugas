@@ -3,6 +3,7 @@ let dashboardStream = null;
 let flowChart;
 let pressureChart;
 let token = localStorage.getItem("token") || "";
+let floatingAlertDismissedState = "";
 
 const stateToneMap = {
   NORMAL: "normal",
@@ -49,7 +50,17 @@ const dashboardEls = {
   ledAmber: document.getElementById("ledAmber"),
   ledRed: document.getElementById("ledRed"),
   buzzerState: document.getElementById("buzzerState"),
-  buzzerText: document.getElementById("buzzerText")
+  buzzerText: document.getElementById("buzzerText"),
+  floatingAlert: document.getElementById("floatingAlert"),
+  floatingAlertEyebrow: document.getElementById("floatingAlertEyebrow"),
+  floatingAlertTitle: document.getElementById("floatingAlertTitle"),
+  floatingAlertMessage: document.getElementById("floatingAlertMessage"),
+  floatingAlertState: document.getElementById("floatingAlertState"),
+  floatingAlertRisk: document.getElementById("floatingAlertRisk"),
+  floatingAlertPressure: document.getElementById("floatingAlertPressure"),
+  floatingAlertFlow: document.getElementById("floatingAlertFlow"),
+  floatingAlertTimestamp: document.getElementById("floatingAlertTimestamp"),
+  floatingAlertClose: document.getElementById("floatingAlertClose")
 };
 
 const clearSession = () => {
@@ -85,6 +96,55 @@ const syncCircuit = (state) => {
   if (dashboardEls.ledRed) dashboardEls.ledRed.dataset.active = state === "FUGA" || state === "ERROR";
   if (dashboardEls.buzzerState) dashboardEls.buzzerState.dataset.active = state === "FUGA";
   if (dashboardEls.buzzerText) dashboardEls.buzzerText.textContent = state === "FUGA" ? "Activo por fuga confirmada" : "Apagado";
+};
+
+const hideFloatingAlert = () => {
+  if (!dashboardEls.floatingAlert) return;
+  dashboardEls.floatingAlert.hidden = true;
+};
+
+const updateFloatingAlert = (currentState, latestReading, latestAlert, lastSeenAt) => {
+  if (!dashboardEls.floatingAlert) return;
+
+  if (currentState !== "ALERTA" && currentState !== "FUGA") {
+    floatingAlertDismissedState = "";
+    hideFloatingAlert();
+    return;
+  }
+
+  if (floatingAlertDismissedState && floatingAlertDismissedState === currentState) {
+    return;
+  }
+
+  const isLeak = currentState === "FUGA";
+  const risk = latestReading ? `${latestReading.risk}%` : "--";
+  const pressure = latestReading ? `${Number(latestReading.pressure_kpa).toFixed(1)} kPa` : "--";
+  const flow = latestReading ? `${Number(latestReading.flow_lmin).toFixed(2)} L/min` : "--";
+  const timestampText = lastSeenAt ? `Actualizado ${formatTs(lastSeenAt)}` : "Esperando telemetría";
+  const alertMessage = latestAlert?.message;
+
+  dashboardEls.floatingAlert.dataset.severity = currentState;
+  dashboardEls.floatingAlert.hidden = false;
+  if (dashboardEls.floatingAlertEyebrow) {
+    dashboardEls.floatingAlertEyebrow.textContent = isLeak ? "Fuga confirmada" : "Alerta activa";
+  }
+  if (dashboardEls.floatingAlertTitle) {
+    dashboardEls.floatingAlertTitle.textContent = isLeak
+      ? "Intervención inmediata recomendada"
+      : "Revisar condiciones del circuito";
+  }
+  if (dashboardEls.floatingAlertMessage) {
+    dashboardEls.floatingAlertMessage.textContent = alertMessage || (
+      isLeak
+        ? "El sistema detectó una fuga y activó la alarma sonora. Verifica la línea de agua y confirma la alerta desde la consola."
+        : "Se detectó una condición anómala de flujo o presión. Revisa el circuito antes de que evolucione a una fuga."
+    );
+  }
+  if (dashboardEls.floatingAlertState) dashboardEls.floatingAlertState.textContent = currentState;
+  if (dashboardEls.floatingAlertRisk) dashboardEls.floatingAlertRisk.textContent = risk;
+  if (dashboardEls.floatingAlertPressure) dashboardEls.floatingAlertPressure.textContent = pressure;
+  if (dashboardEls.floatingAlertFlow) dashboardEls.floatingAlertFlow.textContent = flow;
+  if (dashboardEls.floatingAlertTimestamp) dashboardEls.floatingAlertTimestamp.textContent = timestampText;
 };
 
 const renderSimulationState = (payload) => {
@@ -301,6 +361,7 @@ const applyDashboardPayload = (payload) => {
   renderCharts(payload.recentReadings || []);
   renderAlerts(payload.recentAlerts || []);
   renderReadings(payload.recentReadings || []);
+  updateFloatingAlert(payload.currentState, payload.latestReading, (payload.recentAlerts || [])[0] || null, payload.lastSeenAt);
 };
 
 const clearDashboardPolling = () => {
@@ -330,9 +391,22 @@ const handleDashboardStreamPayload = (event) => {
 };
 
 const startDashboardStream = () => {
-  // El dashboard ahora exige Authorization y EventSource no envia ese header
-  // de forma nativa, por eso mantenemos refresco autenticado por polling.
-  ensureDashboardPolling(2000);
+  if (typeof window.EventSource !== "function" || !token) {
+    ensureDashboardPolling(1000);
+    return;
+  }
+
+  closeDashboardStream();
+  const streamUrl = new URL(`${API_BASE_URL}/api/public/dashboard/stream`, window.location.origin);
+  streamUrl.searchParams.set("token", token);
+  dashboardStream = new EventSource(streamUrl.toString());
+  dashboardStream.addEventListener("open", () => {
+    clearDashboardPolling();
+  });
+  dashboardStream.addEventListener("dashboard", handleDashboardStreamPayload);
+  dashboardStream.addEventListener("error", () => {
+    ensureDashboardPolling(1000);
+  });
 };
 
 const loadDashboard = async () => {
@@ -427,8 +501,16 @@ const initDashboardPage = async () => {
     });
   }
 
+  if (dashboardEls.floatingAlertClose) {
+    dashboardEls.floatingAlertClose.addEventListener("click", () => {
+      const activeState = dashboardEls.floatingAlert?.dataset.severity || "";
+      floatingAlertDismissedState = activeState;
+      hideFloatingAlert();
+    });
+  }
+
   await loadDashboard();
-  ensureDashboardPolling(2000);
+  ensureDashboardPolling(1000);
   startDashboardStream();
 };
 

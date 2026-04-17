@@ -1,6 +1,162 @@
 @import url('../styles.css');
 
 /* Ajustes de estilo específicos del dashboard */
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.header-logout {
+  white-space: nowrap;
+}
+
+.floating-alert {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 50;
+  width: min(380px, calc(100vw - 32px));
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    linear-gradient(160deg, rgba(14, 25, 31, 0.96), rgba(8, 14, 18, 0.92)),
+    radial-gradient(circle at top right, rgba(255, 174, 0, 0.28), transparent 46%);
+  box-shadow:
+    0 22px 70px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(18px);
+}
+
+.floating-alert[data-severity="ALERTA"] {
+  background:
+    linear-gradient(160deg, rgba(43, 26, 7, 0.96), rgba(22, 14, 6, 0.94)),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.34), transparent 46%);
+}
+
+.floating-alert[data-severity="FUGA"] {
+  background:
+    linear-gradient(160deg, rgba(46, 10, 10, 0.97), rgba(24, 8, 8, 0.95)),
+    radial-gradient(circle at top right, rgba(255, 74, 74, 0.34), transparent 46%);
+}
+
+.floating-alert__glow {
+  position: absolute;
+  inset: auto -40px -80px auto;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: rgba(255, 196, 0, 0.16);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.floating-alert[data-severity="FUGA"] .floating-alert__glow {
+  background: rgba(255, 61, 61, 0.18);
+}
+
+.floating-alert__body {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  padding: 20px 20px 18px;
+}
+
+.floating-alert__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.floating-alert__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 244, 214, 0.82);
+}
+
+.floating-alert__eyebrow::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.7);
+}
+
+.floating-alert[data-severity="FUGA"] .floating-alert__eyebrow::before {
+  background: #ff5d5d;
+  box-shadow: 0 0 20px rgba(255, 93, 93, 0.8);
+}
+
+.floating-alert__close {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.floating-alert__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.floating-alert__title {
+  font-family: var(--display);
+  font-size: 1.28rem;
+  line-height: 1.15;
+  color: #fff9ef;
+}
+
+.floating-alert__message {
+  margin: 0;
+  color: rgba(239, 245, 248, 0.88);
+  line-height: 1.5;
+}
+
+.floating-alert__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.floating-alert__stat {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.floating-alert__stat span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(223, 231, 235, 0.65);
+}
+
+.floating-alert__stat strong {
+  font-size: 1rem;
+  color: #ffffff;
+}
+
+.floating-alert__timestamp {
+  color: rgba(223, 231, 235, 0.72);
+  font-size: 0.88rem;
+}
+
 .hero-actions {
   display: flex;
   gap: 12px;
@@ -122,6 +278,31 @@
 }
 
 @media (max-width: 700px) {
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-logout {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .floating-alert {
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    width: auto;
+  }
+
+  .floating-alert__body {
+    padding: 16px;
+  }
+
+  .floating-alert__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .hero-actions .button {
     width: 100%;
     justify-content: center;
