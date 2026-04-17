@@ -4,6 +4,12 @@ let flowChart;
 let pressureChart;
 let token = localStorage.getItem("token") || "";
 let floatingAlertDismissedState = "";
+let alertsFilter = "ALL";
+let lastLeakNotificationKey = "";
+let dashboardTransportMode = "Polling";
+let dashboardTransportHealthy = false;
+let dashboardAudioContext = null;
+let latestDashboardPayload = null;
 
 const stateToneMap = {
   NORMAL: "normal",
@@ -41,9 +47,15 @@ const dashboardEls = {
   simulationConnection: document.getElementById("simulationConnection"),
   simulationLastAlert: document.getElementById("simulationLastAlert"),
   simulationPayload: document.getElementById("simulationPayload"),
+  deviceHealthMode: document.getElementById("deviceHealthMode"),
+  healthChannel: document.getElementById("healthChannel"),
+  healthBackend: document.getElementById("healthBackend"),
+  healthLastPacket: document.getElementById("healthLastPacket"),
+  healthAlarm: document.getElementById("healthAlarm"),
   operatorBadge: document.getElementById("operatorBadge"),
   authMessage: document.getElementById("authMessage"),
   alertsList: document.getElementById("alertsList"),
+  alertFilters: document.getElementById("alertFilters"),
   readingsTable: document.getElementById("readingsTable"),
   logoutBtn: document.getElementById("logoutBtn"),
   ledGreen: document.getElementById("ledGreen"),
@@ -118,6 +130,106 @@ const circuitStatusText = (deviceOnline, lastSeenAt) => {
     headline: "Circuito sin datos",
     detail: "Aún no se registra activación"
   };
+};
+
+const relativeLastPacketText = (lastSeenAt) => {
+  if (!lastSeenAt) return "--";
+  const deltaMs = Math.max(0, Date.now() - new Date(lastSeenAt).getTime());
+  const seconds = Math.round(deltaMs / 1000);
+  if (seconds < 2) return "Hace instantes";
+  if (seconds < 60) return `Hace ${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  return `Hace ${minutes} min`;
+};
+
+const filterAlerts = (recentAlerts) => {
+  switch (alertsFilter) {
+    case "ACTIVE":
+      return recentAlerts.filter((alert) => !alert.acknowledged);
+    case "ACK":
+      return recentAlerts.filter((alert) => alert.acknowledged);
+    case "FUGA":
+    case "ALERTA":
+      return recentAlerts.filter((alert) => alert.severity === alertsFilter);
+    case "ALL":
+    default:
+      return recentAlerts;
+  }
+};
+
+const syncAlertFilterUI = () => {
+  if (!dashboardEls.alertFilters) return;
+  dashboardEls.alertFilters.querySelectorAll("[data-filter]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.filter === alertsFilter);
+  });
+};
+
+const ensureAudioContext = () => {
+  if (dashboardAudioContext) return dashboardAudioContext;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  dashboardAudioContext = new AudioCtx();
+  return dashboardAudioContext;
+};
+
+const playLeakTone = async () => {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+
+  if (ctx.state === "suspended") {
+    try {
+      await ctx.resume();
+    } catch (error) {
+      return;
+    }
+  }
+
+  const now = ctx.currentTime;
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(880, now);
+  oscillator.frequency.setValueAtTime(660, now + 0.18);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.13, now + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+  oscillator.connect(gain);
+  gain.connect(ctx.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.45);
+};
+
+const maybeSendLeakNotification = async (payload) => {
+  const latestAlert = (payload.recentAlerts || [])[0];
+  const latestReading = payload.latestReading;
+
+  if (payload.currentState !== "FUGA" || !latestAlert || latestAlert.severity !== "FUGA") {
+    return;
+  }
+
+  const notificationKey = `${latestAlert.id}:${latestAlert.ts}:${payload.currentState}`;
+  if (notificationKey === lastLeakNotificationKey) {
+    return;
+  }
+  lastLeakNotificationKey = notificationKey;
+
+  playLeakTone().catch(() => {});
+
+  if (!("Notification" in window)) return;
+
+  try {
+    if (Notification.permission === "default") {
+      await Notification.requestPermission();
+    }
+    if (Notification.permission === "granted") {
+      const body = latestReading
+        ? `Riesgo ${latestReading.risk}% · ${Number(latestReading.pressure_kpa).toFixed(1)} kPa · ${Number(latestReading.flow_lmin).toFixed(2)} L/min`
+        : "El sistema reportó una fuga confirmada.";
+      new Notification("Fuga detectada en AquaSense", { body });
+    }
+  } catch (error) {
+    console.warn("No se pudo mostrar la notificación de fuga.", error);
+  }
 };
 
 const hideFloatingAlert = () => {
@@ -219,6 +331,24 @@ const renderSimulationState = (payload) => {
   }
 };
 
+const renderDeviceHealth = (payload) => {
+  if (dashboardEls.deviceHealthMode) {
+    dashboardEls.deviceHealthMode.textContent = dashboardTransportMode;
+  }
+  if (dashboardEls.healthChannel) {
+    dashboardEls.healthChannel.textContent = payload.deviceOnline ? "Telemetría activa" : "Sin telemetría";
+  }
+  if (dashboardEls.healthBackend) {
+    dashboardEls.healthBackend.textContent = dashboardTransportHealthy ? "Conectado" : "Con errores";
+  }
+  if (dashboardEls.healthLastPacket) {
+    dashboardEls.healthLastPacket.textContent = relativeLastPacketText(payload.lastSeenAt);
+  }
+  if (dashboardEls.healthAlarm) {
+    dashboardEls.healthAlarm.textContent = payload.currentState === "FUGA" ? "Activa" : "Inactiva";
+  }
+};
+
 const updateAuthUI = (isAuthenticated = Boolean(token)) => {
   if (dashboardEls.operatorBadge) {
     dashboardEls.operatorBadge.textContent = isAuthenticated ? "Modo operador" : "Acceso requerido";
@@ -306,13 +436,14 @@ const renderCharts = (recentReadings) => {
 const renderAlerts = (recentAlerts) => {
   if (!dashboardEls.alertsList) return;
   dashboardEls.alertsList.innerHTML = "";
+  const filteredAlerts = filterAlerts(recentAlerts);
 
-  if (!recentAlerts.length) {
+  if (!filteredAlerts.length) {
     dashboardEls.alertsList.innerHTML = '<li class="empty">No hay alertas registradas.</li>';
     return;
   }
 
-  recentAlerts.forEach((alert) => {
+  filteredAlerts.forEach((alert) => {
     const item = document.createElement("li");
     item.className = "alert-item";
     item.dataset.severity = alert.severity;
@@ -386,12 +517,16 @@ const renderReadings = (recentReadings) => {
 };
 
 const applyDashboardPayload = (payload) => {
+  latestDashboardPayload = payload;
+  dashboardTransportHealthy = true;
   renderLatestReading(payload.latestReading, payload.deviceOnline, payload.lastSeenAt, payload.currentState);
   renderSimulationState(payload);
+  renderDeviceHealth(payload);
   renderCharts(payload.recentReadings || []);
   renderAlerts(payload.recentAlerts || []);
   renderReadings(payload.recentReadings || []);
   updateFloatingAlert(payload.currentState, payload.latestReading, (payload.recentAlerts || [])[0] || null, payload.lastSeenAt);
+  maybeSendLeakNotification(payload).catch(() => {});
 };
 
 const clearDashboardPolling = () => {
@@ -431,19 +566,23 @@ const startDashboardStream = () => {
   streamUrl.searchParams.set("token", token);
   dashboardStream = new EventSource(streamUrl.toString());
   dashboardStream.addEventListener("open", () => {
+    dashboardTransportMode = "SSE";
     clearDashboardPolling();
   });
   dashboardStream.addEventListener("dashboard", handleDashboardStreamPayload);
   dashboardStream.addEventListener("error", () => {
+    dashboardTransportMode = "Polling";
     ensureDashboardPolling(1000);
   });
 };
 
 const loadDashboard = async () => {
   try {
+    dashboardTransportHealthy = true;
     const payload = await api("/api/public/dashboard");
     applyDashboardPayload(payload);
   } catch (error) {
+    dashboardTransportHealthy = false;
     if (dashboardEls.authMessage) dashboardEls.authMessage.textContent = error.message;
     renderLatestReading(null, false, null, "SIN_DATOS");
     renderSimulationState({
@@ -453,6 +592,11 @@ const loadDashboard = async () => {
       deviceOnline: false,
       recentReadings: [],
       recentAlerts: []
+    });
+    renderDeviceHealth({
+      deviceOnline: false,
+      lastSeenAt: null,
+      currentState: "SIN_DATOS"
     });
     renderAlerts([]);
     renderReadings([]);
@@ -519,6 +663,8 @@ const initDashboardPage = async () => {
   flowChart = createChart("flowChart", "#00c2a8", "Flujo");
   pressureChart = createChart("pressureChart", "#f59e0b", "Presión");
 
+  syncAlertFilterUI();
+
   if (dashboardEls.logoutBtn) {
     dashboardEls.logoutBtn.addEventListener("click", () => {
       clearSession();
@@ -536,6 +682,18 @@ const initDashboardPage = async () => {
       const activeState = dashboardEls.floatingAlert?.dataset.severity || "";
       floatingAlertDismissedState = activeState;
       hideFloatingAlert();
+    });
+  }
+
+  if (dashboardEls.alertFilters) {
+    dashboardEls.alertFilters.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-filter]");
+      if (!button) return;
+      alertsFilter = button.dataset.filter || "ALL";
+      syncAlertFilterUI();
+      if (latestDashboardPayload) {
+        renderAlerts(latestDashboardPayload.recentAlerts || []);
+      }
     });
   }
 

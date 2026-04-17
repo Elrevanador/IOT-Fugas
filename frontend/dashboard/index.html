@@ -196,6 +196,31 @@
             </div>
           </article>
 
+          <article class="panel device-health-panel">
+            <div class="panel-head">
+              <h2>Salud del dispositivo</h2>
+              <span class="mono" id="deviceHealthMode">Polling</span>
+            </div>
+            <div class="health-grid">
+              <div class="health-item">
+                <span>Canal</span>
+                <strong id="healthChannel">Sin enlace</strong>
+              </div>
+              <div class="health-item">
+                <span>Backend</span>
+                <strong id="healthBackend">Desconocido</strong>
+              </div>
+              <div class="health-item">
+                <span>Último paquete</span>
+                <strong id="healthLastPacket">--</strong>
+              </div>
+              <div class="health-item">
+                <span>Alarma sonora</span>
+                <strong id="healthAlarm">Inactiva</strong>
+              </div>
+            </div>
+          </article>
+
           <div class="dashboard-lower">
             <div class="dashboard-column dashboard-column--main">
               <article class="panel chart-panel">
@@ -279,6 +304,13 @@
                 <div class="panel-head">
                   <h2>Registro de alertas</h2>
                   <span class="mono">hasta 20</span>
+                </div>
+                <div class="alert-filters" id="alertFilters" aria-label="Filtros de alertas">
+                  <button type="button" class="alert-filter is-active" data-filter="ALL">Todas</button>
+                  <button type="button" class="alert-filter" data-filter="ACTIVE">Activas</button>
+                  <button type="button" class="alert-filter" data-filter="FUGA">Fuga</button>
+                  <button type="button" class="alert-filter" data-filter="ALERTA">Alerta</button>
+                  <button type="button" class="alert-filter" data-filter="ACK">Confirmadas</button>
                 </div>
                 <ul id="alertsList" class="alerts-list"></ul>
               </article>
