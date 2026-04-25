@@ -33,9 +33,11 @@ const char* DEVICE_NAME = DEVICE_NAME_VALUE;
 // Esta clave debe ser EXACTAMENTE la misma que la variable INGEST_API_KEY del
 // servicio backend en Railway. Inyectala por build con INGEST_API_KEY_VALUE.
 const char* INGEST_API_KEY = INGEST_API_KEY_VALUE;
-// Enviamos con la misma cadencia de medicion para que el dashboard refleje
-// los cambios casi al instante sin esperar 15 segundos entre publicaciones.
-const unsigned long BACKEND_SEND_INTERVAL_MS = 2000;
+// Reducimos la ventana de lectura y envio para que el dashboard refleje el
+// estado casi en tiempo real incluso pasando por Railway.
+const unsigned long SENSOR_READ_INTERVAL_MS = 500;
+const unsigned long BACKEND_SEND_INTERVAL_MS = 500;
+const unsigned long BACKEND_TIMEOUT_MS = 1200;
 
 const int flowPin    = 27;
 const int ledVerde   = 2;

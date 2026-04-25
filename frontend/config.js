@@ -1,5 +1,5 @@
 // En local usa el backend de desarrollo.
-// En producción o Railway usa la URL relativa de la misma app.
+// En despliegue separado inyecta PUBLIC_API_BASE_URL durante la build.
 const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 const isFileProtocol = window.location.protocol === "file:" || !window.location.hostname;
 const injectedApiBaseUrl = "__API_BASE_URL__";

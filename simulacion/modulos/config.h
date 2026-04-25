@@ -15,7 +15,9 @@ extern const char* BACKEND_BASE_URL_LOCAL;
 extern const char* BACKEND_BASE_URL_PUBLIC;
 extern const char* DEVICE_NAME;
 extern const char* INGEST_API_KEY;
+extern const unsigned long SENSOR_READ_INTERVAL_MS;
 extern const unsigned long BACKEND_SEND_INTERVAL_MS;
+extern const unsigned long BACKEND_TIMEOUT_MS;
 
 // ---------------- Pines ----------------
 extern const int flowPin;

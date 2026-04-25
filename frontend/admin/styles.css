@@ -1,0 +1,119 @@
+@import url("../styles.css");
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.header-logout {
+  white-space: nowrap;
+}
+
+.admin-gate {
+  margin-bottom: 18px;
+}
+
+.admin-panel {
+  flex: 1 1 360px;
+}
+
+.admin-table-panel {
+  flex: 1 1 100%;
+}
+
+.secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.table-action {
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.table-action--danger {
+  border-color: rgba(255, 107, 107, 0.35);
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.08);
+}
+
+.login-form select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(232, 241, 239, 0.8) 50%),
+    linear-gradient(135deg, rgba(232, 241, 239, 0.8) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) calc(50% - 3px),
+    calc(100% - 14px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 42px;
+}
+
+.login-form select:focus,
+.login-form input:focus {
+  outline: none;
+  border-color: rgba(61, 217, 160, 0.45);
+  box-shadow: 0 0 0 3px rgba(61, 217, 160, 0.12);
+}
+
+.login-form select option {
+  color: #e8f1ef;
+  background: #142126;
+}
+
+.status-card strong {
+  word-break: break-word;
+}
+
+@media (max-width: 700px) {
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-logout {
+    width: 100%;
+    justify-content: center;
+  }
+}

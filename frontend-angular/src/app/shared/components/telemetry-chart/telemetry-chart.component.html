@@ -1,0 +1,32 @@
+<article class="chart-card" [attr.data-tone]="tone()">
+  <header class="chart-card__header">
+    <div>
+      <span class="chart-card__title">{{ title() }}</span>
+      <p>{{ subtitle() }}</p>
+    </div>
+    <strong>{{ peakValue() | number:'1.0-2' }}{{ unit() ? ' ' + unit() : '' }}</strong>
+  </header>
+
+  @if (points().length) {
+    <div class="chart-card__canvas">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="currentColor" stop-opacity="0.34"></stop>
+            <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <path class="chart-card__area" [attr.d]="areaPath()"></path>
+        <path class="chart-card__line" [attr.d]="path()"></path>
+      </svg>
+    </div>
+
+    <div class="chart-card__labels">
+      @for (point of points(); track $index) {
+        <span>{{ point.label || ('#' + ($index + 1)) }}</span>
+      }
+    </div>
+  } @else {
+    <p class="chart-card__empty">Esperando muestras para dibujar la tendencia.</p>
+  }
+</article>

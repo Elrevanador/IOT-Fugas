@@ -200,6 +200,33 @@
   justify-content: space-between;
 }
 
+.operator-context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 18px;
+}
+
+.operator-context__item {
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.operator-context__item span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.operator-context__item strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
 .simulation-panel {
   flex: 1 1 100%;
 }
@@ -306,6 +333,17 @@
   overflow-x: auto;
 }
 
+.alert-device,
+.alert-house {
+  display: block;
+}
+
+.alert-house {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 .alert-filters {
   display: flex;
   flex-wrap: wrap;
@@ -381,6 +419,10 @@
 
   .simulation-details {
     flex-direction: column;
+  }
+
+  .operator-context {
+    grid-template-columns: 1fr;
   }
 
   .health-grid {

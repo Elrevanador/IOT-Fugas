@@ -5,6 +5,6 @@
 #include "modulos/estado.h"
 
 void initSensores(Adafruit_BMP085 &bmp, SystemState &state);
-void readSensores(Adafruit_BMP085 &bmp, SystemState &state);
+void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sampleIntervalMs);
 
 #endif

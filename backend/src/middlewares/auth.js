@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const { getJwtSecret } = require("../config/env");
 
-module.exports = (req, res, next) => {
+const createAuthMiddleware = ({ allowQueryToken = false } = {}) => (req, res, next) => {
   let jwtSecret = "";
 
   try {
@@ -12,7 +12,12 @@ module.exports = (req, res, next) => {
 
   try {
     const auth = req.headers.authorization || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const tokenFromHeader = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const tokenFromQuery =
+      allowQueryToken && req.method === "GET" && typeof req.query.token === "string"
+        ? req.query.token.trim()
+        : "";
+    const token = tokenFromHeader || tokenFromQuery;
     if (!token) {
       return res.status(401).json({ ok: false, msg: "Token requerido" });
     }
@@ -23,3 +28,10 @@ module.exports = (req, res, next) => {
     return res.status(401).json({ ok: false, msg: "Token invalido" });
   }
 };
+
+const auth = createAuthMiddleware();
+
+// EventSource no permite enviar Authorization de forma nativa.
+auth.withQueryToken = createAuthMiddleware({ allowQueryToken: true });
+
+module.exports = auth;

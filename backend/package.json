@@ -1,12 +1,13 @@
 {
   "name": "iot-water-backend",
   "version": "1.0.0",
-  "description": "Backend + frontend dashboard for IoT water leak detection",
+  "description": "Backend API for IoT water leak detection",
   "main": "src/index.js",
   "scripts": {
-    "sync:ui": "bash ./scripts/sync-public.sh",
-    "dev": "npm run sync:ui && node --watch src/index.js",
-    "start": "npm run sync:ui && node src/index.js"
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "migrate": "node src/db/runMigrations.js",
+    "test": "node --test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

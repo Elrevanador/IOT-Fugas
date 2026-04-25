@@ -14,7 +14,14 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "alerts",
-      timestamps: false
+      timestamps: false,
+      indexes: [
+        { fields: ["device_id"] },
+        { fields: ["ts"] },
+        { fields: ["acknowledged"] },
+        { fields: ["severity"] },
+        { fields: ["device_id", "ts"] }
+      ]
     }
   );
 

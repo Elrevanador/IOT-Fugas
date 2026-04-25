@@ -14,7 +14,13 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "readings",
-      timestamps: false
+      timestamps: false,
+      indexes: [
+        { fields: ["device_id"] },
+        { fields: ["ts"] },
+        { fields: ["state"] },
+        { fields: ["device_id", "ts"] }
+      ]
     }
   );
 

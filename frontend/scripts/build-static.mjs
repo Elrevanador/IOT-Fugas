@@ -18,7 +18,8 @@ const entries = [
   "config.js",
   "login",
   "register",
-  "dashboard"
+  "dashboard",
+  "admin"
 ];
 
 entries.forEach((entry) => {
@@ -40,5 +41,5 @@ const renderedConfig = readFileSync(configPath, "utf8").replace(
 writeFileSync(configPath, renderedConfig, "utf8");
 
 console.log(
-  `Frontend estatico generado en ${distDir}${apiBaseUrl ? ` con API ${apiBaseUrl}` : " usando misma URL/origen"}`
+  `Frontend estatico generado en ${distDir}${apiBaseUrl ? ` con API ${apiBaseUrl}` : " sin PUBLIC_API_BASE_URL inyectada"}`
 );

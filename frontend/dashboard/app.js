@@ -10,6 +10,7 @@ let dashboardTransportMode = "Polling";
 let dashboardTransportHealthy = false;
 let dashboardAudioContext = null;
 let latestDashboardPayload = null;
+let currentUserProfile = null;
 
 const stateToneMap = {
   NORMAL: "normal",
@@ -40,6 +41,7 @@ const dashboardEls = {
   metricPressure: document.getElementById("metricPressure"),
   metricRisk: document.getElementById("metricRisk"),
   metricDevice: document.getElementById("metricDevice"),
+  metricHouse: document.getElementById("metricHouse"),
   simulationState: document.getElementById("simulationState"),
   simulationUpdatedAt: document.getElementById("simulationUpdatedAt"),
   simulationSamples: document.getElementById("simulationSamples"),
@@ -54,6 +56,11 @@ const dashboardEls = {
   healthAlarm: document.getElementById("healthAlarm"),
   operatorBadge: document.getElementById("operatorBadge"),
   authMessage: document.getElementById("authMessage"),
+  operatorName: document.getElementById("operatorName"),
+  operatorRole: document.getElementById("operatorRole"),
+  operatorEmail: document.getElementById("operatorEmail"),
+  operatorHouse: document.getElementById("operatorHouse"),
+  adminNavLink: document.getElementById("adminNavLink"),
   alertsList: document.getElementById("alertsList"),
   alertFilters: document.getElementById("alertFilters"),
   readingsTable: document.getElementById("readingsTable"),
@@ -79,6 +86,7 @@ const dashboardEls = {
 const clearSession = () => {
   localStorage.removeItem("token");
   token = "";
+  currentUserProfile = null;
 };
 
 const setDashboardVisibility = (isAuthenticated) => {
@@ -317,6 +325,7 @@ const renderSimulationState = (payload) => {
     dashboardEls.simulationPayload.textContent = latestReading
       ? JSON.stringify(
           {
+            houseName: latestReading.houseName,
             deviceName: latestReading.deviceName,
             ts: latestReading.ts,
             flow_lmin: latestReading.flow_lmin,
@@ -351,7 +360,11 @@ const renderDeviceHealth = (payload) => {
 
 const updateAuthUI = (isAuthenticated = Boolean(token)) => {
   if (dashboardEls.operatorBadge) {
-    dashboardEls.operatorBadge.textContent = isAuthenticated ? "Modo operador" : "Acceso requerido";
+    if (!isAuthenticated || !currentUserProfile?.role) {
+      dashboardEls.operatorBadge.textContent = "Acceso requerido";
+    } else {
+      dashboardEls.operatorBadge.textContent = `Rol ${String(currentUserProfile.role).toUpperCase()}`;
+    }
   }
   if (dashboardEls.authMessage) {
     dashboardEls.authMessage.textContent = isAuthenticated
@@ -360,6 +373,26 @@ const updateAuthUI = (isAuthenticated = Boolean(token)) => {
   }
   if (dashboardEls.logoutBtn) {
     dashboardEls.logoutBtn.style.display = isAuthenticated ? "inline-flex" : "none";
+  }
+  if (dashboardEls.operatorName) {
+    dashboardEls.operatorName.textContent = isAuthenticated && currentUserProfile ? currentUserProfile.nombre : "Sin sesión";
+  }
+  if (dashboardEls.operatorEmail) {
+    dashboardEls.operatorEmail.textContent = isAuthenticated && currentUserProfile ? currentUserProfile.email : "--";
+  }
+  if (dashboardEls.operatorRole) {
+    dashboardEls.operatorRole.textContent = isAuthenticated && currentUserProfile?.role
+      ? String(currentUserProfile.role).toUpperCase()
+      : "--";
+  }
+  if (dashboardEls.operatorHouse) {
+    dashboardEls.operatorHouse.textContent =
+      isAuthenticated && currentUserProfile?.house
+        ? `${currentUserProfile.house.name} (${currentUserProfile.house.code})`
+        : "Sin casa";
+  }
+  if (dashboardEls.adminNavLink) {
+    dashboardEls.adminNavLink.hidden = !(isAuthenticated && currentUserProfile?.role === "admin");
   }
 };
 
@@ -370,7 +403,8 @@ const validateSession = async () => {
   }
 
   try {
-    await api("/api/auth/me");
+    const response = await api("/api/auth/me");
+    currentUserProfile = response.user || null;
     return true;
   } catch (error) {
     if (error.status === 401) {
@@ -397,6 +431,7 @@ const renderLatestReading = (latestReading, deviceOnline, lastSeenAt, currentSta
     if (dashboardEls.metricPressure) dashboardEls.metricPressure.textContent = "--";
     if (dashboardEls.metricRisk) dashboardEls.metricRisk.textContent = "--";
     if (dashboardEls.metricDevice) dashboardEls.metricDevice.textContent = "--";
+    if (dashboardEls.metricHouse) dashboardEls.metricHouse.textContent = "--";
     syncCircuit("SIN_DATOS");
     return;
   }
@@ -405,6 +440,7 @@ const renderLatestReading = (latestReading, deviceOnline, lastSeenAt, currentSta
   if (dashboardEls.metricPressure) dashboardEls.metricPressure.textContent = Number(latestReading.pressure_kpa).toFixed(1);
   if (dashboardEls.metricRisk) dashboardEls.metricRisk.textContent = `${latestReading.risk}%`;
   if (dashboardEls.metricDevice) dashboardEls.metricDevice.textContent = latestReading.deviceName || `ID ${latestReading.deviceId}`;
+  if (dashboardEls.metricHouse) dashboardEls.metricHouse.textContent = latestReading.houseName || "Sin casa";
   syncCircuit(currentState);
 };
 
@@ -456,6 +492,7 @@ const renderAlerts = (recentAlerts) => {
         <span class="alert-time">${formatTs(alert.ts)}</span>
       </div>
       <span class="alert-device">${alert.deviceName || `ID ${alert.deviceId}`}</span>
+      <span class="alert-house">${alert.houseName || "Casa sin asignar"}</span>
       <p class="alert-message">${alert.message}</p>
     `;
 
@@ -495,7 +532,7 @@ const renderReadings = (recentReadings) => {
   dashboardEls.readingsTable.innerHTML = "";
 
   if (!recentReadings.length) {
-    dashboardEls.readingsTable.innerHTML = '<tr><td colspan="6" class="empty-cell">Sin lecturas disponibles.</td></tr>';
+    dashboardEls.readingsTable.innerHTML = '<tr><td colspan="7" class="empty-cell">Sin lecturas disponibles.</td></tr>';
     return;
   }
 
@@ -506,6 +543,7 @@ const renderReadings = (recentReadings) => {
       const row = document.createElement("tr");
       row.innerHTML = `
         <td>${formatTs(reading.ts)}</td>
+        <td>${reading.houseName || "--"}</td>
         <td>${reading.deviceName || `ID ${reading.deviceId}`}</td>
         <td>${Number(reading.flow_lmin).toFixed(2)}</td>
         <td>${Number(reading.pressure_kpa).toFixed(1)}</td>

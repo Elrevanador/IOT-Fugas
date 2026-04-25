@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
+WORKSPACE_BUILD_DIR="$(cd "$ROOT_DIR/.." && pwd)/build"
 FQBN="${FQBN:-esp32:esp32:esp32}"
 SKETCH_NAME="$(basename "$ROOT_DIR").ino"
 SKETCH_PATH="$ROOT_DIR/$SKETCH_NAME"
@@ -63,14 +64,22 @@ echo "==> Compilando $SKETCH_NAME"
 arduino-cli compile "${COMPILE_ARGS[@]}" "$ROOT_DIR"
 APP_BIN="$BUILD_DIR/$SKETCH_NAME.bin"
 ELF_BIN="$BUILD_DIR/$SKETCH_NAME.elf"
+MERGED_BIN="$BUILD_DIR/$SKETCH_NAME.merged.bin"
 
-for path in "$APP_BIN" "$ELF_BIN"; do
+for path in "$APP_BIN" "$ELF_BIN" "$MERGED_BIN"; do
   if [[ ! -f "$path" ]]; then
     echo "Falta el archivo requerido: $path" >&2
     exit 1
   fi
 done
 
+mkdir -p "$WORKSPACE_BUILD_DIR"
+cp "$APP_BIN" "$WORKSPACE_BUILD_DIR/$SKETCH_NAME.bin"
+cp "$ELF_BIN" "$WORKSPACE_BUILD_DIR/$SKETCH_NAME.elf"
+cp "$MERGED_BIN" "$WORKSPACE_BUILD_DIR/$SKETCH_NAME.merged.bin"
+
 echo "==> Listo"
 echo "   Firmware : $APP_BIN"
 echo "   ELF      : $ELF_BIN"
+echo "   Merged   : $MERGED_BIN"
+echo "   Copia Wokwi workspace : $WORKSPACE_BUILD_DIR/$SKETCH_NAME.merged.bin"

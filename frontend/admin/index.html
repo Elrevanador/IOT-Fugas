@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#060b0d" />
+    <meta name="description" content="Administración local de casas y dispositivos del sistema AquaSense." />
+    <title>AquaSense · Administración local</title>
+    <script src="../config.js" defer></script>
+    <script src="../common.js" defer></script>
+    <script src="./app.js" defer></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="admin">
+    <div class="backdrop" aria-hidden="true"></div>
+    <main class="shell shell--with-header">
+      <header class="site-header">
+        <a class="brand" href="../dashboard/">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">
+            <span class="brand-name">AquaSense</span>
+            <span class="brand-tagline">Panel local de administración</span>
+          </span>
+        </a>
+        <div class="header-actions">
+          <nav class="site-nav" aria-label="Navegación principal">
+            <a href="../dashboard/">Monitor</a>
+            <a href="./" aria-current="page">Admin</a>
+            <a href="../login/">Acceso</a>
+          </nav>
+          <button type="button" id="logoutBtn" class="ghost header-logout">Cerrar sesión</button>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Gestión local</p>
+          <h1>Casas y dispositivos en una sola vista.</h1>
+          <p class="subcopy">
+            Desde aquí puedes crear viviendas, registrar sensores y revisar rápidamente cómo quedó enlazado el sistema en tu backend local.
+          </p>
+        </div>
+        <div class="hero-status">
+          <div class="status-card">
+            <span class="status-label">Operador</span>
+            <strong id="adminOperator">Sin sesión</strong>
+            <span id="adminHouse">Sin casa asignada</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Estado</span>
+            <strong id="adminStatus">Validando acceso</strong>
+            <span id="adminSummary">Conectando con el backend local</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminGate" class="panel admin-gate" hidden>
+        <div class="panel-head">
+          <h2>Acceso requerido</h2>
+        </div>
+        <p id="adminGateMessage" class="helper" data-state="info">Inicia sesión para administrar casas y dispositivos.</p>
+        <div class="operator-actions">
+          <a href="../login/" class="button">Ir al acceso</a>
+          <a href="../register/" class="button secondary">Crear cuenta</a>
+        </div>
+      </section>
+
+      <section id="adminContent" class="dashboard-grid" hidden>
+        <article class="panel admin-panel">
+          <div class="panel-head">
+            <h2>Nueva casa</h2>
+            <span class="mono">POST /api/houses</span>
+          </div>
+          <form id="houseForm" class="login-form">
+            <input id="houseId" type="hidden" />
+            <input id="houseName" type="text" placeholder="Nombre de la casa" />
+            <input id="houseAddress" type="text" placeholder="Dirección" />
+            <input id="houseOwner" type="text" placeholder="Responsable" />
+            <input id="housePhone" type="text" placeholder="Teléfono" />
+            <select id="houseStatus">
+              <option value="ACTIVA">ACTIVA</option>
+              <option value="INACTIVA">INACTIVA</option>
+              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+            </select>
+            <div class="operator-actions">
+              <button type="submit" id="houseSubmitBtn">Crear casa</button>
+              <button type="button" id="houseCancelBtn" class="secondary-action" hidden>Cancelar</button>
+            </div>
+          </form>
+          <p id="houseMessage" class="helper" data-state="info">Completa todos los datos. El código único se genera automáticamente.</p>
+        </article>
+
+        <article class="panel admin-panel">
+          <div class="panel-head">
+            <h2>Nuevo cliente</h2>
+            <span class="mono">POST /api/users</span>
+          </div>
+          <form id="userForm" class="login-form">
+            <input id="userId" type="hidden" />
+            <input id="userName" type="text" placeholder="Nombre completo" />
+            <input id="userEmail" type="email" placeholder="Correo electrónico" />
+            <input id="userPassword" type="password" placeholder="Contraseña temporal o nueva contraseña" />
+            <select id="userHouseId">
+              <option value="">Selecciona una casa</option>
+            </select>
+            <select id="userRole">
+              <option value="resident">RESIDENT</option>
+              <option value="operator">OPERATOR</option>
+              <option value="admin">ADMIN</option>
+            </select>
+            <div class="operator-actions">
+              <button type="submit" id="userSubmitBtn">Crear cliente</button>
+              <button type="button" id="userCancelBtn" class="secondary-action" hidden>Cancelar</button>
+            </div>
+          </form>
+          <p id="userMessage" class="helper" data-state="info">Como admin puedes crear clientes y asignarles casa y rol.</p>
+        </article>
+
+        <article class="panel admin-panel">
+          <div class="panel-head">
+            <h2>Nuevo dispositivo</h2>
+            <span class="mono">POST /api/devices</span>
+          </div>
+          <form id="deviceForm" class="login-form">
+            <input id="deviceId" type="hidden" />
+            <input id="deviceName" type="text" placeholder="Nombre del dispositivo" />
+            <select id="deviceHouseId">
+              <option value="">Selecciona una casa</option>
+            </select>
+            <input id="deviceLocation" type="text" placeholder="Ubicación dentro de la casa" />
+            <select id="deviceStatus">
+              <option value="ACTIVO">ACTIVO</option>
+              <option value="NORMAL">NORMAL</option>
+              <option value="ALERTA">ALERTA</option>
+              <option value="FUGA">FUGA</option>
+              <option value="ERROR">ERROR</option>
+              <option value="INACTIVO">INACTIVO</option>
+              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+            </select>
+            <div class="operator-actions">
+              <button type="submit" id="deviceSubmitBtn">Crear dispositivo</button>
+              <button type="button" id="deviceCancelBtn" class="secondary-action" hidden>Cancelar</button>
+            </div>
+          </form>
+          <p id="deviceMessage" class="helper" data-state="info">Completa todos los datos del dispositivo. Puedes editar o eliminar después.</p>
+        </article>
+
+        <article class="panel table-panel admin-table-panel">
+          <div class="panel-head">
+            <h2>Casas registradas</h2>
+            <span class="mono" id="housesCount">0</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Código</th>
+                  <th>Dirección</th>
+                  <th>Responsable</th>
+                  <th>Teléfono</th>
+                  <th>Estado</th>
+                  <th>Usuarios</th>
+                  <th>Dispositivos</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="housesTable"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel table-panel admin-table-panel">
+          <div class="panel-head">
+            <h2>Clientes</h2>
+            <span class="mono" id="usersCount">0</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nombre</th>
+                  <th>Correo</th>
+                  <th>Rol</th>
+                  <th>Casa</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="usersTable"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel table-panel admin-table-panel">
+          <div class="panel-head">
+            <h2>Dispositivos</h2>
+            <span class="mono" id="devicesCount">0</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Dispositivo</th>
+                  <th>Casa</th>
+                  <th>Ubicación</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

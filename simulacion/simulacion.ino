@@ -96,8 +96,9 @@ void loop() {
 
   handleCommands(state);
 
-  if (now - lastMeasure >= 2000) {
-    readSensores(bmp, state);
+  if (now - lastMeasure >= SENSOR_READ_INTERVAL_MS) {
+    unsigned long sampleIntervalMs = now - lastMeasure;
+    readSensores(bmp, state, sampleIntervalMs);
     state.estadoSistema = evaluarEstado(
       state.flujoLmin,
       state.presionKPa,

@@ -9,7 +9,9 @@ const sendDashboardEvent = (res, payload) => {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 };
 
-const attachDashboardStream = (req, res, initialPayload) => {
+const buildScopeKey = (user) => `${user?.houseId || "all"}:${user?.role || "guest"}`;
+
+const attachDashboardStream = (req, res, initialPayload, user) => {
   res.set({
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-cache, no-store, must-revalidate",
@@ -19,7 +21,7 @@ const attachDashboardStream = (req, res, initialPayload) => {
   res.flushHeaders();
   res.write(`retry: ${STREAM_RETRY_MS}\n\n`);
 
-  const client = { res };
+  const client = { res, user, scopeKey: buildScopeKey(user) };
   DASHBOARD_CLIENTS.add(client);
 
   const keepAlive = setInterval(() => {
@@ -41,8 +43,7 @@ const attachDashboardStream = (req, res, initialPayload) => {
 
 const broadcastDashboardUpdate = async () => {
   if (!DASHBOARD_CLIENTS.size) return;
-
-  const payload = await buildPublicDashboardPayload();
+  const payloadCache = new Map();
 
   for (const client of Array.from(DASHBOARD_CLIENTS)) {
     if (client.res.writableEnded) {
@@ -50,7 +51,11 @@ const broadcastDashboardUpdate = async () => {
       continue;
     }
 
-    sendDashboardEvent(client.res, payload);
+    if (!payloadCache.has(client.scopeKey)) {
+      payloadCache.set(client.scopeKey, await buildPublicDashboardPayload(client.user));
+    }
+
+    sendDashboardEvent(client.res, payloadCache.get(client.scopeKey));
   }
 };
 

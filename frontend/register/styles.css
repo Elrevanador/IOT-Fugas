@@ -58,6 +58,10 @@
   margin-top: 18px;
 }
 
+.helper-note {
+  margin: 0 0 10px;
+}
+
 .helper-links .button {
   width: 100%;
   display: inline-flex;

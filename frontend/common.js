@@ -3,7 +3,16 @@ const COLOMBIA_TIMEZONE = "America/Bogota";
 const FIELD_LABELS = {
   nombre: "Nombre",
   email: "Correo electrónico",
-  password: "Contraseña"
+  password: "Contraseña",
+  houseId: "Casa",
+  name: "Nombre",
+  code: "Código",
+  address: "Dirección",
+  owner_name: "Responsable",
+  contact_phone: "Teléfono",
+  status: "Estado",
+  location: "Ubicación",
+  role: "Rol"
 };
 
 const parseJsonSafely = async (response) => {

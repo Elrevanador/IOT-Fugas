@@ -1,0 +1,536 @@
+<section class="admin-page glass-panel">
+  <header>
+    <span class="eyebrow">Admin cockpit</span>
+    <h1>Centro de mando administrativo</h1>
+    <p>{{ message() }}</p>
+  </header>
+
+  @if (isAdmin()) {
+    <div class="admin-stats">
+      <article>
+        <span>Casas</span>
+        <strong>{{ stats().houses }}</strong>
+      </article>
+      <article>
+        <span>Usuarios</span>
+        <strong>{{ stats().users }}</strong>
+      </article>
+      <article>
+        <span>Dispositivos</span>
+        <strong>{{ stats().devices }}</strong>
+      </article>
+      <article>
+        <span>Alertas</span>
+        <strong>{{ stats().alerts }}</strong>
+      </article>
+      <article>
+        <span>Activas</span>
+        <strong>{{ stats().activeAlerts }}</strong>
+      </article>
+    </div>
+
+    @if (deviceCredential(); as credential) {
+      <div class="admin-note admin-note--accent">
+        <strong>Clave nueva para {{ credential.name }}</strong>
+        <p>{{ credential.apiKey }}</p>
+      </div>
+    }
+
+    <section class="scene-strip">
+      <div class="scene-strip__tabs">
+        @for (scene of scenes; track scene.id) {
+          <button
+            type="button"
+            class="scene-tab"
+            [class.scene-tab--active]="activeScene() === scene.id"
+            (click)="setScene(scene.id)"
+          >
+            <strong>{{ scene.label }}</strong>
+            <span>{{ scene.detail }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="scene-toolbar">
+        <label class="scene-search">
+          <span>Buscar en la escena</span>
+          <input
+            #sceneSearch
+            type="text"
+            [value]="query()"
+            (input)="updateQuery(sceneSearch.value)"
+            placeholder="Nombre, codigo, email, firmware..."
+          />
+        </label>
+
+        @if (activeScene() === 'devices') {
+          <label class="scene-filter">
+            <span>Estado</span>
+            <select #deviceStatusSelect [value]="deviceStatusFilter()" (change)="setDeviceStatusFilterFromInput(deviceStatusSelect.value)">
+              <option value="ALL">Todos</option>
+              <option value="ACTIVO">ACTIVO</option>
+              <option value="NORMAL">NORMAL</option>
+              <option value="ALERTA">ALERTA</option>
+              <option value="FUGA">FUGA</option>
+              <option value="ERROR">ERROR</option>
+              <option value="INACTIVO">INACTIVO</option>
+              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+            </select>
+          </label>
+        }
+
+        @if (activeScene() === 'alerts') {
+          <label class="scene-filter">
+            <span>Severidad</span>
+            <select #severitySelect [value]="alertSeverityFilter()" (change)="setAlertSeverityFilterFromInput(severitySelect.value)">
+              <option value="ALL">Todas</option>
+              <option value="ALERTA">ALERTA</option>
+              <option value="FUGA">FUGA</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </label>
+          <label class="scene-filter">
+            <span>Estado</span>
+            <select #ackSelect [value]="alertAcknowledgedFilter()" (change)="setAlertAcknowledgedFilterFromInput(ackSelect.value)">
+              <option value="ALL">Todas</option>
+              <option value="PENDING">Pendientes</option>
+              <option value="ACK">Confirmadas</option>
+            </select>
+          </label>
+        }
+      </div>
+    </section>
+
+    <section class="admin-layout" [class.admin-layout--detail]="detailType() !== null">
+      <div class="admin-layout__main">
+        @if (activeScene() === 'houses') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div>
+                <span class="eyebrow">Casas</span>
+                <h2>Mapa operativo</h2>
+              </div>
+              <button type="button" class="ghost-action" (click)="resetHouseForm()">Nueva casa</button>
+            </header>
+
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Casa</th>
+                    <th>Codigo</th>
+                    <th>Estado</th>
+                    <th>Usuarios</th>
+                    <th>Dispositivos</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (house of paginatedHouses(); track trackById) {
+                    <tr>
+                      <td>
+                        <strong>{{ house.name }}</strong>
+                        <small>{{ house.address || 'Sin direccion' }}</small>
+                      </td>
+                      <td>{{ house.code }}</td>
+                      <td><span class="status-pill">{{ house.status }}</span></td>
+                      <td>{{ house.Users?.length || 0 }}</td>
+                      <td>{{ house.Devices?.length || 0 }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editHouse(house)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteHouse(house)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="empty-cell">Aun no hay casas creadas.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'users') {
+          <article class="workspace-card workspace-card--full">
+            <header class="workspace-card__header">
+              <div>
+                <span class="eyebrow">Usuarios</span>
+                <h2>Acceso y roles</h2>
+              </div>
+              <button type="button" class="ghost-action" (click)="resetUserForm()">Nuevo usuario</button>
+            </header>
+
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Casa</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (user of paginatedUsers(); track trackById) {
+                    <tr>
+                      <td>
+                        <strong>{{ user.nombre }}</strong>
+                        <small>{{ user.email }}</small>
+                      </td>
+                      <td><span class="status-pill">{{ user.role }}</span></td>
+                      <td>{{ user.House?.name || 'Sin casa' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editUser(user)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteUser(user)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="4" class="empty-cell">Aun no hay usuarios registrados.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'devices') {
+          <article class="workspace-card workspace-card--full">
+            <header class="workspace-card__header">
+              <div>
+                <span class="eyebrow">Dispositivos</span>
+                <h2>Provisioning multi nodo</h2>
+              </div>
+              <button type="button" class="ghost-action" (click)="resetDeviceForm()">Nuevo dispositivo</button>
+            </header>
+
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Dispositivo</th>
+                    <th>Casa</th>
+                    <th>Estado</th>
+                    <th>Firmware</th>
+                    <th>Clave</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (device of paginatedDevices(); track trackById) {
+                    <tr>
+                      <td>
+                        <button type="button" class="row-link" (click)="selectDevice(device)">
+                          <strong>{{ device.name }}</strong>
+                          <small>{{ device.location || 'Sin ubicacion' }}</small>
+                        </button>
+                      </td>
+                      <td>{{ device.House?.name || 'Sin casa' }}</td>
+                      <td><span class="status-pill" [attr.data-tone]="device.status">{{ device.status }}</span></td>
+                      <td>{{ device.firmware_version || 'n/d' }}</td>
+                      <td>{{ device.apiKeyHint || 'Global' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editDevice(device)">Editar</button>
+                        <button type="button" class="ghost-action" (click)="rotateCredential(device)">Rotar clave</button>
+                        <button type="button" class="danger-action" (click)="deleteDevice(device)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="empty-cell">Aun no hay dispositivos provisionados.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'alerts') {
+          <article class="workspace-card workspace-card--full">
+            <header class="workspace-card__header">
+              <div>
+                <span class="eyebrow">Alertas</span>
+                <h2>Eventos y respuesta</h2>
+              </div>
+            </header>
+
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Evento</th>
+                    <th>Dispositivo</th>
+                    <th>Casa</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (alert of paginatedAlerts(); track trackById) {
+                    <tr>
+                      <td>
+                        <button type="button" class="row-link" (click)="selectAlert(alert)">
+                          <strong>{{ alert.severity }}</strong>
+                          <small>{{ alert.message }}</small>
+                        </button>
+                      </td>
+                      <td>{{ alert.Device?.name || 'Sin dispositivo' }}</td>
+                      <td>{{ alert.Device?.House?.name || 'Sin casa' }}</td>
+                      <td>
+                        <span class="status-pill" [attr.data-tone]="alert.severity">
+                          {{ alert.acknowledged ? 'Confirmada' : 'Pendiente' }}
+                        </span>
+                      </td>
+                      <td class="table-actions">
+                        @if (!alert.acknowledged) {
+                          <button type="button" class="primary-action" (click)="acknowledgeAlert(alert)">Confirmar</button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="5" class="empty-cell">No hay alertas para esta combinacion de filtros.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        <footer class="pagination-bar">
+          <span>Pagina {{ page() }} de {{ totalPages() }}</span>
+          <span>{{ pageItems() }} elementos visibles</span>
+          <div class="pagination-bar__actions">
+            <button type="button" class="ghost-action" (click)="previousPage()" [disabled]="page() === 1">Anterior</button>
+            <button type="button" class="ghost-action" (click)="nextPage()" [disabled]="page() === totalPages()">Siguiente</button>
+          </div>
+        </footer>
+      </div>
+
+      @if (detailType()) {
+        <aside class="detail-panel">
+          <header class="detail-panel__header">
+            <div>
+              <span class="eyebrow">Detalle</span>
+              <h2>{{ detailTitle() }}</h2>
+            </div>
+            <button type="button" class="ghost-action" (click)="clearSelection()">Cerrar</button>
+          </header>
+
+          @if (detailType() === 'device' && selectedDevice(); as device) {
+            <div class="detail-stack">
+              <div class="detail-card">
+                <span>Casa</span>
+                <strong>{{ device.House?.name || 'Sin casa' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Estado</span>
+                <strong>{{ device.status }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Tipo</span>
+                <strong>{{ device.device_type || 'Sin clasificar' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Firmware</span>
+                <strong>{{ device.firmware_version || 'No reportado' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Hardware UID</span>
+                <strong>{{ device.hardware_uid || 'No definido' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Ultimo contacto</span>
+                <strong>{{ device.last_seen_at || 'Sin lectura' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Clave</span>
+                <strong>{{ device.apiKeyHint || 'Global' }}</strong>
+              </div>
+            </div>
+          }
+
+          @if (detailType() === 'alert' && selectedAlert(); as alert) {
+            <div class="detail-stack">
+              <div class="detail-card">
+                <span>Severidad</span>
+                <strong>{{ alert.severity }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Dispositivo</span>
+                <strong>{{ alert.Device?.name || 'Sin dispositivo' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Casa</span>
+                <strong>{{ alert.Device?.House?.name || 'Sin casa' }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Momento</span>
+                <strong>{{ alert.ts }}</strong>
+              </div>
+              <div class="detail-card detail-card--wide">
+                <span>Mensaje</span>
+                <strong>{{ alert.message }}</strong>
+              </div>
+              <div class="detail-card">
+                <span>Estado</span>
+                <strong>{{ alert.acknowledged ? 'Confirmada' : 'Pendiente' }}</strong>
+              </div>
+              @if (!alert.acknowledged) {
+                <button type="button" class="primary-action detail-panel__action" (click)="acknowledgeAlert(alert)">
+                  Confirmar alerta
+                </button>
+              }
+            </div>
+          }
+        </aside>
+      }
+    </section>
+  } @else {
+    <div class="admin-note admin-note--warning">
+      <strong>Acceso restringido</strong>
+      <p>Esta vista queda reservada para administradores autenticados.</p>
+    </div>
+  }
+
+  <!-- House Modal -->
+  <app-modal [isOpen]="showHouseModal()" title="{{ houseForm.getRawValue().id ? 'Editar casa' : 'Nueva casa' }}" (close)="showHouseModal.set(false)">
+    <form class="admin-form" [formGroup]="houseForm" (ngSubmit)="submitHouse()">
+      <label>
+        <span>Nombre</span>
+        <input type="text" formControlName="name" placeholder="Casa principal" />
+      </label>
+      <label>
+        <span>Direccion</span>
+        <input type="text" formControlName="address" placeholder="Cra 123 #45-67" />
+      </label>
+      <label>
+        <span>Responsable</span>
+        <input type="text" formControlName="owner_name" placeholder="Laura Gomez" />
+      </label>
+      <label>
+        <span>Telefono</span>
+        <input type="text" formControlName="contact_phone" placeholder="3001234567" />
+      </label>
+      <label>
+        <span>Estado</span>
+        <select formControlName="status">
+          <option value="ACTIVA">ACTIVA</option>
+          <option value="INACTIVA">INACTIVA</option>
+          <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="primary-action" [disabled]="busy()">
+          {{ houseForm.getRawValue().id ? 'Actualizar casa' : 'Crear casa' }}
+        </button>
+        <button type="button" class="ghost-action" (click)="showHouseModal.set(false)" [disabled]="busy()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </app-modal>
+
+  <!-- User Modal -->
+  <app-modal [isOpen]="showUserModal()" title="{{ userForm.getRawValue().id ? 'Editar usuario' : 'Nuevo usuario' }}" (close)="showUserModal.set(false)">
+    <form class="admin-form" [formGroup]="userForm" (ngSubmit)="submitUser()">
+      <label>
+        <span>Nombre</span>
+        <input type="text" formControlName="nombre" placeholder="Maria Lopez" />
+      </label>
+      <label>
+        <span>Email</span>
+        <input type="email" formControlName="email" placeholder="operador@aquasense.com" />
+      </label>
+      <label>
+        <span>Clave</span>
+        <input type="password" formControlName="password" placeholder="Minimo 6 caracteres" />
+      </label>
+      <label>
+        <span>Casa</span>
+        <select formControlName="houseId">
+          <option [ngValue]="0">Sin asignar</option>
+          @for (house of houses(); track trackById) {
+            <option [ngValue]="house.id">{{ house.name }} · {{ house.code }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>Rol</span>
+        <select formControlName="role">
+          <option value="admin">admin</option>
+          <option value="operator">operator</option>
+          <option value="resident">resident</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="primary-action" [disabled]="busy()">
+          {{ userForm.getRawValue().id ? 'Actualizar usuario' : 'Crear usuario' }}
+        </button>
+        <button type="button" class="ghost-action" (click)="showUserModal.set(false)" [disabled]="busy()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </app-modal>
+
+  <!-- Device Modal -->
+  <app-modal [isOpen]="showDeviceModal()" title="{{ deviceForm.getRawValue().id ? 'Editar dispositivo' : 'Nuevo dispositivo' }}" (close)="showDeviceModal.set(false)">
+    <form class="admin-form admin-form--device" [formGroup]="deviceForm" (ngSubmit)="submitDevice()">
+      <label>
+        <span>Nombre</span>
+        <input type="text" formControlName="name" placeholder="ESP32-CASA1-BANO" />
+      </label>
+      <label>
+        <span>Casa</span>
+        <select formControlName="houseId">
+          <option [ngValue]="0">Selecciona una casa</option>
+          @for (house of houses(); track trackById) {
+            <option [ngValue]="house.id">{{ house.name }} · {{ house.code }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span>Ubicacion</span>
+        <input type="text" formControlName="location" placeholder="Bano social" />
+      </label>
+      <label>
+        <span>Estado</span>
+        <select formControlName="status">
+          <option value="ACTIVO">ACTIVO</option>
+          <option value="NORMAL">NORMAL</option>
+          <option value="ALERTA">ALERTA</option>
+          <option value="FUGA">FUGA</option>
+          <option value="ERROR">ERROR</option>
+          <option value="INACTIVO">INACTIVO</option>
+          <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+        </select>
+      </label>
+      <label>
+        <span>Tipo</span>
+        <input type="text" formControlName="deviceType" placeholder="flow-sensor" />
+      </label>
+      <label>
+        <span>Firmware</span>
+        <input type="text" formControlName="firmwareVersion" placeholder="1.0.3" />
+      </label>
+      <label>
+        <span>Hardware UID</span>
+        <input type="text" formControlName="hardwareUid" placeholder="esp32-abc-001" />
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="primary-action" [disabled]="busy()">
+          {{ deviceForm.getRawValue().id ? 'Actualizar dispositivo' : 'Crear dispositivo' }}
+        </button>
+        <button type="button" class="ghost-action" (click)="showDeviceModal.set(false)" [disabled]="busy()">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </app-modal>
+</section>

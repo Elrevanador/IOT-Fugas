@@ -42,7 +42,7 @@ void enviarBackend(SystemState &state) {
   WiFiClient client;
   WiFiClientSecure secureClient;
   HTTPClient http;
-  http.setTimeout(5000);
+  http.setTimeout(BACKEND_TIMEOUT_MS);
 
   String url = backendReadingsUrl();
   String payload = "{";

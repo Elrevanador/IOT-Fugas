@@ -1,0 +1,419 @@
+<section class="dashboard-page">
+  <section class="dashboard-tabs glass-panel">
+    <div class="dashboard-tabs__rail">
+      <button
+        type="button"
+        class="dashboard-tabs__arrow"
+        [disabled]="!canScrollTabsLeft()"
+        (click)="scrollTabs('left')"
+        aria-label="Ver pestañas anteriores"
+      >
+        ‹
+      </button>
+
+      <div
+        class="dashboard-tabs__viewport"
+        [class.dashboard-tabs__viewport--left]="canScrollTabsLeft()"
+        [class.dashboard-tabs__viewport--right]="canScrollTabsRight()"
+        #tabsScroller
+        (scroll)="onTabsScroll()"
+      >
+        <div class="dashboard-tabs__strip">
+          @for (tab of tabs; track tab.id) {
+            <button
+              type="button"
+              class="dashboard-tab"
+              [class.dashboard-tab--active]="activeTab() === tab.id"
+              (click)="changeTab(tab.id)"
+            >
+              <div class="dashboard-tab__title">
+                <strong>{{ tab.label }}</strong>
+                @if (tabBadge(tab.id); as badge) {
+                  <span class="dashboard-tab__badge" [class.dashboard-tab__badge--alert]="tab.id === 'alerts' && badge > 0">
+                    {{ badge }}
+                  </span>
+                }
+              </div>
+              <span>{{ tab.detail }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="dashboard-tabs__arrow"
+        [disabled]="!canScrollTabsRight()"
+        (click)="scrollTabs('right')"
+        aria-label="Ver pestañas siguientes"
+      >
+        ›
+      </button>
+    </div>
+  </section>
+
+  @if (activeTab() === 'overview') {
+    <header class="dashboard-hero glass-panel" [attr.data-tone]="heroTone()">
+      <div class="hero-copy">
+        <span class="eyebrow">Telemetria viva</span>
+        <h1>Tablero de presion, caudal y riesgo con energia cinematic.</h1>
+        <p>
+          Angular ahora actua como cockpit operativo: consume snapshot, abre SSE y eleva las alertas sin perder el tono visual del sistema.
+        </p>
+        <div class="hero-ribbon">
+          <span>Estado {{ payload()?.currentState || 'SIN_DATOS' }}</span>
+          <span>{{ connectionLabel() }}</span>
+          <span>{{ lastPacketLabel() }}</span>
+        </div>
+      </div>
+
+      <div class="hero-status">
+        <div class="status-card">
+          <span>Transporte</span>
+          <strong>{{ transport() }}</strong>
+        </div>
+        <div class="status-card">
+          <span>Estado</span>
+          <strong>{{ payload()?.currentState || 'SIN_DATOS' }}</strong>
+        </div>
+        <div class="status-card">
+          <span>Ultimo evento</span>
+          <strong>{{ payload()?.lastSeenAt ? (payload()?.lastSeenAt | date:'short') : '--' }}</strong>
+        </div>
+        <div class="status-card status-card--pulse">
+          <span>Alertas activas</span>
+          <strong>{{ activeAlerts().length }}</strong>
+        </div>
+        <div class="status-card">
+          <span>Riesgo medio</span>
+          <strong>{{ averageRisk() }}%</strong>
+        </div>
+        <div class="status-card">
+          <span>Enlace</span>
+          <strong>{{ isReconnecting() ? 'Reconectando' : 'Estable' }}</strong>
+        </div>
+      </div>
+    </header>
+
+    @if (payload()?.currentState === 'FUGA' || payload()?.currentState === 'ALERTA') {
+      <section class="critical-banner" [attr.data-tone]="heroTone()">
+        <div>
+          <span class="eyebrow">Intervencion</span>
+          <h2>{{ payload()?.currentState === 'FUGA' ? 'Fuga confirmada en el circuito' : 'Anomalia sostenida detectada' }}</h2>
+          <p>
+            {{ latestReading()?.deviceName || 'Dispositivo principal' }} reporta
+            {{ latestReading()?.pressure_kpa ?? 0 | number:'1.0-1' }} kPa y
+            {{ latestReading()?.flow_lmin ?? 0 | number:'1.0-2' }} L/min.
+          </p>
+        </div>
+        <div class="critical-banner__stat">
+          <span>Riesgo</span>
+          <strong>{{ latestReading()?.risk ?? 0 }}%</strong>
+        </div>
+      </section>
+    }
+
+    @if (isLoading()) {
+      <section class="skeleton-grid">
+        @for (item of [1, 2, 3, 4]; track item) {
+          <article class="skeleton-card glass-panel">
+            <span class="skeleton skeleton--eyebrow"></span>
+            <span class="skeleton skeleton--title"></span>
+            <span class="skeleton skeleton--metric"></span>
+          </article>
+        }
+      </section>
+    } @else {
+      <section class="metrics-grid">
+        <article class="metric-card glass-panel">
+          <span>Caudal</span>
+          <strong>{{ latestReading()?.flow_lmin ?? 0 | number:'1.0-2' }}</strong>
+          <small>L/min</small>
+          <div class="metric-bars">
+            @for (bar of flowSeries(); track bar.id) {
+              <span class="metric-bars__bar" [style.height]="bar.height" [style.animationDelay]="bar.delay"></span>
+            }
+          </div>
+        </article>
+        <article class="metric-card glass-panel">
+          <span>Presion</span>
+          <strong>{{ latestReading()?.pressure_kpa ?? 0 | number:'1.0-2' }}</strong>
+          <small>kPa</small>
+          <div class="metric-bars metric-bars--pressure">
+            @for (bar of pressureSeries(); track bar.id) {
+              <span class="metric-bars__bar" [style.height]="bar.height" [style.animationDelay]="bar.delay"></span>
+            }
+          </div>
+        </article>
+        <article class="metric-card glass-panel">
+          <span>Riesgo</span>
+          <strong>{{ latestReading()?.risk ?? 0 }}</strong>
+          <small>%</small>
+          <div class="risk-meter">
+            <div class="risk-meter__track">
+              <div class="risk-meter__fill" [style.width.%]="Math.min(latestReading()?.risk ?? 0, 100)"></div>
+            </div>
+          </div>
+        </article>
+        <article class="metric-card glass-panel">
+          <span>Dispositivo</span>
+          <strong>{{ latestReading()?.deviceName || 'Sin fuente' }}</strong>
+          <small>{{ latestReading()?.houseName || 'Sin casa' }}</small>
+        </article>
+      </section>
+    }
+  }
+
+  @if (activeTab() === 'overview') {
+    <section class="dashboard-pane dashboard-pane--overview">
+        <section class="insight-strip">
+          <article class="health-card glass-panel glass-panel--inner">
+            <header>
+              <span class="eyebrow">Salud del nodo</span>
+              <h2>{{ deviceHealth().deviceName }}</h2>
+            </header>
+            <div class="health-card__grid">
+              <div>
+                <span>Casa</span>
+                <strong>{{ deviceHealth().houseName }}</strong>
+              </div>
+              <div>
+                <span>Modo</span>
+                <strong>{{ deviceHealth().mode }}</strong>
+              </div>
+              <div>
+                <span>Alertas activas</span>
+                <strong>{{ deviceHealth().alerts }}</strong>
+              </div>
+              <div>
+                <span>Identidad</span>
+                <strong>{{ deviceHealth().firmwareHint }}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="history-card glass-panel glass-panel--inner">
+            <header class="history-card__header">
+              <div>
+                <span class="eyebrow">Historico</span>
+                <h2>Ventana operativa</h2>
+              </div>
+              <div class="range-switch">
+                @for (range of ranges; track range.id) {
+                  <button
+                    type="button"
+                    class="range-switch__button"
+                    [class.range-switch__button--active]="selectedRange() === range.id"
+                    (click)="changeRange(range.id)"
+                  >
+                    {{ range.label }}
+                  </button>
+                }
+              </div>
+            </header>
+            <p class="history-card__status">
+              @if (historyLoading()) {
+                <span>Cargando historico del backend...</span>
+              } @else if (historicalReadings().length) {
+                <span>{{ historicalReadings().length }} muestras recuperadas para esta ventana.</span>
+              } @else {
+                <span>Usando el snapshot reciente mientras llegan mas datos historicos.</span>
+              }
+            </p>
+          </article>
+        </section>
+
+        <section class="overview-grid">
+          <article class="glass-panel glass-panel--inner command-panel">
+            <header>
+              <span class="eyebrow">Estado operativo</span>
+              <h2>Enlace y contexto</h2>
+            </header>
+            <div class="command-list">
+              <div class="command-item">
+                <span>Casa activa</span>
+                <strong>{{ latestReading()?.houseName || payload()?.latestReading?.houseName || 'No asignada' }}</strong>
+              </div>
+              <div class="command-item">
+                <span>Dispositivo online</span>
+                <strong>{{ payload()?.deviceOnline ? 'Si' : 'No' }}</strong>
+              </div>
+              <div class="command-item">
+                <span>Ultimo paquete</span>
+                <strong>{{ lastPacketLabel() }}</strong>
+              </div>
+              <div class="command-item">
+                <span>Alertas pendientes</span>
+                <strong>{{ activeAlerts().length }}</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="glass-panel glass-panel--inner payload-panel">
+            <header>
+              <span class="eyebrow">Payload</span>
+              <h2>Snapshot crudo</h2>
+            </header>
+            <pre>{{ payload() | json }}</pre>
+          </article>
+        </section>
+      </section>
+    }
+
+    @if (activeTab() === 'readings') {
+      <section class="dashboard-pane">
+        <article class="glass-panel glass-panel--inner timeline-panel">
+          <header>
+            <span class="eyebrow">Lecturas recientes</span>
+            <h2>Secuencia de telemetria</h2>
+          </header>
+          <div class="pane-filters">
+            @for (filter of readingFilters; track filter.id) {
+              <button
+                type="button"
+                class="pane-filter"
+                [class.pane-filter--active]="readingFilter() === filter.id"
+                (click)="changeReadingFilter(filter.id)"
+              >
+                {{ filter.label }}
+              </button>
+            }
+          </div>
+          <div class="timeline">
+            @for (reading of filteredReadings(); track trackByReading) {
+              <div class="timeline__item" [attr.data-state]="reading.state">
+                <div class="timeline__pulse"></div>
+                <div>
+                  <strong>{{ reading.state }}</strong>
+                  <p>
+                    {{ reading.deviceName || 'Dispositivo' }} · {{ reading.flow_lmin | number:'1.0-2' }} L/min ·
+                    {{ reading.pressure_kpa | number:'1.0-2' }} kPa
+                  </p>
+                  <small>{{ reading.ts | date:'mediumTime' }}</small>
+                </div>
+              </div>
+            } @empty {
+              <div class="empty-panel">
+                <div class="empty-panel__glyph"></div>
+                <strong>Sin lecturas para este filtro</strong>
+                <p>Cambia el estado seleccionado o espera nuevos paquetes del circuito.</p>
+              </div>
+            }
+          </div>
+        </article>
+      </section>
+    }
+
+    @if (activeTab() === 'alerts') {
+      <section class="dashboard-pane">
+        <article class="glass-panel glass-panel--inner alert-panel">
+          <header>
+            <span class="eyebrow">Alertas</span>
+            <h2>Eventos criticos</h2>
+          </header>
+          @if (actionMessage()) {
+            <p class="action-message">{{ actionMessage() }}</p>
+          }
+          <div class="pane-filters">
+            @for (filter of alertFilters; track filter.id) {
+              <button
+                type="button"
+                class="pane-filter"
+                [class.pane-filter--active]="alertFilter() === filter.id"
+                (click)="changeAlertFilter(filter.id)"
+              >
+                {{ filter.label }}
+              </button>
+            }
+          </div>
+          <div class="alerts">
+            @for (alert of filteredAlerts(); track trackByAlert) {
+              <div class="alert-item" [attr.data-severity]="alert.severity">
+                <div class="alert-item__head">
+                  <strong>{{ alert.severity }}</strong>
+                  <span>{{ alert.ts | date:'shortTime' }}</span>
+                </div>
+                <p>{{ alert.message }}</p>
+                <div class="alert-item__meta">
+                  <span>{{ alert.deviceName || 'Dispositivo' }}</span>
+                  <span>{{ alert.acknowledged ? 'Confirmada' : 'Pendiente' }}</span>
+                </div>
+                @if (!alert.acknowledged) {
+                  <button type="button" class="alert-item__ack" (click)="acknowledgeAlert(alert.id)">
+                    Confirmar
+                  </button>
+                }
+              </div>
+            } @empty {
+              <div class="empty-panel empty-panel--alert">
+                <div class="empty-panel__glyph"></div>
+                <strong>Sin alertas para esta vista</strong>
+                <p>Todo se ve estable o el filtro actual ya no tiene eventos pendientes.</p>
+              </div>
+            }
+          </div>
+        </article>
+      </section>
+    }
+
+    @if (activeTab() === 'analytics') {
+      <section class="dashboard-pane">
+        <section class="analytics-summary">
+          <article class="glass-panel glass-panel--inner">
+            <span>Pico de presion</span>
+            <strong>{{ analyticsHighlights().peakPressure | number:'1.0-1' }} kPa</strong>
+          </article>
+          <article class="glass-panel glass-panel--inner">
+            <span>Caudal medio</span>
+            <strong>{{ analyticsHighlights().averageFlow | number:'1.0-2' }} L/min</strong>
+          </article>
+          <article class="glass-panel glass-panel--inner">
+            <span>Riesgo maximo</span>
+            <strong>{{ analyticsHighlights().highestRisk }}%</strong>
+          </article>
+          <article class="glass-panel glass-panel--inner">
+            <span>Estado dominante</span>
+            <strong>{{ analyticsHighlights().dominantState }}</strong>
+          </article>
+        </section>
+
+        <article class="glass-panel glass-panel--inner charts-panel">
+          <header>
+            <span class="eyebrow">Analitica</span>
+            <h2>Curvas recientes</h2>
+          </header>
+          @if (flowChartPoints().length || pressureChartPoints().length || riskChartPoints().length) {
+            <div class="charts-panel__grid">
+              <app-telemetry-chart
+                title="Caudal"
+                subtitle="Tendencia corta del circuito"
+                tone="teal"
+                unit="L/min"
+                [points]="flowChartPoints()"
+              />
+              <app-telemetry-chart
+                title="Presion"
+                subtitle="Pulso hidraulico del nodo"
+                tone="amber"
+                unit="kPa"
+                [points]="pressureChartPoints()"
+              />
+              <app-telemetry-chart
+                title="Riesgo"
+                subtitle="Indice de fuga percibido"
+                tone="rose"
+                unit="%"
+                [points]="riskChartPoints()"
+              />
+            </div>
+          } @else {
+            <div class="empty-panel">
+              <div class="empty-panel__glyph"></div>
+              <strong>Sin muestras para analitica</strong>
+              <p>Cuando el backend entregue suficiente historico, aqui apareceran las curvas y tendencias.</p>
+            </div>
+          }
+        </article>
+      </section>
+    }
+</section>

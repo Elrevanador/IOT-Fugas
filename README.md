@@ -1,12 +1,12 @@
 # Proyecto Wokwi - Deteccion de Fugas con ESP32
 
-Este proyecto conecta una simulacion ESP32 en Wokwi con un backend Node.js + MySQL y un panel web publico. No usa ThingSpeak y tampoco usa la carpeta `data/`: el flujo activo es firmware -> backend -> frontend, con backend y frontend desplegados como servicios separados o, en local, con una version same-origin servida desde el propio backend.
+Este proyecto conecta una simulacion ESP32 en Wokwi con un backend Node.js + MySQL y un panel web publico. No usa ThingSpeak y tampoco usa la carpeta `data/`: el flujo activo es firmware -> backend -> frontend, con backend y frontend desplegados como servicios separados.
 
 ## Estructura principal
 
 - `simulacion/simulacion.ino`: firmware del ESP32
 - `frontend/`: UI canonica desplegada como sitio estatico
-- `backend/`: API REST, autenticacion JWT, almacenamiento MySQL y copia same-origin de la UI en `backend/public/`
+- `backend/`: API REST, autenticacion JWT y almacenamiento MySQL
 - `simulacion/diagram.json`: circuito Wokwi
 - `simulacion/wokwi.toml`: configuracion Wokwi para VS Code
 - `simulacion/build_wokwi_bundle.sh`: recompila el firmware para Wokwi
@@ -38,6 +38,15 @@ Este proyecto conecta una simulacion ESP32 en Wokwi con un backend Node.js + MyS
 2. No uses `F5`
 3. Ejecuta `Wokwi: Start Simulator`
 
+Si prefieres abrir todo `/home/duvan/IOt` como workspace, primero ejecuta:
+
+```bash
+cd /home/duvan/IOt/simulacion
+./build_wokwi_bundle.sh
+```
+
+Ese script ahora deja una copia de `simulacion.ino.merged.bin` tanto en `simulacion/build/` como en `/home/duvan/IOt/build/`, para que la extension de Wokwi encuentre el firmware en ambos casos.
+
 `simulacion/wokwi.toml` ahora carga directamente `build/simulacion.ino.bin`.
 
 ## Build reproducible
@@ -63,8 +72,10 @@ Ese script genera:
 
 - `simulacion/build/simulacion.ino.bin`
 - `simulacion/build/simulacion.ino.elf`
+- `simulacion/build/simulacion.ino.merged.bin`
+- `build/simulacion.ino.merged.bin` si abriste el repo raiz
 
-Wokwi usa `simulacion/build/simulacion.ino.bin`, asi que ya no hay pasos extra de LittleFS ni binarios combinados.
+Wokwi usa `build/simulacion.ino.merged.bin` desde el folder que tenga abierto como workspace, asi que ya no necesitas ajustar rutas a mano.
 
 ## Backend + Frontend
 
@@ -94,7 +105,6 @@ npm install
 npm run dev
 ```
 
-- UI same-origin local: `http://localhost:3000/`
 - API health: `http://localhost:3000/api/health`
 - Frontend local separado:
 
@@ -105,7 +115,6 @@ npm run dev
 ```
 
 - Frontend local separado: `http://localhost:8000/`
-- La UI de `backend/public/` se sincroniza automaticamente desde `frontend/` cuando ejecutas `npm run dev` o `npm start` en `backend/`.
 - Si usas la base Railway desde local, deja `DB_SYNC_ALTER=false` para no intentar alterar el esquema remoto al arrancar.
 
 ### Endpoints principales
@@ -114,11 +123,20 @@ npm run dev
 - `POST /api/auth/login`
 - `GET /api/public/dashboard`
 - `POST /api/readings` (ESP32 -> backend, requiere `x-device-key`)
-- `GET /api/readings`
+- `GET /api/readings` (`limit`, `page`, `deviceId`, `houseId`, `state`, `from`, `until`)
 - `GET /api/readings/latest`
-- `GET /api/alerts`
+- `GET /api/alerts` (`limit`, `page`, `deviceId`, `houseId`, `severity`, `acknowledged`)
 - `PATCH /api/alerts/:id/ack`
-- `GET /api/devices`
+- `GET /api/devices` (`limit`, `page`, `houseId`, `status`, `search`)
+- `POST /api/devices/:id/credentials` (rota/genera credencial propia del dispositivo)
+
+El backend devuelve `pagination` en listas paginadas y agrega `X-Request-Id` en cada respuesta para trazabilidad.
+
+`POST /api/auth/login` y `POST /api/auth/register` tienen rate limit por IP configurable con:
+
+- `AUTH_RATE_LIMIT_WINDOW_MS`
+- `AUTH_LOGIN_RATE_LIMIT_MAX`
+- `AUTH_REGISTER_RATE_LIMIT_MAX`
 
 ### Payload esperado del ESP32
 
@@ -138,6 +156,8 @@ Header requerido:
 x-device-key: <tu_ingest_api_key>
 ```
 
+El backend sigue aceptando la `INGEST_API_KEY` global y ahora tambien puede validar una clave propia por dispositivo si ya fue provisionada desde el panel/admin API.
+
 ## Modo local y modo público
 
 El firmware soporta dos modos:
@@ -151,6 +171,7 @@ Para que ambos escenarios funcionen correctamente:
    - deja `BACKEND_MODE` en `BACKEND_LOCAL`
    - usa `NODE_ENV=development` en `backend/.env`
    - deja `DB_SYNC_ALTER=false` salvo que estes trabajando contra una base local desechable
+   - deja `DB_USE_SYNC=true` y `DB_RUN_MIGRATIONS=true` para mantener el bootstrap local
    - establece `FRONTEND_ORIGIN=http://localhost:8000,http://127.0.0.1:8000`
    - asegúrate de tener el backend local corriendo en `http://host.wokwi.internal:3000`
    - usa una `INGEST_API_KEY` propia y segura (no de ejemplo)
@@ -159,6 +180,8 @@ Para que ambos escenarios funcionen correctamente:
    - cambia `BACKEND_MODE` a `BACKEND_PUBLIC`
    - actualiza `BACKEND_BASE_URL_PUBLIC` con la URL de tu backend de Railway
    - configura la misma `INGEST_API_KEY` en Railway y en el build de simulacion (macro `INGEST_API_KEY_VALUE`)
+   - mantén `DB_RUN_MIGRATIONS=true`; cuando ya no dependas del bootstrap por `sync`, podrás pasar `DB_USE_SYNC=false`
+   - para una base nueva, ejecuta primero `npm run migrate` o deja `DB_RUN_MIGRATIONS=true` en el arranque para que se cree el esquema base
 
 El repositorio deja `BACKEND_LOCAL` como valor predeterminado para facilitar las pruebas locales, pero el despliegue Railway debe usar `BACKEND_PUBLIC` y la URL real del servicio.
 
@@ -166,9 +189,7 @@ El repositorio deja `BACKEND_LOCAL` como valor predeterminado para facilitar las
 
 - El frontend es publico en lectura.
 - El login solo se usa para confirmar alertas.
-- En local puedes usar dos modos de UI:
-  - `http://localhost:8000/` como frontend separado con CORS.
-  - `http://localhost:3000/` como UI same-origin servida por Express.
+- En local la UI vive en `http://localhost:8000/` y consume el backend por CORS.
 - Si el backend falla, el ESP32 sigue detectando fugas y actuando localmente.
 - No existe cola offline en v1: si un POST falla, se reintenta en el siguiente ciclo.
 - No se usa `data/`, LittleFS ni una pagina web embebida en el ESP32.

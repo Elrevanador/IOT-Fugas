@@ -59,6 +59,7 @@
         <div class="header-actions">
           <nav class="site-nav" aria-label="Navegación principal">
             <a href="./" aria-current="page">Monitor en vivo</a>
+            <a href="../admin/" id="adminNavLink" hidden>Admin local</a>
             <a href="../login/">Acceso operadores</a>
           </nav>
           <button type="button" id="logoutBtn" class="ghost header-logout">Cerrar sesión</button>
@@ -142,6 +143,11 @@
                 <strong id="metricDevice">--</strong>
                 <small>Dispositivo</small>
               </div>
+              <div class="metric">
+                <span>Casa</span>
+                <strong id="metricHouse">--</strong>
+                <small>Vivienda</small>
+              </div>
             </div>
           </article>
 
@@ -154,6 +160,24 @@
               <p id="authMessage" class="helper">
                 Inicie sesión para reconocer y cerrar alertas desde este entorno.
               </p>
+              <div class="operator-context">
+                <div class="operator-context__item">
+                  <span>Operador</span>
+                  <strong id="operatorName">Sin sesión</strong>
+                </div>
+                <div class="operator-context__item">
+                  <span>Rol</span>
+                  <strong id="operatorRole">--</strong>
+                </div>
+                <div class="operator-context__item">
+                  <span>Correo</span>
+                  <strong id="operatorEmail">--</strong>
+                </div>
+                <div class="operator-context__item">
+                  <span>Casa asignada</span>
+                  <strong id="operatorHouse">Sin casa</strong>
+                </div>
+              </div>
               <div class="operator-actions dashboard-actions">
                 <a href="../login/" class="button secondary">Ir al acceso</a>
               </div>
@@ -278,6 +302,7 @@
                     <thead>
                       <tr>
                         <th>Hora</th>
+                        <th>Casa</th>
                         <th>Dispositivo</th>
                         <th>Caudal</th>
                         <th>Presión</th>
