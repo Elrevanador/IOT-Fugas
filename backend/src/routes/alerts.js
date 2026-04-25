@@ -1,5 +1,5 @@
 const express = require("express");
-const { param, query } = require("express-validator");
+const { body, param, query } = require("express-validator");
 const { listAlerts, ackAlert } = require("../controllers/alertsController");
 const validate = require("../middlewares/validate");
 const auth = require("../middlewares/auth");
@@ -24,7 +24,11 @@ router.get(
 router.patch(
   "/:id/ack",
   auth,
-  [param("id").isInt({ min: 1 }).withMessage("id invalido")],
+  [
+    param("id").isInt({ min: 1 }).withMessage("id invalido"),
+    body("note").optional({ values: "falsy" }).trim().isLength({ max: 500 }).withMessage("note invalida"),
+    body("ackNote").optional({ values: "falsy" }).trim().isLength({ max: 500 }).withMessage("ackNote invalida")
+  ],
   validate,
   ackAlert
 );

@@ -43,6 +43,11 @@ DATABASE_URL=mysql://root:eqglpsLmtWwLplFwxaDJAROxeToqOizu@roundhouse.proxy.rlwy
 - `GET /api/alerts?limit=50&page=1&deviceId=1&houseId=2&severity=FUGA&acknowledged=false`
 - `GET /api/devices?limit=50&page=1&houseId=2&status=ACTIVO&search=esp32`
 - `POST /api/devices/12/credentials`
+- `GET /api/incidents?estado=ABIERTO&deviceId=12`
+- `PUT /api/detection-config/12`
+- `POST /api/valves/device/12/actions`
+- `GET /api/commands/pending?deviceId=12` con `x-device-key`
+- `POST /api/commands/44/response` con `x-device-key`
 
 Las respuestas de listas incluyen `pagination` con `page`, `limit`, `total` y `totalPages`.
 

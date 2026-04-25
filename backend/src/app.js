@@ -7,6 +7,13 @@ const readingsRoutes = require("./routes/readings");
 const alertsRoutes = require("./routes/alerts");
 const devicesRoutes = require("./routes/devices");
 const housesRoutes = require("./routes/houses");
+const locationsRoutes = require("./routes/locations");
+const sensorsRoutes = require("./routes/sensors");
+const incidentsRoutes = require("./routes/incidents");
+const valvesRoutes = require("./routes/valves");
+const detectionConfigRoutes = require("./routes/detectionConfig");
+const commandsRoutes = require("./routes/commands");
+const auditRoutes = require("./routes/audit");
 const publicRoutes = require("./routes/public");
 const errorHandler = require("./middlewares/errorHandler");
 const requestMeta = require("./middlewares/requestMeta");
@@ -58,6 +65,239 @@ const isDevelopmentNetworkOrigin = (origin) => {
   }
 };
 
+const routeGroups = [
+  {
+    name: "Sistema",
+    routes: [
+      ["GET", "/"],
+      ["GET", "/api/health"]
+    ]
+  },
+  {
+    name: "Autenticacion",
+    routes: [
+      ["POST", "/api/auth/register"],
+      ["POST", "/api/auth/login"],
+      ["GET", "/api/auth/me"]
+    ]
+  },
+  {
+    name: "Casas y usuarios",
+    routes: [
+      ["GET", "/api/houses"],
+      ["GET", "/api/houses/:id"],
+      ["POST", "/api/houses"],
+      ["PUT", "/api/houses/:id"],
+      ["DELETE", "/api/houses/:id"],
+      ["GET", "/api/users"],
+      ["POST", "/api/users"],
+      ["PUT", "/api/users/:id"],
+      ["DELETE", "/api/users/:id"]
+    ]
+  },
+  {
+    name: "Dispositivos y sensores",
+    routes: [
+      ["GET", "/api/devices"],
+      ["POST", "/api/devices"],
+      ["PUT", "/api/devices/:id"],
+      ["DELETE", "/api/devices/:id"],
+      ["POST", "/api/devices/:id/credentials"],
+      ["GET", "/api/locations"],
+      ["POST", "/api/locations"],
+      ["PUT", "/api/locations/:id"],
+      ["DELETE", "/api/locations/:id"],
+      ["GET", "/api/sensors"],
+      ["POST", "/api/sensors"],
+      ["PUT", "/api/sensors/:id"],
+      ["DELETE", "/api/sensors/:id"]
+    ]
+  },
+  {
+    name: "Lecturas, alertas e incidentes",
+    routes: [
+      ["POST", "/api/readings"],
+      ["GET", "/api/readings"],
+      ["GET", "/api/readings/latest"],
+      ["GET", "/api/alerts"],
+      ["PATCH", "/api/alerts/:id/ack"],
+      ["GET", "/api/incidents"],
+      ["GET", "/api/incidents/:id"],
+      ["PATCH", "/api/incidents/:id/status"]
+    ]
+  },
+  {
+    name: "Valvula, comandos y deteccion",
+    routes: [
+      ["GET", "/api/valves"],
+      ["GET", "/api/valves/device/:deviceId"],
+      ["GET", "/api/valves/device/:deviceId/actions"],
+      ["POST", "/api/valves/device/:deviceId/actions"],
+      ["GET", "/api/detection-config/:deviceId"],
+      ["PUT", "/api/detection-config/:deviceId"],
+      ["GET", "/api/commands"],
+      ["POST", "/api/commands"],
+      ["GET", "/api/commands/pending"],
+      ["POST", "/api/commands/:id/response"]
+    ]
+  },
+  {
+    name: "Dashboard y auditoria",
+    routes: [
+      ["GET", "/api/public/dashboard"],
+      ["GET", "/api/public/dashboard/stream"],
+      ["GET", "/api/audit"]
+    ]
+  }
+];
+
+const escapeHtml = (value) =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const renderRouteDebugPage = ({ req, statusCode = 200, title = "IoT Water Backend" }) => {
+  const requestUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+  const routeList = routeGroups
+    .map(
+      (group) => `<section class="route-group">
+        <h2>${escapeHtml(group.name)}</h2>
+        <ol>
+          ${group.routes
+            .map(([method, path]) => `<li><span class="method">${method}</span> <code>${escapeHtml(path)}</code></li>`)
+            .join("")}
+        </ol>
+      </section>`
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #111;
+        background: #f1f1f1;
+      }
+      header {
+        padding: 6px 8px 12px;
+        background: #ffffcc;
+        border-bottom: 1px solid #cfcfcf;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 31px;
+        line-height: 1.2;
+        font-weight: 400;
+      }
+      .status {
+        color: ${statusCode >= 400 ? "#666" : "#1f6f50"};
+        font-size: 18px;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 4px 12px;
+        margin: 0 0 0 38px;
+      }
+      dt {
+        font-weight: 700;
+        color: #666;
+        text-align: right;
+      }
+      dd { margin: 0; }
+      main {
+        padding: 10px 6px 28px;
+        background: #f7f7f7;
+      }
+      .lead {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 12px 20px;
+      }
+      .route-group {
+        min-width: 0;
+      }
+      h2 {
+        margin: 8px 0 6px;
+        font-size: 15px;
+        color: #333;
+      }
+      ol {
+        margin: 0 0 0 38px;
+        padding: 0;
+      }
+      li {
+        margin: 2px 0;
+        line-height: 1.35;
+      }
+      .method {
+        display: inline-block;
+        min-width: 54px;
+        font-weight: 700;
+        color: #0f766e;
+      }
+      code {
+        font-family: Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+      }
+      .note {
+        margin-top: 16px;
+        padding-top: 10px;
+        border-top: 1px solid #d3d3d3;
+        font-size: 15px;
+      }
+      .note p {
+        margin: 0 0 8px;
+      }
+      @media (max-width: 640px) {
+        h1 { font-size: 26px; }
+        dl {
+          margin-left: 0;
+          grid-template-columns: 1fr;
+          gap: 2px;
+        }
+        dt { text-align: left; }
+        ol { margin-left: 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>${escapeHtml(title)} <span class="status">(${statusCode})</span></h1>
+      <dl>
+        <dt>Metodo de solicitud:</dt>
+        <dd>${escapeHtml(req.method)}</dd>
+        <dt>URL de la solicitud:</dt>
+        <dd>${escapeHtml(requestUrl)}</dd>
+        <dt>Modo:</dt>
+        <dd>${isProduction ? "production" : "development"}</dd>
+      </dl>
+    </header>
+    <main>
+      <p class="lead">Usando la configuracion de rutas definida en <code>backend/src/app.js</code>, Express tiene disponibles estos patrones:</p>
+      <div class="grid">${routeList}</div>
+      <div class="note">
+        <p><strong>Prueba rapida:</strong> abre <code>/api/health</code>. Si responde <code>{"ok":true}</code>, el backend esta arriba.</p>
+        <p><strong>Nota:</strong> varias rutas requieren token JWT; las rutas del ESP32 requieren <code>x-device-key</code>.</p>
+      </div>
+    </main>
+  </body>
+</html>`;
+};
+
 app.use(requestMeta);
 app.use(requestLogger);
 app.use(express.json({ limit: "32kb" }));
@@ -89,6 +329,10 @@ app.use(
 );
 
 app.get("/", (req, res) => {
+  res.type("html").send(renderRouteDebugPage({ req, title: "IoT Water Backend" }));
+});
+
+app.get("/api/docs", (req, res) => {
   const baseUrl = `${req.protocol}://${req.get("host")}`;
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -319,6 +563,17 @@ app.get("/", (req, res) => {
           <h2>Dispositivos</h2>
           <ul>
             <li><span class="method">GET</span><code>/api/devices</code></li>
+            <li><span class="method">GET</span><code>/api/sensors</code></li>
+            <li><span class="method">GET</span><code>/api/valves</code></li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <h2>Operacion</h2>
+          <ul>
+            <li><span class="method">GET</span><code>/api/incidents</code></li>
+            <li><span class="method">GET</span><code>/api/commands</code></li>
+            <li><span class="method">GET</span><code>/api/detection-config/:deviceId</code></li>
           </ul>
         </article>
 
@@ -340,7 +595,7 @@ app.get("/", (req, res) => {
           <h2>Registro y Login</h2>
 <pre><code>curl -X POST ${baseUrl}/api/auth/register \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"Duvan","email":"duvan@test.com","password":"123456"}'
+  -d '{"nombre":"Duvan","email":"duvan@test.com","password":"123456"}'
 
 curl -X POST ${baseUrl}/api/auth/login \\
   -H "Content-Type: application/json" \\
@@ -382,6 +637,32 @@ app.use("/api/public", publicRoutes);
 app.use("/api/readings", readingsRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/devices", devicesRoutes);
+app.use("/api/locations", locationsRoutes);
+app.use("/api/sensors", sensorsRoutes);
+app.use("/api/incidents", incidentsRoutes);
+app.use("/api/valves", valvesRoutes);
+app.use("/api/detection-config", detectionConfigRoutes);
+app.use("/api/commands", commandsRoutes);
+app.use("/api/audit", auditRoutes);
+
+app.use((req, res) => {
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({
+      ok: false,
+      msg: "Ruta no encontrada",
+      method: req.method,
+      path: req.originalUrl
+    });
+  }
+
+  return res.status(404).type("html").send(
+    renderRouteDebugPage({
+      req,
+      statusCode: 404,
+      title: "Pagina no encontrada"
+    })
+  );
+});
 
 app.use(errorHandler);
 

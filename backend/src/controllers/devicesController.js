@@ -86,9 +86,10 @@ const updateDevice = async (req, res, next) => {
       return res.status(403).json({ ok: false, msg: "No tienes acceso a este dispositivo" });
     }
 
-    const nextHouseId = scopedHouseId || Number(req.body.houseId);
-    const house = await House.findByPk(nextHouseId);
-    if (!house) {
+    const hasHouseId = req.body.houseId !== undefined && req.body.houseId !== null && req.body.houseId !== "";
+    const nextHouseId = scopedHouseId || (hasHouseId ? Number(req.body.houseId) : device.house_id);
+    const house = nextHouseId ? await House.findByPk(nextHouseId) : null;
+    if (nextHouseId && !house) {
       return res.status(404).json({ ok: false, msg: "Casa no encontrada" });
     }
 
@@ -115,7 +116,7 @@ const updateDevice = async (req, res, next) => {
       firmware_version: req.body.firmwareVersion ? String(req.body.firmwareVersion).trim() : null,
       hardware_uid: nextHardwareUid,
       status: String(req.body.status || "").trim().toUpperCase(),
-      house_id: house.id
+      house_id: house?.id || null
     });
 
     const updated = await Device.findByPk(device.id, {

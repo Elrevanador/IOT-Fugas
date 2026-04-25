@@ -130,6 +130,14 @@ npm run dev
 - `PATCH /api/alerts/:id/ack`
 - `GET /api/devices` (`limit`, `page`, `houseId`, `status`, `search`)
 - `POST /api/devices/:id/credentials` (rota/genera credencial propia del dispositivo)
+- `GET /api/locations` / `POST /api/locations`
+- `GET /api/sensors` / `POST /api/sensors`
+- `GET /api/incidents` / `PATCH /api/incidents/:id/status`
+- `GET /api/valves` / `POST /api/valves/device/:deviceId/actions`
+- `GET /api/detection-config/:deviceId` / `PUT /api/detection-config/:deviceId`
+- `GET /api/commands` / `POST /api/commands`
+- `GET /api/commands/pending` y `POST /api/commands/:id/response` (ESP32, requiere `x-device-key`)
+- `GET /api/audit` (solo admin)
 
 El backend devuelve `pagination` en listas paginadas y agrega `X-Request-Id` en cada respuesta para trazabilidad.
 
@@ -266,7 +274,7 @@ La tabla `configuracion_deteccion` permite ajustar por device:
 - `auto_cierre_valvula` — si se debe emitir automaticamente un `comando_remoto` de cierre ante fuga confirmada.
 - `notificar_email` — si se debe generar notificacion.
 
-Cuando un device supera el umbral durante toda la ventana, el backend debera:
+Cuando un device supera el umbral durante toda la ventana, el backend:
 
 1. Abrir un registro en `incidente_fuga` con `estado = ABIERTO`.
 2. Crear la alerta asociada con `tipo = FUGA` y `incidente_id`.
@@ -283,7 +291,7 @@ Cuando un device supera el umbral durante toda la ventana, el backend debera:
 
 ### Confirmacion de alertas con trazabilidad
 
-`PATCH /api/alerts/:id/ack` debera poblar ademas:
+`PATCH /api/alerts/:id/ack` pobla ademas:
 
 - `acknowledged = true`
 - `ack_at = NOW()`

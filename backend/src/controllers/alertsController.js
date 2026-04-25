@@ -2,6 +2,7 @@ const { Alert, Device, House } = require("../models");
 const { broadcastDashboardUpdate } = require("../services/dashboardStream");
 const { getUserHouseScope, isOperator } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
+const { recordAudit } = require("../services/audit");
 
 const listAlerts = async (req, res, next) => {
   try {
@@ -72,9 +73,22 @@ const ackAlert = async (req, res, next) => {
     if (scopedHouseId && alert.Device?.house_id !== scopedHouseId) {
       return res.status(403).json({ ok: false, msg: "No tienes acceso a esta alerta" });
     }
-    alert.acknowledged = true;
-    alert.ack_at = new Date();
-    await alert.save();
+    const ackNote = req.body?.note || req.body?.ackNote || "";
+    await alert.update({
+      acknowledged: true,
+      ack_at: new Date(),
+      ack_by_user_id: req.user?.id || req.user?.uid || null,
+      ack_note: ackNote ? String(ackNote).slice(0, 500) : null
+    });
+
+    await recordAudit({
+      user: req.user,
+      entidad: "Alert",
+      entidadId: alert.id,
+      accion: "confirmar_alerta",
+      detalle: { note: alert.ack_note || null },
+      req
+    });
 
     broadcastDashboardUpdate().catch((error) => {
       console.error("No se pudo emitir la actualizacion del dashboard:", error);

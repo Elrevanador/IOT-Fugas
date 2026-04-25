@@ -12,19 +12,37 @@ const safeCompare = (left, right) => {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 };
 
-const findDeviceForCredential = async (req) => {
+const firstPresent = (...values) =>
+  values.find((value) => value !== undefined && value !== null && value !== "");
+
+const getIncomingDeviceId = (req) => {
   const deviceId =
-    req.body && req.body.deviceId !== undefined && req.body.deviceId !== null && req.body.deviceId !== ""
-      ? Number(req.body.deviceId)
+    firstPresent(req.body?.deviceId, req.params?.deviceId, req.query?.deviceId) !== undefined
+      ? Number(firstPresent(req.body?.deviceId, req.params?.deviceId, req.query?.deviceId))
       : null;
+  return Number.isFinite(deviceId) && deviceId > 0 ? deviceId : null;
+};
+
+const getIncomingDeviceName = (req) => {
+  const value = firstPresent(req.body?.deviceName, req.params?.deviceName, req.query?.deviceName);
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const getIncomingHardwareUid = (req) => {
+  const value = firstPresent(req.body?.hardwareUid, req.params?.hardwareUid, req.query?.hardwareUid);
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const findDeviceForCredential = async (req) => {
+  const deviceId = getIncomingDeviceId(req);
 
   if (deviceId) {
     return Device.findByPk(deviceId, {
-      attributes: ["id", "name", "api_key_hash", "api_key_hint"]
+      attributes: ["id", "name", "api_key_hash", "api_key_hint", "hardware_uid"]
     });
   }
 
-  const deviceName = typeof req.body?.deviceName === "string" ? req.body.deviceName.trim() : "";
+  const deviceName = getIncomingDeviceName(req);
   if (!deviceName) return null;
 
   return Device.findOne({
@@ -36,12 +54,9 @@ const findDeviceForCredential = async (req) => {
 const enforceAuthenticatedDeviceIdentity = (req, device) => {
   if (!device) return null;
 
-  const incomingDeviceId =
-    req.body && req.body.deviceId !== undefined && req.body.deviceId !== null && req.body.deviceId !== ""
-      ? Number(req.body.deviceId)
-      : null;
-  const incomingDeviceName = typeof req.body?.deviceName === "string" ? req.body.deviceName.trim() : "";
-  const incomingHardwareUid = typeof req.body?.hardwareUid === "string" ? req.body.hardwareUid.trim() : "";
+  const incomingDeviceId = getIncomingDeviceId(req);
+  const incomingDeviceName = getIncomingDeviceName(req);
+  const incomingHardwareUid = getIncomingHardwareUid(req);
 
   if (incomingDeviceId && incomingDeviceId !== Number(device.id)) {
     return "La credencial del dispositivo no coincide con deviceId";
@@ -71,7 +86,9 @@ module.exports = async (req, res, next) => {
 
   if (deviceKey) {
     if (ingestApiKey && safeCompare(deviceKey, ingestApiKey)) {
-      req.deviceAuth = { type: "global-key" };
+      const device = await findDeviceForCredential(req);
+      req.deviceAuth = { type: "global-key", deviceId: device?.id || null, deviceName: device?.name || null };
+      if (device) req.authenticatedDevice = device;
       return next();
     }
 

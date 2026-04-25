@@ -50,6 +50,7 @@ router.post(
       .trim()
       .isLength({ min: 3, max: 120 })
       .withMessage("hardwareUid invalido"),
+    body("sensorId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("sensorId invalido"),
     body("ts").optional().isISO8601().withMessage("ts invalido"),
     body("flow_lmin").isFloat({ min: 0 }).withMessage("flow_lmin invalido").toFloat(),
     body("pressure_kpa").isFloat({ min: 0 }).withMessage("pressure_kpa invalido").toFloat(),

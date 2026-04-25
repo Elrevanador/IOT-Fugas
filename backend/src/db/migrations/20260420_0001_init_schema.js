@@ -9,13 +9,38 @@ const tableExists = async (queryInterface, tableName) => {
   }
 };
 
+const columnExists = async (queryInterface, tableName, columnName) => {
+  try {
+    const table = await queryInterface.describeTable(tableName);
+    return !!table[columnName];
+  } catch {
+    return false;
+  }
+};
+
 const ensureTable = async (queryInterface, tableName, definition, options, transaction) => {
-  if (await tableExists(queryInterface, tableName)) return;
+  if (await tableExists(queryInterface, tableName)) {
+    // Si la tabla existe, agregar columnas que falten
+    for (const [colName, colDef] of Object.entries(definition)) {
+      if (!(await columnExists(queryInterface, tableName, colName))) {
+        await queryInterface.addColumn(tableName, colName, colDef, { transaction });
+      }
+    }
+    return;
+  }
   await queryInterface.createTable(tableName, definition, { ...options, transaction });
 };
 
 const ensureIndex = async (queryInterface, tableName, fields, options, transaction) => {
   const name = options?.name;
+  
+  // Verificar que todas las columnas existan
+  for (const field of fields) {
+    if (!(await columnExists(queryInterface, tableName, field))) {
+      return; // Saltar índice si la columna no existe
+    }
+  }
+  
   if (name) {
     try {
       await queryInterface.removeIndex(tableName, name, { transaction });
@@ -141,7 +166,6 @@ module.exports = {
     await ensureIndex(queryInterface, "houses", ["status"], { name: "houses_status_idx" }, transaction);
     await ensureIndex(queryInterface, "devices", ["house_id"], { name: "devices_house_id_idx" }, transaction);
     await ensureIndex(queryInterface, "devices", ["status"], { name: "devices_status_idx" }, transaction);
-    await ensureIndex(queryInterface, "devices", ["hardware_uid"], { name: "devices_hardware_uid_idx", unique: true }, transaction);
     await ensureIndex(queryInterface, "users", ["house_id"], { name: "users_house_id_idx" }, transaction);
     await ensureIndex(queryInterface, "users", ["role"], { name: "users_role_idx" }, transaction);
     await ensureIndex(queryInterface, "readings", ["device_id"], { name: "readings_device_id_idx" }, transaction);

@@ -1,8 +1,9 @@
 const { Op } = require("sequelize");
-const { sequelize, Device, Reading, Alert, House } = require("../models");
+const { sequelize, Device, Reading, Alert, House, Sensor } = require("../models");
 const { broadcastDashboardUpdate } = require("../services/dashboardStream");
 const { getUserHouseScope } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
+const { runLeakDetection } = require("../services/leakDetection");
 
 const FUTURE_TOLERANCE_MS = 5_000;
 
@@ -102,7 +103,7 @@ const ensureDevice = async ({
 
 const createReading = async (req, res, next) => {
   try {
-    const { houseId, deviceId, deviceName, deviceType, firmwareVersion, hardwareUid, ts, flow_lmin, pressure_kpa, risk, state } =
+    const { houseId, deviceId, deviceName, deviceType, firmwareVersion, hardwareUid, sensorId, ts, flow_lmin, pressure_kpa, risk, state } =
       req.body;
     const normalizedDeviceType = deviceType ? String(deviceType).trim() : null;
     const normalizedFirmwareVersion = firmwareVersion ? String(firmwareVersion).trim() : null;
@@ -122,6 +123,20 @@ const createReading = async (req, res, next) => {
       });
       const previousStatus = device.status || "NORMAL";
 
+      if (sensorId !== undefined && sensorId !== null && sensorId !== "") {
+        const sensor = await Sensor.findByPk(Number(sensorId), { transaction });
+        if (!sensor) {
+          const error = new Error("sensorId no encontrado");
+          error.status = 404;
+          throw error;
+        }
+        if (Number(sensor.device_id) !== Number(device.id)) {
+          const error = new Error("El sensor no pertenece al dispositivo indicado");
+          error.status = 409;
+          throw error;
+        }
+      }
+
       const createdReading = await Reading.create(
         {
           device_id: device.id,
@@ -129,7 +144,8 @@ const createReading = async (req, res, next) => {
           flow_lmin,
           pressure_kpa,
           risk,
-          state
+          state,
+          sensor_id: sensorId ? Number(sensorId) : null
         },
         { transaction }
       );
@@ -162,6 +178,7 @@ const createReading = async (req, res, next) => {
               device_id: device.id,
               ts: timestamp,
               severity: state,
+              tipo: state,
               message: `Estado ${state} | Flujo ${flow_lmin} L/min | Presion ${pressure_kpa} kPa | Riesgo ${risk}%`,
               acknowledged: false
             },
@@ -169,6 +186,8 @@ const createReading = async (req, res, next) => {
           );
         }
       }
+
+      await runLeakDetection({ device, reading: createdReading, transaction });
 
       return createdReading;
     });
