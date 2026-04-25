@@ -31,20 +31,28 @@ const ensureTable = async (queryInterface, tableName, definition, options, trans
   await queryInterface.createTable(tableName, definition, { ...options, transaction });
 };
 
+const indexExists = async (queryInterface, tableName, indexName) => {
+  try {
+    const indexes = await queryInterface.showIndex(tableName);
+    return indexes.some(index => index.name === indexName);
+  } catch {
+    return false;
+  }
+};
+
 const ensureIndex = async (queryInterface, tableName, fields, options, transaction) => {
   const name = options?.name;
-  
+
   // Verificar que todas las columnas existan
   for (const field of fields) {
     if (!(await columnExists(queryInterface, tableName, field))) {
       return; // Saltar índice si la columna no existe
     }
   }
-  
-  if (name) {
-    try {
-      await queryInterface.removeIndex(tableName, name, { transaction });
-    } catch {}
+
+  // Verificar si el índice ya existe
+  if (name && await indexExists(queryInterface, tableName, name)) {
+    return; // El índice ya existe, no hacer nada
   }
 
   await queryInterface.addIndex(tableName, fields, { ...options, transaction });
