@@ -10,9 +10,11 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "build": "echo 'No build step required'",
     "migrate": "node src/db/runMigrations.js",
     "seed:demo": "node src/db/seedDemo.js",
-    "test": "node --test"
+    "test": "node --test",
+    "postinstall": "echo 'Installation completed'"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -23,5 +25,9 @@
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.0",
     "sequelize": "^6.37.3"
-  }
+  },
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "peerDependencies": {},
+  "bundledDependencies": false
 }

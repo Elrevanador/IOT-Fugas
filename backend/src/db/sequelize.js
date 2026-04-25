@@ -9,20 +9,10 @@ const {
   DATABASE_URL
 } = process.env;
 
-// Log configuration for debugging (remove in production)
-console.log("Database config:", {
-  hasDatabaseUrl: !!DATABASE_URL,
-  host: DB_HOST,
-  port: DB_PORT,
-  user: DB_USER ? "***" : "not set",
-  database: DB_NAME
-});
-
 let sequelize;
 
 try {
   if (DATABASE_URL) {
-    console.log("Using DATABASE_URL for connection");
     sequelize = new Sequelize(DATABASE_URL, {
       dialect: "mysql",
       logging: false,
@@ -41,7 +31,6 @@ try {
       }
     });
   } else {
-    console.log("Using individual DB variables for connection");
     sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASS, {
       host: DB_HOST,
       port: Number(DB_PORT),
