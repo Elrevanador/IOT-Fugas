@@ -1,0 +1,23 @@
+# TODO - Expansión de esquema BD IoT agua
+
+- [x] Crear migración nueva con tablas faltantes y relaciones:
+  - ubicacion_instalacion
+  - sensor
+  - estado_sistema
+  - incidente_fuga
+  - electrovalvula
+  - accion_valvula
+  - configuracion_deteccion
+  - comando_remoto
+  - respuesta_comando
+  - rol
+  - usuario_rol
+  - auditoria_sistema
+- [x] Extender tablas existentes para mapeo recomendado:
+  - houses -> vivienda (sin romper compatibilidad)
+  - devices -> dispositivo_iot
+  - readings -> lectura_caudal
+  - alerts -> alerta
+- [x] Agregar índices para histórico/dashboard y trazabilidad
+- [x] Ejecutar pruebas exhaustivas backend (`npm test`)
+- [ ] Preparar cambios para PR
