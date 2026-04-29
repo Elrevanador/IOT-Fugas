@@ -63,13 +63,13 @@ const int SENSOR_ID = SENSOR_ID_VALUE;
 // Esta clave debe ser EXACTAMENTE la misma que la variable INGEST_API_KEY del
 // backend activo. Inyectala por build con INGEST_API_KEY_VALUE.
 const char* INGEST_API_KEY = INGEST_API_KEY_VALUE;
-// NOTA: Los intervalos de 500 ms son para demostracion y desarrollo.
-// En un despliegue real con bateria o uso continuo, aumentar a 5000-10000 ms
-// para reducir consumo energetico y carga del backend.
-const unsigned long SENSOR_READ_INTERVAL_MS = 500;
-const unsigned long BACKEND_SEND_INTERVAL_MS = 500;
-const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 2000;
-const unsigned long BACKEND_TIMEOUT_MS = 1200;
+// Intervalos optimizados para mejor rendimiento y respuesta del sistema.
+// Sensor cada 1 segundo, envios cada 2 segundos, comandos cada 5 segundos.
+// Timeout reducido para no bloquear en conexiones lentas.
+const unsigned long SENSOR_READ_INTERVAL_MS = 1000;
+const unsigned long BACKEND_SEND_INTERVAL_MS = 2000;
+const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
+const unsigned long BACKEND_TIMEOUT_MS = 500;
 
 const int flowPin    = 27;
 const int ledVerde   = 2;
