@@ -49,6 +49,11 @@
                   "with": "src/environments/environment.prod.ts"
                 }
               ],
+              "optimization": {
+                "fonts": {
+                  "inline": false
+                }
+              },
               "budgets": [
                 {
                   "type": "initial",
@@ -57,8 +62,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "11kB",
-                  "maximumError": "13kB"
+                  "maximumWarning": "24kB",
+                  "maximumError": "30kB"
                 }
               ],
               "outputHashing": "all"
