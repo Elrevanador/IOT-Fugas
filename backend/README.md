@@ -59,6 +59,45 @@ Las respuestas de listas incluyen `pagination` con `page`, `limit`, `total` y `t
 4. Usa `npm start` como start command.
 5. Configura las variables del ejemplo anterior.
 
+## Migrar base completa a Railway
+
+Las migraciones (`npm run migrate`) crean o actualizan tablas, pero no copian tus registros. Para llevarte la base local completa a MySQL de Railway usa un dump:
+
+1. Crea el servicio MySQL en Railway y habilita/usa su conexion publica TCP para importar desde tu maquina.
+2. En el servicio `backend` de Railway usa `DATABASE_URL=${{ MySQL.MYSQL_URL }}` o las variables `DB_*`.
+3. Genera el backup local:
+
+```bash
+cd backend
+npm run db:dump
+```
+
+El archivo queda en `backend/backups/` y contiene esquema + datos.
+
+4. Crea un archivo local ignorado por Git:
+
+```env
+# backend/.env.railway.local
+TARGET_DATABASE_URL=mysql://usuario:password@host-publico:puerto/base
+```
+
+Usa la URL real que Railway muestra para conexion publica/TCP Proxy, no el placeholder `${{ MySQL.MYSQL_URL }}`.
+
+5. Importa el dump a Railway:
+
+```bash
+cd backend
+npm run db:restore -- backups/NOMBRE_DEL_BACKUP.sql --yes
+```
+
+Si no pasas el nombre del archivo, el script usa el `.sql` mas reciente de `backend/backups/`.
+
+Notas importantes:
+
+- Haz esto antes de usar la app en produccion, o durante una ventana corta de mantenimiento.
+- El restore reemplaza tablas/datos del destino con lo que haya en el dump.
+- Los archivos `backend/backups/` y `backend/.env.railway.local` estan ignorados por Git para no subir datos ni credenciales.
+
 ## Local
 
 ```bash

@@ -1,3 +1,5 @@
 node_modules/
 .env
+.env*.local
+backups/
 npm-debug.log*

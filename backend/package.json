@@ -12,6 +12,8 @@
     "start": "node src/index.js",
     "build": "echo 'No build step required'",
     "migrate": "node src/db/runMigrations.js",
+    "db:dump": "node scripts/db-dump.js",
+    "db:restore": "node scripts/db-restore.js",
     "seed:demo": "node src/db/seedDemo.js",
     "test": "node --test",
     "postinstall": "echo 'Installation completed'"

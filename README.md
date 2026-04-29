@@ -329,6 +329,7 @@ Nombra los servicios exactamente asi para poder copiar y pegar las variables sin
 
 1. **MySQL**
    - Crea una base MySQL desde Railway.
+   - Para importar datos desde tu maquina, usa la conexion publica/TCP Proxy del servicio MySQL.
 
 2. **Backend**
    - Conecta el repo y establece `Root Directory` en `backend`.
@@ -382,3 +383,26 @@ Pruebas minimas en Railway:
 - `https://TU-BACKEND.../api/health`
 - `https://TU-FRONTEND.../` (SPA Angular con rutas `/login`, `/register`, `/dashboard`, `/admin`)
 - Verifica que el dashboard cargue datos y que login/register no fallen por CORS.
+
+### Migrar la base completa a Railway
+
+Las migraciones del backend crean el esquema, pero no copian los registros locales. Para subir tu base completa:
+
+```bash
+cd backend
+npm run db:dump
+```
+
+Luego crea `backend/.env.railway.local` con la URL publica real de MySQL en Railway:
+
+```env
+TARGET_DATABASE_URL=mysql://usuario:password@host-publico:puerto/base
+```
+
+Importa el backup:
+
+```bash
+npm run db:restore -- backups/NOMBRE_DEL_BACKUP.sql --yes
+```
+
+El restore reemplaza las tablas/datos del destino con el dump local, asi que conviene hacerlo antes de que el backend quede en uso real. Los backups y `.env.railway.local` estan ignorados por Git.
