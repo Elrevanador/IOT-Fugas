@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, timeout } from 'rxjs';
 
+import { getApiBaseUrl } from '../utils/api-base-url';
+
 const DEFAULT_TIMEOUT_MS = 30000;
 
 @Injectable({
@@ -11,15 +13,7 @@ export class ApiService {
   private readonly http = inject(HttpClient);
 
   private get apiBaseUrl(): string {
-    const runtime = (window as Window & { __APP_CONFIG__?: { apiBaseUrl?: string } }).__APP_CONFIG__;
-    if (runtime?.apiBaseUrl) {
-      return runtime.apiBaseUrl.replace(/\/+$/, '');
-    }
-
-    const isLocalhost =
-      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-    return isLocalhost ? 'http://localhost:3000' : '';
+    return getApiBaseUrl();
   }
 
   private toUrl(path: string) {

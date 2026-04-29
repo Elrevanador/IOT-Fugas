@@ -30,7 +30,8 @@ Este proyecto conecta una simulacion ESP32 en Wokwi con un backend Node.js + MyS
 3. El ESP32 publica la lectura a `POST /api/readings` con `x-device-key`.
 4. El backend guarda lecturas y alertas en MySQL.
 5. El frontend Angular consulta `GET /api/public/dashboard` y mantiene stream SSE contra la URL del backend.
-6. Los operadores pueden confirmar alertas desde el panel usando JWT.
+6. Los operadores pueden confirmar alertas y enviar acciones de valvula desde el panel usando JWT.
+7. El ESP32 simulado consulta `GET /api/commands/pending` y responde a `POST /api/commands/:id/response` con `x-device-key`.
 
 ## Wokwi en VS Code
 

@@ -1,75 +1,29 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
+import { getApiBaseUrl } from '../utils/api-base-url';
+import {
+  DashboardPayload,
+  HistoryReading,
+  DashboardReading,
+  DashboardAlert,
+  DashboardDeviceSummary,
+  DashboardSummary,
+  ReadingsResponse
+} from '../types';
 
-export interface DashboardReading {
-  id: number;
-  deviceId: number;
-  deviceName: string | null;
-  houseId: number | null;
-  houseName: string | null;
-  ts: string;
-  flow_lmin: number;
-  pressure_kpa: number;
-  risk: number;
-  state: string;
-}
-
-export interface DashboardAlert {
-  id: number;
-  deviceId: number;
-  deviceName: string | null;
-  houseId: number | null;
-  houseName: string | null;
-  ts: string;
-  severity: string;
-  message: string;
-  acknowledged: boolean;
-}
-
-export interface DashboardDeviceSummary {
-  id: number;
-  name: string | null;
-  houseId: number | null;
-  houseName: string | null;
-  status: string | null;
-  lastSeenAt: string | null;
-  lastState: string;
-  online: boolean;
-  latestReading: DashboardReading | null;
-}
-
-export interface DashboardPayload {
-  ok: boolean;
-  latestReading: DashboardReading | null;
-  recentReadings: DashboardReading[];
-  devices?: DashboardDeviceSummary[];
-  recentAlerts: DashboardAlert[];
-  deviceOnline: boolean;
-  lastSeenAt: string | null;
-  currentState: string;
-}
-
-export interface HistoryReading {
-  id: number;
-  ts: string;
-  flow_lmin: number;
-  pressure_kpa: number;
-  risk: number;
-  state: string;
-  Device?: {
-    id: number;
-    name: string;
-    house_id: number | null;
-    House?: {
-      id: number;
-      name: string;
-      code: string;
-    } | null;
-  } | null;
-}
+// Re-export types for components that import from this service
+export type {
+  DashboardPayload,
+  HistoryReading,
+  DashboardReading,
+  DashboardAlert,
+  DashboardDeviceSummary,
+  DashboardSummary,
+  ReadingsResponse
+};
 
 @Injectable({
   providedIn: 'root'
@@ -77,9 +31,49 @@ export interface HistoryReading {
 export class DashboardService {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+  private pollingTimer: ReturnType<typeof setInterval> | null = null;
 
   snapshot() {
     return this.api.get<DashboardPayload>('/api/public/dashboard');
+  }
+
+  startPolling(intervalMs = 3000): Observable<DashboardPayload> {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+    }
+
+    return new Observable<DashboardPayload>((subscriber) => {
+      const pollOnce = async () => {
+        try {
+          const payload = await firstValueFrom(this.snapshot());
+          subscriber.next(payload);
+        } catch (error) {
+          subscriber.error(error);
+        }
+      };
+
+      // Ejecutar inmediatamente
+      void pollOnce();
+
+      // Luego cada intervalMs
+      this.pollingTimer = setInterval(() => {
+        void pollOnce();
+      }, intervalMs);
+
+      return () => {
+        if (this.pollingTimer) {
+          clearInterval(this.pollingTimer);
+          this.pollingTimer = null;
+        }
+      };
+    });
+  }
+
+  stopPolling() {
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
   }
 
   readings(params: {
@@ -100,32 +94,46 @@ export class DashboardService {
         return;
       }
 
-      const runtime = (window as Window & { __APP_CONFIG__?: { apiBaseUrl?: string } }).__APP_CONFIG__;
-      const apiBaseUrl =
-        runtime?.apiBaseUrl ||
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:3000'
-          : '');
+      const eventSource = this.createEventSource(token);
 
-      const streamUrl = new URL(`${apiBaseUrl.replace(/\/+$/, '')}/api/public/dashboard/stream`, window.location.origin);
-      streamUrl.searchParams.set('token', token);
-
-      const source = new EventSource(streamUrl.toString());
-
-      source.addEventListener('dashboard', (event) => {
+      const handleDashboardMessage = (event: Event) => {
         try {
-          subscriber.next(JSON.parse((event as MessageEvent<string>).data));
+          const data = JSON.parse((event as MessageEvent<string>).data) as DashboardPayload;
+          subscriber.next(data);
         } catch (error) {
-          subscriber.error(error);
+          subscriber.error(new Error(`Failed to parse dashboard event: ${error}`));
         }
-      });
+      };
 
-      source.addEventListener('error', () => {
+      const handleError = () => {
         subscriber.error(new Error('Se perdio el stream del dashboard'));
-        source.close();
-      });
+        cleanup();
+      };
 
-      return () => source.close();
+      const cleanup = () => {
+        // ✅ IMPORTANTE: Remover listeners antes de cerrar
+        eventSource.removeEventListener('dashboard', handleDashboardMessage);
+        eventSource.removeEventListener('error', handleError);
+        eventSource.close();
+      };
+
+      eventSource.addEventListener('dashboard', handleDashboardMessage);
+      eventSource.addEventListener('error', handleError);
+
+      // ✅ Retornar función cleanup completa
+      return cleanup;
     });
+  }
+
+  private createEventSource(token: string): EventSource {
+    const apiBaseUrl = getApiBaseUrl();
+
+    const streamUrl = new URL(
+      `${apiBaseUrl.replace(/\/+$/, '')}/api/public/dashboard/stream`,
+      window.location.origin
+    );
+    streamUrl.searchParams.set('token', token);
+
+    return new EventSource(streamUrl.toString());
   }
 }

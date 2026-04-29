@@ -4,8 +4,12 @@ const { broadcastDashboardUpdate } = require("../services/dashboardStream");
 const { getUserHouseScope } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
 const { runLeakDetection } = require("../services/leakDetection");
+const { recordAudit } = require("../services/audit");
+const logger = require("../utils/logger");
 
 const FUTURE_TOLERANCE_MS = 5_000;
+const MAX_READINGS_PER_REQUEST = 1000;
+const VALID_STATES = ["NORMAL", "ALERTA", "FUGA", "ERROR"];
 
 const normalizeTimestamp = (rawTs) => {
   const now = new Date();
@@ -13,10 +17,16 @@ const normalizeTimestamp = (rawTs) => {
 
   const parsed = new Date(rawTs);
   if (Number.isNaN(parsed.getTime())) {
+    logger.warn("Timestamp inválido recibido, usando timestamp actual", { rawTs });
     return now;
   }
 
   if (parsed.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) {
+    logger.warn("Timestamp futuro detectado, usando timestamp actual", {
+      rawTs,
+      parsed: parsed.toISOString(),
+      now: now.toISOString()
+    });
     return now;
   }
 
@@ -33,6 +43,8 @@ const ensureDevice = async ({
   authenticatedDevice,
   transaction
 }) => {
+  const name = String(deviceName || "").trim();
+
   let house = null;
   if (houseId) {
     house = await House.findByPk(houseId, { transaction });
@@ -72,10 +84,24 @@ const ensureDevice = async ({
     return device;
   }
 
-  const name = String(deviceName || "").trim();
   if (authenticatedDevice) {
     return Device.findByPk(authenticatedDevice.id, { transaction });
   }
+
+  if (hardwareUid) {
+    const device = await Device.findOne({ where: { hardware_uid: hardwareUid }, transaction });
+    if (device) {
+      const metadataPatch = {};
+      if (house && !device.house_id) metadataPatch.house_id = house.id;
+      if (deviceType && device.device_type !== deviceType) metadataPatch.device_type = deviceType;
+      if (firmwareVersion && device.firmware_version !== firmwareVersion) metadataPatch.firmware_version = firmwareVersion;
+      if (Object.keys(metadataPatch).length) {
+        await device.update(metadataPatch, { transaction });
+      }
+      return device;
+    }
+  }
+
   const [device] = await Device.findOrCreate({
     where: { name },
     defaults: {
@@ -101,14 +127,100 @@ const ensureDevice = async ({
   return device;
 };
 
+/**
+ * Crea una nueva lectura de sensor IoT
+ *
+ * Autenticación: x-device-key (header) o INGEST_API_KEY global
+ * Rate Limit: 100 req/min por dispositivo
+ *
+ * @param {Object} req.body
+ * @param {number} [req.body.houseId] - ID de la casa (opcional si se usa deviceId)
+ * @param {number} [req.body.deviceId] - ID del dispositivo (requerido si no deviceName)
+ * @param {string} [req.body.deviceName] - Nombre del dispositivo (requerido si no deviceId)
+ * @param {string} [req.body.deviceType] - Tipo de dispositivo
+ * @param {string} [req.body.firmwareVersion] - Versión de firmware
+ * @param {string} [req.body.hardwareUid] - UID de hardware
+ * @param {number} [req.body.sensorId] - ID del sensor
+ * @param {string} [req.body.ts] - Timestamp ISO
+ * @param {number} req.body.flow_lmin - Flujo en L/min (requerido)
+ * @param {number} [req.body.pressure_kpa] - Presión en kPa
+ * @param {string} [req.body.risk] - Nivel de riesgo
+ * @param {string} req.body.state - Estado: NORMAL|ALERTA|FUGA|ERROR (requerido)
+ *
+ * @returns {Object} { ok: true, reading: {...} }
+ * @throws 400 - Validación fallida
+ * @throws 401 - No autenticado o API key inválida
+ * @throws 404 - Dispositivo no encontrado
+ * @throws 429 - Rate limit excedido
+ */
 const createReading = async (req, res, next) => {
   try {
-    const { houseId, deviceId, deviceName, deviceType, firmwareVersion, hardwareUid, sensorId, ts, flow_lmin, pressure_kpa, risk, state } =
-      req.body;
+    const {
+      houseId,
+      deviceId,
+      deviceName,
+      deviceType,
+      firmwareVersion,
+      hardwareUid,
+      sensorId,
+      ts,
+      flow_lmin,
+      pressure_kpa,
+      risk,
+      state
+    } = req.body;
+
+    // Validaciones de entrada críticas
+    if (flow_lmin === undefined || flow_lmin === null || typeof flow_lmin !== 'number' || Number.isNaN(flow_lmin) || flow_lmin < 0 || flow_lmin > 10000) {
+      return res.status(400).json({
+        ok: false,
+        msg: "flow_lmin requerido y debe ser un número entre 0 y 10000"
+      });
+    }
+
+    if (!state || !VALID_STATES.includes(state)) {
+      return res.status(400).json({
+        ok: false,
+        msg: `state requerido y debe ser uno de: ${VALID_STATES.join(', ')}`
+      });
+    }
+
+    if (pressure_kpa !== undefined && (typeof pressure_kpa !== 'number' || Number.isNaN(pressure_kpa) || pressure_kpa < 0 || pressure_kpa > 10000)) {
+      return res.status(400).json({
+        ok: false,
+        msg: "pressure_kpa debe ser un número entre 0 y 10000"
+      });
+    }
+
+    const normalizedRisk = risk === undefined || risk === null || risk === "" ? 0 : Number(risk);
+    if (!Number.isFinite(normalizedRisk) || normalizedRisk < 0 || normalizedRisk > 100) {
+      return res.status(400).json({
+        ok: false,
+        msg: "risk debe ser un número entre 0 y 100"
+      });
+    }
+
+    // Validar sensor si se proporciona
+    if (sensorId !== undefined && sensorId !== null && sensorId !== "") {
+      const sensorIdNum = Number(sensorId);
+      if (isNaN(sensorIdNum) || sensorIdNum <= 0) {
+        return res.status(400).json({ ok: false, msg: "sensorId debe ser un número positivo" });
+      }
+    }
+
+    // Normalizar y validar datos del dispositivo
     const normalizedDeviceType = deviceType ? String(deviceType).trim() : null;
     const normalizedFirmwareVersion = firmwareVersion ? String(firmwareVersion).trim() : null;
     const normalizedHardwareUid = hardwareUid ? String(hardwareUid).trim() : null;
     const timestamp = normalizeTimestamp(ts);
+
+    logger.info("Procesando nueva lectura de sensor", {
+      deviceId,
+      deviceName,
+      flow_lmin,
+      state,
+      authenticatedDevice: req.authenticatedDevice?.id
+    });
 
     const reading = await sequelize.transaction(async (transaction) => {
       const device = await ensureDevice({
@@ -121,8 +233,10 @@ const createReading = async (req, res, next) => {
         authenticatedDevice: req.authenticatedDevice || null,
         transaction
       });
+
       const previousStatus = device.status || "NORMAL";
 
+      // Validar sensor si se especifica
       if (sensorId !== undefined && sensorId !== null && sensorId !== "") {
         const sensor = await Sensor.findByPk(Number(sensorId), { transaction });
         if (!sensor) {
@@ -137,19 +251,21 @@ const createReading = async (req, res, next) => {
         }
       }
 
+      // Crear la lectura
       const createdReading = await Reading.create(
         {
           device_id: device.id,
           ts: timestamp,
           flow_lmin,
           pressure_kpa,
-          risk,
+          risk: normalizedRisk,
           state,
           sensor_id: sensorId ? Number(sensorId) : null
         },
         { transaction }
       );
 
+      // Actualizar estado del dispositivo
       await device.update(
         {
           status: state,
@@ -161,6 +277,7 @@ const createReading = async (req, res, next) => {
         { transaction }
       );
 
+      // Crear alerta si el estado cambió a problemático
       if (state !== "NORMAL" && previousStatus !== state) {
         const recentOpenAlert = await Alert.findOne({
           where: {
@@ -169,6 +286,7 @@ const createReading = async (req, res, next) => {
             acknowledged: false
           },
           order: [["ts", "DESC"]],
+          limit: 1,
           transaction
         });
 
@@ -179,7 +297,7 @@ const createReading = async (req, res, next) => {
               ts: timestamp,
               severity: state,
               tipo: state,
-              message: `Estado ${state} | Flujo ${flow_lmin} L/min | Presion ${pressure_kpa} kPa | Riesgo ${risk}%`,
+              message: `Estado ${state} | Flujo ${flow_lmin} L/min | Presion ${pressure_kpa ?? 'N/A'} kPa | Riesgo ${normalizedRisk}`,
               acknowledged: false
             },
             { transaction }
@@ -187,17 +305,48 @@ const createReading = async (req, res, next) => {
         }
       }
 
+      // Ejecutar detección de fugas
       await runLeakDetection({ device, reading: createdReading, transaction });
 
       return createdReading;
     });
 
+    // Registrar auditoría
+    await recordAudit({
+      entidad: "Reading",
+      entidadId: reading.id,
+      accion: "crear_lectura",
+      detalle: {
+        device_id: reading.device_id,
+        flow_lmin,
+        state,
+        risk: normalizedRisk,
+        sensor_id: reading.sensor_id
+      },
+      req
+    });
+
+    // Broadcast actualización del dashboard
     broadcastDashboardUpdate().catch((error) => {
-      console.error("No se pudo emitir la actualizacion del dashboard:", error);
+      logger.warn("Dashboard broadcast falló", { readingId: reading.id, error: error.message });
+    });
+
+    logger.info("Lectura creada exitosamente", {
+      readingId: reading.id,
+      deviceId: reading.device_id,
+      flow_lmin,
+      state
     });
 
     return res.status(201).json({ ok: true, reading });
   } catch (error) {
+    logger.error("Error creando lectura", {
+      error: error.message,
+      deviceId: req.body?.deviceId,
+      deviceName: req.body?.deviceName,
+      flow_lmin: req.body?.flow_lmin,
+      state: req.body?.state
+    });
     return next(error);
   }
 };

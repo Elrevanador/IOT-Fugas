@@ -11,13 +11,14 @@ const createAuthMiddleware = ({ allowQueryToken = false } = {}) => (req, res, ne
   }
 
   try {
-    const auth = req.headers.authorization || "";
-    const tokenFromHeader = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    const tokenFromQuery =
-      allowQueryToken && req.method === "GET" && typeof req.query.token === "string"
-        ? req.query.token.trim()
-        : "";
-    const token = tokenFromHeader || tokenFromQuery;
+    const authHeader = req.headers.authorization || "";
+    let token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token && allowQueryToken) {
+      const raw = req.query?.token;
+      if (raw !== undefined && raw !== null && raw !== "") {
+        token = String(raw).trim();
+      }
+    }
     if (!token) {
       return res.status(401).json({ ok: false, msg: "Token requerido" });
     }
@@ -30,8 +31,7 @@ const createAuthMiddleware = ({ allowQueryToken = false } = {}) => (req, res, ne
 };
 
 const auth = createAuthMiddleware();
-
-// EventSource no permite enviar Authorization de forma nativa.
-auth.withQueryToken = createAuthMiddleware({ allowQueryToken: true });
+/** Solo para GET /api/public/dashboard/stream: EventSource del navegador no envía Authorization. */
+auth.authStream = createAuthMiddleware({ allowQueryToken: true });
 
 module.exports = auth;

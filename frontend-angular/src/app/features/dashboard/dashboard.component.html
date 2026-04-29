@@ -1,168 +1,109 @@
 <section class="dashboard-page">
-  <section class="dashboard-controls glass-panel" [class.dashboard-controls--split]="hasMultipleDevices()">
-    @if (hasMultipleDevices()) {
-      <div class="dashboard-control-row dashboard-control-row--devices">
-        <span class="dashboard-control-label">Dispositivos</span>
-        <div class="dashboard-tabs__rail">
+  <section class="dashboard-workspace">
+    <aside class="dashboard-device-sidebar glass-panel" aria-label="Dispositivos y vistas">
+      <div class="dashboard-device-sidebar__header">
+        <span class="eyebrow">Dispositivos</span>
+        <strong>{{ devicesSummaryShort() }}</strong>
+        <small>{{ connectionLabel() }} · {{ lastPacketLabel() }}</small>
+      </div>
+
+      <nav class="dashboard-device-nav" aria-label="Dispositivos">
+        @if (hasMultipleDevices()) {
           <button
             type="button"
-            class="dashboard-tabs__arrow"
-            [disabled]="!canScrollDeviceTabsLeft()"
-            (click)="scrollDeviceTabs('left')"
-            aria-label="Ver dispositivos anteriores"
+            class="dashboard-side-button"
+            [class.dashboard-side-button--active]="selectedDeviceId() === null"
+            [attr.aria-current]="selectedDeviceId() === null ? 'page' : null"
+            (click)="selectDevice(null)"
           >
-            ‹
+            <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+            <span>
+              <strong>Todos</strong>
+              <small>{{ uniqueDevices().length }} dispositivos</small>
+            </span>
           </button>
+        }
 
-          <div
-            class="dashboard-tabs__viewport"
-            [class.dashboard-tabs__viewport--left]="canScrollDeviceTabsLeft()"
-            [class.dashboard-tabs__viewport--right]="canScrollDeviceTabsRight()"
-            #deviceTabsScroller
-            (scroll)="onDeviceTabsScroll()"
+        @for (device of uniqueDevices(); track device.id) {
+          <button
+            type="button"
+            class="dashboard-side-button"
+            [class.dashboard-side-button--active]="selectedDeviceId() === device.id"
+            [attr.aria-current]="selectedDeviceId() === device.id ? 'page' : null"
+            (click)="selectDevice(device.id)"
           >
-            <div class="dashboard-tabs__strip">
-              <button
-                type="button"
-                class="dashboard-tab dashboard-tab--device"
-                [class.dashboard-tab--active]="selectedDeviceId() === null"
-                (click)="selectDevice(null)"
-              >
-                <div class="dashboard-tab__title">
-                  <strong>Todos</strong>
-                </div>
-                <span>{{ uniqueDevices().length }} dispositivos</span>
-              </button>
-              @for (device of uniqueDevices(); track device.id) {
-                <button
-                  type="button"
-                  class="dashboard-tab dashboard-tab--device"
-                  [class.dashboard-tab--active]="selectedDeviceId() === device.id"
-                  (click)="selectDevice(device.id)"
-                >
-                  <div class="dashboard-tab__title">
-                    <strong>{{ device.name || 'Disp #' + device.id }}</strong>
-                    <span class="dashboard-tab__badge" [class.dashboard-tab__badge--alert]="device.lastState === 'FUGA' || device.lastState === 'ALERTA'">
-                      {{ device.lastState }}
-                    </span>
-                  </div>
-                  <span>{{ device.houseName || 'Sin casa' }}</span>
-                </button>
-              }
+            <i class="fa-solid fa-microchip" aria-hidden="true"></i>
+            <span>
+              <strong>{{ device.name || 'Disp #' + device.id }}</strong>
+              <small>{{ device.houseName || 'Sin casa' }} · {{ device.lastState }}</small>
+            </span>
+          </button>
+        } @empty {
+          <p class="dashboard-device-empty">Sin dispositivos registrados.</p>
+        }
+      </nav>
+
+    </aside>
+
+    <div class="dashboard-workspace__content">
+      <section class="dashboard-controls dashboard-controls--views glass-panel">
+        <div class="dashboard-control-row">
+          <span class="dashboard-control-label">Vista</span>
+          <div class="dashboard-tabs__rail">
+            <button
+              type="button"
+              class="dashboard-tabs__arrow"
+              [disabled]="!canScrollTabsLeft()"
+              (click)="scrollTabs('left')"
+              aria-label="Ver pestañas anteriores"
+            >
+              ‹
+            </button>
+
+            <div
+              class="dashboard-tabs__viewport"
+              [class.dashboard-tabs__viewport--left]="canScrollTabsLeft()"
+              [class.dashboard-tabs__viewport--right]="canScrollTabsRight()"
+              #tabsScroller
+              (scroll)="onTabsScroll()"
+            >
+              <div class="dashboard-tabs__strip">
+                @for (tab of tabs; track tab.id) {
+                  <button
+                    type="button"
+                    class="dashboard-tab"
+                    [class.dashboard-tab--active]="activeTab() === tab.id"
+                    (click)="changeTab(tab.id)"
+                  >
+                    <div class="dashboard-tab__title">
+                      <i [class]="tab.icon" aria-hidden="true"></i>
+                      <strong>{{ tab.label }}</strong>
+                      @if (tabBadge(tab.id); as badge) {
+                        <span class="dashboard-tab__badge" [class.dashboard-tab__badge--alert]="tab.id === 'alerts' && badge > 0">
+                          {{ badge }}
+                        </span>
+                      }
+                    </div>
+                    <span>{{ tab.detail }}</span>
+                  </button>
+                }
+              </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            class="dashboard-tabs__arrow"
-            [disabled]="!canScrollDeviceTabsRight()"
-            (click)="scrollDeviceTabs('right')"
-            aria-label="Ver dispositivos siguientes"
-          >
-            ›
-          </button>
-        </div>
-      </div>
-    }
-
-    <div class="dashboard-control-row">
-      <span class="dashboard-control-label">Vista</span>
-      <div class="dashboard-tabs__rail">
-        <button
-          type="button"
-          class="dashboard-tabs__arrow"
-          [disabled]="!canScrollTabsLeft()"
-          (click)="scrollTabs('left')"
-          aria-label="Ver pestañas anteriores"
-        >
-          ‹
-        </button>
-
-        <div
-          class="dashboard-tabs__viewport"
-          [class.dashboard-tabs__viewport--left]="canScrollTabsLeft()"
-          [class.dashboard-tabs__viewport--right]="canScrollTabsRight()"
-          #tabsScroller
-          (scroll)="onTabsScroll()"
-        >
-          <div class="dashboard-tabs__strip">
-            @for (tab of tabs; track tab.id) {
-              <button
-                type="button"
-                class="dashboard-tab"
-                [class.dashboard-tab--active]="activeTab() === tab.id"
-                (click)="changeTab(tab.id)"
-              >
-                <div class="dashboard-tab__title">
-                  <strong>{{ tab.label }}</strong>
-                  @if (tabBadge(tab.id); as badge) {
-                    <span class="dashboard-tab__badge" [class.dashboard-tab__badge--alert]="tab.id === 'alerts' && badge > 0">
-                      {{ badge }}
-                    </span>
-                  }
-                </div>
-                <span>{{ tab.detail }}</span>
-              </button>
-            }
+            <button
+              type="button"
+              class="dashboard-tabs__arrow"
+              [disabled]="!canScrollTabsRight()"
+              (click)="scrollTabs('right')"
+              aria-label="Ver pestañas siguientes"
+            >
+              ›
+            </button>
           </div>
         </div>
-
-        <button
-          type="button"
-          class="dashboard-tabs__arrow"
-          [disabled]="!canScrollTabsRight()"
-          (click)="scrollTabs('right')"
-          aria-label="Ver pestañas siguientes"
-        >
-          ›
-        </button>
-      </div>
-    </div>
-  </section>
+      </section>
 
   @if (activeTab() === 'overview') {
-    <header class="dashboard-hero glass-panel" [attr.data-tone]="heroTone()">
-      <div class="hero-copy">
-        <span class="eyebrow">Telemetria viva</span>
-        <h1>Tablero de presion, caudal y riesgo con energia cinematic.</h1>
-        <p>
-          Angular ahora actua como cockpit operativo: consume snapshot, abre SSE y eleva las alertas sin perder el tono visual del sistema.
-        </p>
-        <div class="hero-ribbon">
-          <span>Estado {{ currentState() }}</span>
-          <span>{{ connectionLabel() }}</span>
-          <span>{{ lastPacketLabel() }}</span>
-        </div>
-      </div>
-
-      <div class="hero-status">
-        <div class="status-card">
-          <span>Transporte</span>
-          <strong>{{ transport() }}</strong>
-        </div>
-        <div class="status-card">
-          <span>Estado</span>
-          <strong>{{ currentState() }}</strong>
-        </div>
-        <div class="status-card">
-          <span>Ultimo evento</span>
-          <strong>{{ scopedLastSeenAt() ? (scopedLastSeenAt() | date:'short') : '--' }}</strong>
-        </div>
-        <div class="status-card status-card--pulse">
-          <span>Alertas activas</span>
-          <strong>{{ activeAlerts().length }}</strong>
-        </div>
-        <div class="status-card">
-          <span>Riesgo medio</span>
-          <strong>{{ averageRisk() }}%</strong>
-        </div>
-        <div class="status-card">
-          <span>Enlace</span>
-          <strong>{{ isReconnecting() ? 'Reconectando' : 'Estable' }}</strong>
-        </div>
-      </div>
-    </header>
-
     @if (currentState() === 'FUGA' || currentState() === 'ALERTA') {
       <section class="critical-banner" [attr.data-tone]="heroTone()">
         <div>
@@ -192,7 +133,6 @@
         }
       </section>
     } @else if (hasMultipleDevices() && selectedDeviceId() === null) {
-      <!-- Todos: show device cards grid -->
       <section class="device-cards-grid">
         @for (card of deviceCards(); track card.device.id) {
           <article class="device-card glass-panel" [attr.data-state]="card.state" (click)="selectDevice(card.device.id)">
@@ -359,14 +299,6 @@
               </div>
             </div>
           </article>
-
-          <article class="glass-panel glass-panel--inner payload-panel">
-            <header>
-              <span class="eyebrow">Payload</span>
-              <h2>Snapshot crudo</h2>
-            </header>
-            <pre>{{ payload() | json }}</pre>
-          </article>
         </section>
       </section>
     }
@@ -391,7 +323,7 @@
             }
           </div>
           <div class="timeline">
-            @for (reading of filteredReadings(); track trackByReading) {
+            @for (reading of filteredReadings(); track readingTrackKey($index, reading)) {
               <div class="timeline__item" [attr.data-state]="reading.state">
                 <div class="timeline__pulse"></div>
                 <div>
@@ -438,7 +370,7 @@
             }
           </div>
           <div class="alerts">
-            @for (alert of filteredAlerts(); track trackByAlert) {
+            @for (alert of filteredAlerts(); track alertTrackKey($index, alert)) {
               <div class="alert-item" [attr.data-severity]="alert.severity">
                 <div class="alert-item__head">
                   <strong>{{ alert.severity }}</strong>
@@ -527,4 +459,6 @@
         </article>
       </section>
     }
+    </div>
+  </section>
 </section>

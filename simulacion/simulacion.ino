@@ -33,6 +33,7 @@ SystemState state;
 // ---------------- Temporizadores ----------------
 unsigned long lastMeasure   = 0;
 unsigned long lastSend      = 0;
+unsigned long lastCommandPoll = 0;
 unsigned long lastBlink     = 0;
 unsigned long lastLCDUpdate = 0;
 
@@ -46,7 +47,9 @@ bool lastReportedSensorOK  = true;
 static void printJsonEstado(const SystemState &s) {
   Serial.print("{\"device\":\"");
   Serial.print(DEVICE_NAME);
-  Serial.print("\",\"flow_lmin\":");
+  Serial.print("\",\"sensor_id\":");
+  Serial.print(SENSOR_ID);
+  Serial.print(",\"flow_lmin\":");
   Serial.print(s.flujoLmin, 2);
   Serial.print(",\"pressure_kpa\":");
   Serial.print(s.presionKPa, 2);
@@ -58,6 +61,10 @@ static void printJsonEstado(const SystemState &s) {
   Serial.print(s.sensorOK ? "true" : "false");
   Serial.print(",\"backend_online\":");
   Serial.print(s.backendOnline ? "true" : "false");
+  Serial.print(",\"valvula\":\"");
+  Serial.print(s.valvulaAbierta ? "ABIERTA" : "CERRADA");
+  Serial.print("\",\"remote_commands\":");
+  Serial.print(s.comandosBackend);
   Serial.println("}");
 }
 
@@ -84,6 +91,7 @@ void setup() {
 
   lastMeasure = millis();
   lastSend    = millis();
+  lastCommandPoll = millis();
   lastBlink   = millis();
 
   Serial.println("Sistema listo");
@@ -135,5 +143,10 @@ void loop() {
     lastReportedRisk = state.nivelRiesgo;
     lastReportedState = state.estadoSistema;
     lastReportedSensorOK = state.sensorOK;
+  }
+
+  if (now - lastCommandPoll >= BACKEND_COMMAND_POLL_INTERVAL_MS) {
+    consultarComandosBackend(state);
+    lastCommandPoll = now;
   }
 }

@@ -54,7 +54,11 @@ void handleCommands(SystemState &state) {
     Serial.print(" Q=");
     Serial.print(state.flujoLmin, 2);
     Serial.print(" P=");
-    Serial.println(state.presionKPa, 2);
+    Serial.print(state.presionKPa, 2);
+    Serial.print(" VALVULA=");
+    Serial.print(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
+    Serial.print(" CMD=");
+    Serial.println(state.ultimoComandoBackend);
   } else if (pendingCommand == "HELP") {
     Serial.println("CMD:HELP PING | STATUS | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
   } else if (pendingCommand.startsWith("FORCE ")) {

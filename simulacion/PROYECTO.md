@@ -5,7 +5,7 @@
 - **Sensores:** YF-S201 (flujo), BMP180 (presión).
 - **Actuadores:** LEDs de estado, buzzer y LCD.
 - **Dato a enviar a internet:** flujo (L/min), presión (kPa), riesgo (%) y estado (NORMAL/ALERTA/FUGA/ERROR).
-- **Acción remota:** confirmar alertas desde el panel web (operador).
+- **Acción remota:** confirmar alertas desde el panel web y enviar comandos de válvula al ESP32 simulado.
 
 # Paso 2. Identificar responsabilidades del firmware
 
@@ -13,7 +13,8 @@
 - **Sensores:** `readSensors()` / `leerSensores()` toman datos del YF-S201 y BMP180.
 - **Actuadores:** `controlActuators()` / `actualizarActuadores()` controlan LEDs y buzzer.
 - **Envio de datos:** `sendData()` / `enviarBackend()` prepara y envía JSON al backend.
-- **Comandos:** `handleCommands()` recibe comandos simulados por Serial (`PING`, `STATUS`).
+- **Comandos seriales:** `handleCommands()` recibe comandos de demostración por Serial (`PING`, `STATUS`, `FORCE ...`).
+- **Comandos backend:** `consultarComandosBackend()` consulta `GET /api/commands/pending` con `x-device-key` y `hardwareUid`, ejecuta comandos remotos y responde en `POST /api/commands/:id/response`.
 
 # Paso 3. Estructura inicial del código
 
@@ -45,7 +46,12 @@ Funciones principales en `simulacion/simulacion.ino`:
 - Lee flujo y presión y calcula el estado.
 - Activa LEDs y buzzer según condiciones simples.
 - Envía un JSON al backend (`POST /api/readings`).
-- Simula comandos con Serial: escribe `PING` o `STATUS` para ver respuesta.
+- Consulta comandos remotos del backend cada 2 segundos.
+- Ejecuta comandos de válvula (`ABRIR_VALVULA`, `CERRAR_VALVULA`) y responde al backend.
+- Si defines `SENSOR_ID_VALUE`, las lecturas quedan asociadas a la tabla `sensores`.
+- Por defecto `DEVICE_ID_VALUE=0` y `HOUSE_ID_VALUE=0`, así el backend crea o encuentra el dispositivo por `deviceName` sin depender de IDs locales. Si ya tienes una casa/dispositivo fijo, sobreescribe esos valores al compilar.
+- Tambien reporta `deviceType`, `firmwareVersion` y `hardwareUid` para mantener actualizada la tabla `devices`.
+- Simula comandos locales con Serial: escribe `PING`, `STATUS` o `FORCE ALERTA` para ver respuesta.
 
 # Ver serial desde terminal
 

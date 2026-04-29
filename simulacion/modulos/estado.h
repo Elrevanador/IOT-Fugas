@@ -16,6 +16,9 @@ struct SystemState {
   int backendLastCode = 0;
   bool backendOnline = false;
   String backendLastMsg = "Sin intentos";
+  bool valvulaAbierta = true;
+  uint32_t comandosBackend = 0;
+  String ultimoComandoBackend = "Sin comandos";
   int contadorAlerta  = 0;
   int contadorCritico = 0;
   int nivelRiesgo     = 20;

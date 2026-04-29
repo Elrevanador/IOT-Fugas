@@ -10,20 +10,14 @@
   @if (points().length) {
     <div class="chart-card__canvas">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stop-color="currentColor" stop-opacity="0.34"></stop>
-            <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
-          </linearGradient>
-        </defs>
         <path class="chart-card__area" [attr.d]="areaPath()"></path>
         <path class="chart-card__line" [attr.d]="path()"></path>
       </svg>
     </div>
 
     <div class="chart-card__labels">
-      @for (point of points(); track $index) {
-        <span>{{ point.label || ('#' + ($index + 1)) }}</span>
+      @for (label of axisLabels(); track label.position) {
+        <span [style.left.%]="label.position" [attr.data-anchor]="label.anchor">{{ label.label }}</span>
       }
     </div>
   } @else {

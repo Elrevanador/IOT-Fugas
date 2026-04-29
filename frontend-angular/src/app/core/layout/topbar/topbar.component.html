@@ -1,0 +1,28 @@
+<header class="topbar">
+  <button class="menu-button" type="button" (click)="toggleSidebar()" aria-label="Abrir o cerrar menú">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+
+  <div class="page-title">
+    <h1>Panel operativo</h1>
+    <p>Telemetría, alertas y administración del sistema IoT</p>
+  </div>
+
+  <div class="user-area">
+    @if (auth.currentUser(); as user) {
+      <div class="user-card">
+        <div class="user-avatar" aria-hidden="true">{{ initials(user.nombre) }}</div>
+        <div class="user-info">
+          <strong>{{ user.nombre }}</strong>
+          <span>{{ user.email }}</span>
+        </div>
+        <span class="role-pill">{{ user.role | uppercase }}</span>
+      </div>
+    }
+
+    <button class="logout-button" type="button" (click)="logout()">
+      <i class="fa-solid fa-right-from-bracket"></i>
+      <span>Salir</span>
+    </button>
+  </div>
+</header>

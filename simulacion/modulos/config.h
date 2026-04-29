@@ -14,12 +14,16 @@ extern const BackendMode BACKEND_MODE;
 extern const char* BACKEND_BASE_URL_LOCAL;
 extern const char* BACKEND_BASE_URL_PUBLIC;
 extern const char* DEVICE_NAME;
+extern const char* DEVICE_TYPE;
+extern const char* DEVICE_FIRMWARE_VERSION;
 extern const char* DEVICE_HARDWARE_UID;
 extern const int DEVICE_ID;
 extern const int HOUSE_ID;
+extern const int SENSOR_ID;
 extern const char* INGEST_API_KEY;
 extern const unsigned long SENSOR_READ_INTERVAL_MS;
 extern const unsigned long BACKEND_SEND_INTERVAL_MS;
+extern const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS;
 extern const unsigned long BACKEND_TIMEOUT_MS;
 
 // ---------------- Pines ----------------

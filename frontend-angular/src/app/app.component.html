@@ -1,66 +1,16 @@
-<div class="app-shell">
-  <div class="app-shell__aurora app-shell__aurora--one" aria-hidden="true"></div>
-  <div class="app-shell__aurora app-shell__aurora--two" aria-hidden="true"></div>
-  <div class="app-shell__comet app-shell__comet--one" aria-hidden="true"></div>
-  <div class="app-shell__comet app-shell__comet--two" aria-hidden="true"></div>
-  <div class="app-shell__grid" aria-hidden="true"></div>
+<router-outlet />
 
-  <header class="app-header">
-    <a class="brand" routerLink="/dashboard">
-      <span class="brand__glyph"></span>
-      <span class="brand__copy">
-        <strong>AquaSense</strong>
-        <small>control operativo</small>
-      </span>
-    </a>
+<app-toast-container />
+<app-confirm-dialog />
 
-    <nav class="app-nav" aria-label="Navegacion principal">
-      @if (auth.isAuthenticated()) {
-        <a routerLink="/dashboard" routerLinkActive="is-active">Dashboard</a>
-        @if (auth.isAdmin()) {
-          <a routerLink="/admin" routerLinkActive="is-active">Admin</a>
-        }
-      }
-    </nav>
-
-    <div class="app-header__actions">
-      @if (auth.currentUser(); as user) {
-        <div class="route-chip" [attr.data-tone]="routeTone()">
-          <span>Escena</span>
-          <strong>{{ currentRoute() }}</strong>
-        </div>
-        <div class="operator-chip">
-          <span>{{ user.nombre }}</span>
-          <small>{{ user.role | uppercase }}</small>
-        </div>
-        <button type="button" class="ghost-button" (click)="logout()">Cerrar sesion</button>
-      } @else {
-        <a class="ghost-button" routerLink="/register" routerLinkActive="is-active">Registro</a>
-        <a class="primary-button" routerLink="/login">Acceder</a>
-      }
+<div class="loading-overlay" [class.loading-overlay--visible]="loading.isBusy()" aria-live="polite" aria-busy="true">
+  <div class="loading-overlay__panel">
+    <div class="loading-orbit">
+      <span></span>
+      <span></span>
+      <span></span>
     </div>
-  </header>
-
-  <main class="app-main">
-    <section
-      class="route-stage"
-      [class.route-stage--loading]="loading.isBusy()"
-      [class.route-stage--animating]="isRouteAnimating()"
-      [attr.data-tone]="routeTone()"
-    >
-      <router-outlet></router-outlet>
-    </section>
-  </main>
-
-  <div class="loading-overlay" [class.loading-overlay--visible]="loading.isBusy()" aria-live="polite" aria-busy="true">
-    <div class="loading-overlay__panel">
-      <div class="loading-orbit">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-      <strong>Sincronizando telemetria</strong>
-      <p>Preparando vistas, credenciales y flujo en tiempo real.</p>
-    </div>
+    <strong>Sincronizando</strong>
+    <p>Preparando datos del servidor…</p>
   </div>
 </div>

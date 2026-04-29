@@ -1,9 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, inject, signal } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
+import { resolveErrorMessage } from '../../core/utils/error-message';
+import { backendPasswordValidator } from '../../core/validators/password-policy';
 
 @Component({
   selector: 'app-register',
@@ -15,6 +18,7 @@ export class RegisterComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
 
   readonly isSubmitting = signal(false);
   readonly feedback = signal('Crea una cuenta operativa y luego entra al monitor.');
@@ -23,23 +27,46 @@ export class RegisterComponent {
   readonly form = this.fb.nonNullable.group({
     nombre: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]]
+    password: ['', [Validators.required, backendPasswordValidator()]]
   });
-  readonly passwordStrength = computed(() => {
-    const password = this.form.controls.password.value || '';
+
+  protected passwordStrength() {
+    const password = this.passwordValue();
     let score = 0;
-    if (password.length >= 6) score += 1;
+    if (password.length >= 8) score += 1;
+    if (/[a-z]/.test(password)) score += 1;
     if (/[A-Z]/.test(password)) score += 1;
     if (/\d/.test(password)) score += 1;
-    if (/[^A-Za-z0-9]/.test(password)) score += 1;
-    if (score <= 1) return 'basica';
-    if (score <= 3) return 'media';
+    if (/[@$!%*?&]/.test(password)) score += 1;
+    if (score <= 2) return 'basica';
+    if (score <= 4) return 'media';
     return 'alta';
-  });
+  }
+
+  protected passwordHasMinLength() {
+    return this.passwordValue().length >= 8;
+  }
+
+  protected passwordHasLowerAndUpper() {
+    const password = this.passwordValue();
+    return /[a-z]/.test(password) && /[A-Z]/.test(password);
+  }
+
+  protected passwordHasNumber() {
+    return /\d/.test(this.passwordValue());
+  }
+
+  protected passwordHasSymbol() {
+    return /[@$!%*?&]/.test(this.passwordValue());
+  }
 
   async submit() {
     if (this.form.invalid || this.isSubmitting()) {
       this.form.markAllAsTouched();
+      const message = this.firstInvalidMessage();
+      this.feedback.set(message);
+      this.feedbackTone.set('error');
+      this.toast.warning(message);
       return;
     }
 
@@ -51,22 +78,74 @@ export class RegisterComponent {
       await this.auth.register(this.form.getRawValue());
       this.feedback.set('Cuenta creada. Ahora entra al dashboard con tu acceso.');
       this.feedbackTone.set('success');
+      this.toast.success('Cuenta creada correctamente.');
       setTimeout(() => void this.router.navigateByUrl('/login'), 600);
     } catch (error) {
-      this.feedback.set(this.resolveErrorMessage(error));
+      const message = resolveErrorMessage(error, 'No fue posible crear la cuenta.');
+      this.feedback.set(message);
       this.feedbackTone.set('error');
+      this.toast.error(message);
     } finally {
       this.isSubmitting.set(false);
     }
   }
 
-  private resolveErrorMessage(error: unknown) {
-    if (typeof error === 'object' && error && 'error' in error) {
-      const payload = (error as { error?: { msg?: string } }).error;
-      if (payload?.msg) return payload.msg;
-    }
-
-    if (error instanceof Error && error.message) return error.message;
-    return 'No fue posible crear la cuenta.';
+  protected nombreError() {
+    const control = this.form.controls.nombre;
+    if (!this.shouldShowError(control)) return '';
+    return this.resolveNombreError();
   }
+
+  protected emailError() {
+    const control = this.form.controls.email;
+    if (!this.shouldShowError(control)) return '';
+    return this.resolveEmailError();
+  }
+
+  protected passwordError() {
+    const control = this.form.controls.password;
+    if (!this.shouldShowError(control)) return '';
+    return this.resolvePasswordError();
+  }
+
+  private shouldShowError(control: AbstractControl) {
+    return control.invalid && (control.touched || control.dirty);
+  }
+
+  private passwordValue() {
+    return this.form.controls.password.value || '';
+  }
+
+  private firstInvalidMessage() {
+    if (this.form.controls.nombre.invalid) return this.resolveNombreError();
+    if (this.form.controls.email.invalid) return this.resolveEmailError();
+    if (this.form.controls.password.invalid) return this.resolvePasswordError();
+    return 'Revisa los datos antes de crear la cuenta.';
+  }
+
+  private resolveNombreError() {
+    const control = this.form.controls.nombre;
+    if (control.hasError('required')) return 'Ingresa tu nombre.';
+    if (control.hasError('minlength')) return 'El nombre debe tener al menos 3 caracteres.';
+    return 'Revisa el nombre ingresado.';
+  }
+
+  private resolveEmailError() {
+    const control = this.form.controls.email;
+    if (control.hasError('required')) return 'Ingresa tu correo.';
+    if (control.hasError('email')) return 'Ingresa un correo valido.';
+    return 'Revisa el correo ingresado.';
+  }
+
+  private resolvePasswordError() {
+    const control = this.form.controls.password;
+    if (control.hasError('required')) return 'Ingresa una contrasena.';
+    const policy = control.getError('passwordPolicy');
+    if (policy?.requiredLength) return 'La contrasena debe tener al menos 8 caracteres.';
+    if (policy?.complexity) {
+      return 'Usa mayuscula, minuscula, numero y un simbolo: @$!%*?&.';
+    }
+    return 'Revisa la contrasena ingresada.';
+  }
+
 }

@@ -1,63 +1,36 @@
-<section class="auth-page">
-  <article class="auth-hero glass-panel">
-    <div>
-      <p class="eyebrow">Angular control deck</p>
-      <h1>Portal de operaciones con pulso en vivo.</h1>
-      <p class="lead">
-        Una capa visual nueva para AquaSense con transiciones atmosféricas, telemetria en tiempo real y acceso seguro para operadores.
-      </p>
-      <div class="hero-pills">
-        <span>JWT + SSE</span>
-        <span>Alertas</span>
-        <span>Telemetria ESP32</span>
-      </div>
-    </div>
-
-    <div class="hero-console">
-      <div class="hero-console__signal">
-        <span class="hero-console__dot"></span>
-        <strong>Enlace listo</strong>
-        <small>Backend, stream y credenciales preparados.</small>
-      </div>
-      <div class="hero-console__grid">
-        <div>
-          <span>Entrada</span>
-          <strong>Segura</strong>
-        </div>
-        <div>
-          <span>Modo</span>
-          <strong>Operador</strong>
-        </div>
-        <div>
-          <span>Canales</span>
-          <strong>JWT / SSE</strong>
-        </div>
-        <div>
-          <span>Telemetria</span>
-          <strong>Activa</strong>
-        </div>
-      </div>
-    </div>
-  </article>
-
+<section class="auth-page auth-page--centered">
   <article class="auth-card glass-panel">
-    <header>
+    <header class="auth-header">
       <span class="eyebrow">Acceso</span>
-      <h2>Iniciar sesion</h2>
+      <h2>Iniciar sesión</h2>
     </header>
 
     <form [formGroup]="form" (ngSubmit)="submit()">
       <label>
         <span>Correo</span>
-        <input type="email" formControlName="email" placeholder="operador@aquasense.io" />
+        <input
+          type="email"
+          formControlName="email"
+          placeholder="operador@aquasense.io"
+        />
         <small>{{ emailHint() }}</small>
       </label>
 
       <label class="password-field">
-        <span>Contrasena</span>
+        <span>Contraseña</span>
+
         <div class="password-field__control">
-          <input [type]="showPassword() ? 'text' : 'password'" formControlName="password" placeholder="Tu acceso seguro" />
-          <button type="button" class="password-field__toggle" (click)="togglePasswordVisibility()">
+          <input
+            [type]="showPassword() ? 'text' : 'password'"
+            formControlName="password"
+            placeholder="Tu acceso seguro"
+          />
+
+          <button
+            type="button"
+            class="password-field__toggle"
+            (click)="togglePasswordVisibility()"
+          >
             {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
           </button>
         </div>
@@ -66,23 +39,26 @@
       <button type="submit" class="submit-button" [disabled]="isSubmitting()">
         @if (isSubmitting()) {
           <span class="button-loader"></span>
-          <span>Entrando...</span>
+          <span>Validando credenciales...</span>
         } @else {
-          <span>Abrir consola</span>
+          <span>Entrar al sistema</span>
         }
       </button>
     </form>
 
-    <p class="feedback" [attr.data-tone]="feedbackTone()">{{ feedback() }}</p>
+    <p class="feedback" [attr.data-tone]="feedbackTone()">
+      {{ feedback() }}
+    </p>
 
     <div class="auth-trust">
       <div class="auth-trust__item">
         <span></span>
-        <p>Acceso con JWT y rutas protegidas para dashboard y admin.</p>
+        <p>Acceso seguro con JWT</p>
       </div>
+
       <div class="auth-trust__item">
         <span></span>
-        <p>Sincronizacion en vivo con stream SSE y alertas operativas.</p>
+        <p>Sincronización en tiempo real (SSE)</p>
       </div>
     </div>
 

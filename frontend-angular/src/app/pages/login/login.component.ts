@@ -4,6 +4,8 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../core/services/auth.service';
+import { ToastService } from '../../core/services/toast.service';
+import { resolveErrorMessage } from '../../core/utils/error-message';
 
 @Component({
   selector: 'app-login',
@@ -16,6 +18,7 @@ export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly toast = inject(ToastService);
 
   readonly isSubmitting = signal(false);
   readonly showPassword = signal(false);
@@ -36,6 +39,9 @@ export class LoginComponent {
   async submit() {
     if (this.form.invalid || this.isSubmitting()) {
       this.form.markAllAsTouched();
+      this.feedback.set('Completa correo y contrasena antes de entrar.');
+      this.feedbackTone.set('error');
+      this.toast.warning('Completa correo y contrasena antes de entrar.');
       return;
     }
 
@@ -47,11 +53,14 @@ export class LoginComponent {
       await this.auth.login(this.form.getRawValue());
       this.feedback.set('Sesion iniciada. Entrando al monitor...');
       this.feedbackTone.set('success');
+      this.toast.success('Sesion iniciada correctamente.');
       const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard';
       await this.router.navigateByUrl(redirectTo);
     } catch (error) {
-      this.feedback.set(this.resolveErrorMessage(error));
+      const message = resolveErrorMessage(error, 'No fue posible iniciar sesion. Intenta de nuevo.');
+      this.feedback.set(message);
       this.feedbackTone.set('error');
+      this.toast.error(message);
     } finally {
       this.isSubmitting.set(false);
     }
@@ -59,15 +68,5 @@ export class LoginComponent {
 
   protected togglePasswordVisibility() {
     this.showPassword.update((value) => !value);
-  }
-
-  private resolveErrorMessage(error: unknown) {
-    if (typeof error === 'object' && error && 'error' in error) {
-      const payload = (error as { error?: { msg?: string } }).error;
-      if (payload?.msg) return payload.msg;
-    }
-
-    if (error instanceof Error && error.message) return error.message;
-    return 'No fue posible iniciar sesion. Intenta de nuevo.';
   }
 }

@@ -3,6 +3,7 @@ const { ComandoRemoto, RespuestaComando, Device, House, Electrovalvula, AccionVa
 const { getUserHouseScope, isOperator } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
 const { recordAudit } = require("../services/audit");
+const logger = require("../utils/logger");
 
 const VALID_TYPES = [
   "CERRAR_VALVULA",
@@ -13,6 +14,10 @@ const VALID_TYPES = [
   "OTRO"
 ];
 const VALID_PRIORITIES = ["BAJA", "NORMAL", "ALTA", "CRITICA"];
+const VALID_ESTADOS = ["PENDIENTE", "ENVIADO", "EJECUTADO", "ERROR", "EXPIRADO"];
+const MAX_PAYLOAD_SIZE = 10000; // 10KB máximo para payload
+const MAX_MENSAJE_LENGTH = 255;
+const MAX_CODIGO_RESULTADO_LENGTH = 40;
 
 const ensureHouseScope = async (req, deviceId) => {
   const device = await Device.findByPk(deviceId, { attributes: ["id", "name", "house_id"] });
@@ -36,8 +41,17 @@ const resolveDeviceFromRequest = async (req) => {
 
   const rawDeviceName = req.query.deviceName || req.body?.deviceName;
   if (rawDeviceName) {
-    return Device.findOne({
+    const device = await Device.findOne({
       where: { name: String(rawDeviceName).trim() },
+      attributes: ["id", "name", "house_id"]
+    });
+    if (device) return device;
+  }
+
+  const rawHardwareUid = req.query.hardwareUid || req.body?.hardwareUid;
+  if (rawHardwareUid) {
+    return Device.findOne({
+      where: { hardware_uid: String(rawHardwareUid).trim() },
       attributes: ["id", "name", "house_id"]
     });
   }
@@ -104,6 +118,50 @@ const listCommands = async (req, res, next) => {
   }
 };
 
+const listCommandResponses = async (req, res, next) => {
+  try {
+    const { limit, offset, buildMeta } = resolvePagination(req.query, { defaultLimit: 50, maxLimit: 200 });
+    const where = {};
+    const commandWhere = {};
+    const deviceWhere = {};
+
+    if (req.query.codigoResultado) where.codigo_resultado = req.query.codigoResultado;
+    if (req.query.commandId) commandWhere.id = Number(req.query.commandId);
+    if (req.query.deviceId) deviceWhere.id = Number(req.query.deviceId);
+
+    const scopedHouseId = getUserHouseScope(req.user);
+    if (scopedHouseId) deviceWhere.house_id = scopedHouseId;
+
+    const commandInclude = {
+      model: ComandoRemoto,
+      required: Object.keys(commandWhere).length > 0 || Object.keys(deviceWhere).length > 0,
+      where: Object.keys(commandWhere).length ? commandWhere : undefined,
+      include: [
+        {
+          model: Device,
+          attributes: ["id", "name", "house_id"],
+          required: Object.keys(deviceWhere).length > 0,
+          where: Object.keys(deviceWhere).length ? deviceWhere : undefined,
+          include: [{ model: House, attributes: ["id", "name", "code"], required: false }]
+        }
+      ]
+    };
+
+    const result = await RespuestaComando.findAndCountAll({
+      where,
+      include: [commandInclude],
+      order: [["recibido_at", "DESC"]],
+      limit,
+      offset,
+      distinct: true
+    });
+
+    return res.json({ ok: true, respuestas: result.rows, pagination: buildMeta(result.count) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const createCommand = async (req, res, next) => {
   try {
     if (!isOperator(req.user)) {
@@ -111,15 +169,64 @@ const createCommand = async (req, res, next) => {
     }
 
     const { deviceId, tipo, payload, prioridad, expiresAt } = req.body;
-    if (!VALID_TYPES.includes(tipo)) {
-      return res.status(400).json({ ok: false, msg: "tipo invalido" });
+
+    // Validaciones de entrada críticas
+    if (!deviceId || isNaN(Number(deviceId))) {
+      return res.status(400).json({ ok: false, msg: "deviceId requerido y debe ser un número válido" });
     }
+
+    if (!tipo || !VALID_TYPES.includes(tipo)) {
+      return res.status(400).json({
+        ok: false,
+        msg: `tipo requerido y debe ser uno de: ${VALID_TYPES.join(', ')}`
+      });
+    }
+
     if (prioridad && !VALID_PRIORITIES.includes(prioridad)) {
-      return res.status(400).json({ ok: false, msg: "prioridad invalida" });
+      return res.status(400).json({
+        ok: false,
+        msg: `prioridad debe ser uno de: ${VALID_PRIORITIES.join(', ')}`
+      });
+    }
+
+    // Validar payload si se proporciona
+    if (payload !== undefined && payload !== null) {
+      if (typeof payload === 'string' && payload.length > MAX_PAYLOAD_SIZE) {
+        return res.status(400).json({
+          ok: false,
+          msg: `payload demasiado grande (máximo ${MAX_PAYLOAD_SIZE} caracteres)`
+        });
+      }
+      if (typeof payload === 'object' && JSON.stringify(payload).length > MAX_PAYLOAD_SIZE) {
+        return res.status(400).json({
+          ok: false,
+          msg: `payload demasiado grande (máximo ${MAX_PAYLOAD_SIZE} caracteres)`
+        });
+      }
+    }
+
+    // Validar expiresAt si se proporciona
+    if (expiresAt) {
+      const expiresDate = new Date(expiresAt);
+      if (isNaN(expiresDate.getTime())) {
+        return res.status(400).json({ ok: false, msg: "expiresAt debe ser una fecha válida" });
+      }
+      if (expiresDate <= new Date()) {
+        return res.status(400).json({ ok: false, msg: "expiresAt debe ser una fecha futura" });
+      }
     }
 
     const scopeCheck = await ensureHouseScope(req, Number(deviceId));
     if (!scopeCheck.ok) return res.status(scopeCheck.status).json({ ok: false, msg: scopeCheck.msg });
+
+    logger.info("Creando comando remoto", {
+      deviceId,
+      tipo,
+      prioridad: prioridad || "NORMAL",
+      userId: req.user?.id,
+      hasPayload: !!payload,
+      expiresAt
+    });
 
     const comando = await ComandoRemoto.create({
       device_id: Number(deviceId),
@@ -136,12 +243,24 @@ const createCommand = async (req, res, next) => {
       entidad: "ComandoRemoto",
       entidadId: comando.id,
       accion: `comando:${tipo}`,
-      detalle: { deviceId, prioridad: comando.prioridad },
+      detalle: { deviceId, prioridad: comando.prioridad, expiresAt },
       req
+    });
+
+    logger.info("Comando creado exitosamente", {
+      comandoId: comando.id,
+      deviceId,
+      tipo
     });
 
     return res.status(201).json({ ok: true, comando });
   } catch (error) {
+    logger.error("Error creando comando", {
+      error: error.message,
+      deviceId: req.body?.deviceId,
+      tipo: req.body?.tipo,
+      userId: req.user?.id
+    });
     return next(error);
   }
 };
@@ -203,8 +322,45 @@ const submitCommandResponse = async (req, res, next) => {
     const comandoId = Number(req.params.id);
     const { codigoResultado, mensaje, payload } = req.body;
 
+    // Validaciones de entrada críticas
     if (!codigoResultado) {
       return res.status(400).json({ ok: false, msg: "codigoResultado requerido" });
+    }
+
+    if (isNaN(comandoId) || comandoId <= 0) {
+      return res.status(400).json({ ok: false, msg: "ID de comando inválido" });
+    }
+
+    // Validar tamaño del mensaje
+    if (mensaje && String(mensaje).length > MAX_MENSAJE_LENGTH) {
+      return res.status(400).json({
+        ok: false,
+        msg: `mensaje demasiado largo (máximo ${MAX_MENSAJE_LENGTH} caracteres)`
+      });
+    }
+
+    // Validar tamaño del código de resultado
+    if (String(codigoResultado).length > MAX_CODIGO_RESULTADO_LENGTH) {
+      return res.status(400).json({
+        ok: false,
+        msg: `codigoResultado demasiado largo (máximo ${MAX_CODIGO_RESULTADO_LENGTH} caracteres)`
+      });
+    }
+
+    // Validar payload si se proporciona
+    if (payload !== undefined && payload !== null) {
+      if (typeof payload === 'string' && payload.length > MAX_PAYLOAD_SIZE) {
+        return res.status(400).json({
+          ok: false,
+          msg: `payload demasiado grande (máximo ${MAX_PAYLOAD_SIZE} caracteres)`
+        });
+      }
+      if (typeof payload === 'object' && JSON.stringify(payload).length > MAX_PAYLOAD_SIZE) {
+        return res.status(400).json({
+          ok: false,
+          msg: `payload demasiado grande (máximo ${MAX_PAYLOAD_SIZE} caracteres)`
+        });
+      }
     }
 
     const comando = await ComandoRemoto.findByPk(comandoId);
@@ -214,15 +370,23 @@ const submitCommandResponse = async (req, res, next) => {
       return res.status(403).json({ ok: false, msg: "Comando no pertenece a este dispositivo" });
     }
 
+    // Verificar que no haya respuesta previa
     const existing = await RespuestaComando.findOne({ where: { comando_id: comando.id } });
     if (existing) {
       return res.status(409).json({ ok: false, msg: "El comando ya tiene respuesta" });
     }
 
+    logger.info("Procesando respuesta de comando", {
+      comandoId,
+      deviceId: comando.device_id,
+      codigoResultado,
+      authenticatedDevice: device?.id
+    });
+
     const respuesta = await RespuestaComando.create({
       comando_id: comando.id,
-      codigo_resultado: String(codigoResultado).slice(0, 40),
-      mensaje: mensaje ? String(mensaje).slice(0, 255) : null,
+      codigo_resultado: String(codigoResultado).slice(0, MAX_CODIGO_RESULTADO_LENGTH),
+      mensaje: mensaje ? String(mensaje).slice(0, MAX_MENSAJE_LENGTH) : null,
       payload: payload || null,
       recibido_at: new Date()
     });
@@ -231,14 +395,39 @@ const submitCommandResponse = async (req, res, next) => {
     await comando.update({ estado: nuevoEstado });
     await syncValveCommandResult({ comando, codigoResultado, mensaje });
 
+    await recordAudit({
+      entidad: "RespuestaComando",
+      entidadId: respuesta.id,
+      accion: "respuesta_comando",
+      detalle: {
+        comandoId,
+        deviceId: comando.device_id,
+        codigoResultado,
+        estado: nuevoEstado
+      },
+      req
+    });
+
+    logger.info("Respuesta de comando procesada exitosamente", {
+      respuestaId: respuesta.id,
+      comandoId,
+      estado: nuevoEstado
+    });
+
     return res.status(201).json({ ok: true, respuesta, comando });
   } catch (error) {
+    logger.error("Error procesando respuesta de comando", {
+      error: error.message,
+      comandoId: req.params?.id,
+      deviceId: req.authenticatedDevice?.id
+    });
     return next(error);
   }
 };
 
 module.exports = {
   listCommands,
+  listCommandResponses,
   createCommand,
   pollPendingCommandsForDevice,
   submitCommandResponse

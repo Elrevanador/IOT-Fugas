@@ -10,6 +10,7 @@ const {
   ComandoRemoto
 } = require("../models");
 const { recordAudit } = require("./audit");
+const logger = require("../utils/logger");
 
 const DEFAULT_CONFIG = {
   umbral_flow_lmin: 2.0,
@@ -20,14 +21,48 @@ const DEFAULT_CONFIG = {
   umbral_presion_max_kpa: null
 };
 
+// Constantes de validación
+const MIN_WINDOW_MINUTES = 5;
+const MAX_WINDOW_MINUTES = 1440; // 24 horas
+const MIN_FLOW_THRESHOLD = 0.1;
+const MAX_FLOW_THRESHOLD = 1000;
+
 const getDetectionConfig = async (deviceId, { transaction } = {}) => {
-  const cfg = await ConfiguracionDeteccion.findOne({
-    where: { device_id: deviceId },
-    transaction
-  });
-  if (!cfg) return { ...DEFAULT_CONFIG, activo: true, device_id: deviceId };
-  const plain = typeof cfg.toJSON === "function" ? cfg.toJSON() : cfg;
-  return { ...DEFAULT_CONFIG, ...plain };
+  try {
+    const cfg = await ConfiguracionDeteccion.findOne({
+      where: { device_id: deviceId },
+      transaction
+    });
+
+    if (!cfg) {
+      return { ...DEFAULT_CONFIG, activo: true, device_id: deviceId };
+    }
+
+    const plain = typeof cfg.toJSON === "function" ? cfg.toJSON() : cfg;
+    const config = { ...DEFAULT_CONFIG, ...plain };
+
+    // Validar configuración
+    if (config.umbral_flow_lmin < MIN_FLOW_THRESHOLD || config.umbral_flow_lmin > MAX_FLOW_THRESHOLD) {
+      logger.warn("Configuración de umbral de flujo inválida, usando valor por defecto", {
+        deviceId,
+        umbral_flow_lmin: config.umbral_flow_lmin
+      });
+      config.umbral_flow_lmin = DEFAULT_CONFIG.umbral_flow_lmin;
+    }
+
+    if (config.ventana_minutos < MIN_WINDOW_MINUTES || config.ventana_minutos > MAX_WINDOW_MINUTES) {
+      logger.warn("Configuración de ventana temporal inválida, usando valor por defecto", {
+        deviceId,
+        ventana_minutos: config.ventana_minutos
+      });
+      config.ventana_minutos = DEFAULT_CONFIG.ventana_minutos;
+    }
+
+    return config;
+  } catch (error) {
+    logger.error("Error obteniendo configuración de detección", { deviceId, error: error.message });
+    return { ...DEFAULT_CONFIG, activo: true, device_id: deviceId };
+  }
 };
 
 const modelApiAvailable = (model, methods) => model && methods.every((method) => typeof model[method] === "function");
@@ -47,37 +82,69 @@ const canRunLeakDetection = () =>
  * y la ventana contiene datos que cubren al menos `ventana_minutos`.
  */
 const hasSustainedLeak = async (deviceId, config, now, { transaction } = {}) => {
-  const windowStart = new Date(now.getTime() - config.ventana_minutos * 60 * 1000);
+  try {
+    if (!deviceId || !config || !now) {
+      logger.warn("Parámetros inválidos para detección de fuga", { deviceId, config: !!config, now: !!now });
+      return false;
+    }
 
-  const readings = await Reading.findAll({
-    where: {
-      device_id: deviceId,
-      ts: { [Op.gte]: windowStart, [Op.lte]: now }
-    },
-    order: [["ts", "ASC"]],
-    transaction
-  });
+    const windowStart = new Date(now.getTime() - config.ventana_minutos * 60 * 1000);
 
-  if (readings.length < 2) return false;
+    const readings = await Reading.findAll({
+      where: {
+        device_id: deviceId,
+        ts: { [Op.gte]: windowStart, [Op.lte]: now }
+      },
+      order: [["ts", "ASC"]],
+      transaction,
+      limit: 1000 // Limitar para evitar consultas muy grandes
+    });
 
-  // Debe cubrir al menos el 90% de la ventana para considerarla sostenida
-  const firstTs = new Date(readings[0].ts).getTime();
-  const lastTs = new Date(readings[readings.length - 1].ts).getTime();
-  const coverageMs = lastTs - firstTs;
-  const requiredMs = config.ventana_minutos * 60 * 1000 * 0.9;
-  if (coverageMs < requiredMs) return false;
+    if (readings.length < 2) {
+      return false;
+    }
 
-  // Todas las lecturas deben superar el umbral
-  const allAbove = readings.every((r) => Number(r.flow_lmin) >= config.umbral_flow_lmin);
-  if (!allAbove) return false;
+    // Debe cubrir al menos el 90% de la ventana para considerarla sostenida
+    const firstTs = new Date(readings[0].ts).getTime();
+    const lastTs = new Date(readings[readings.length - 1].ts).getTime();
+    const coverageMs = lastTs - firstTs;
+    const requiredMs = config.ventana_minutos * 60 * 1000 * 0.9;
 
-  return {
-    readings,
-    flow_promedio: readings.reduce((acc, r) => acc + Number(r.flow_lmin), 0) / readings.length,
-    duracion_minutos: Math.round(coverageMs / 60000),
-    volumen_estimado_l:
-      readings.reduce((acc, r) => acc + Number(r.flow_lmin), 0) / readings.length * (coverageMs / 60000)
-  };
+    if (coverageMs < requiredMs) {
+      return false;
+    }
+
+    // Todas las lecturas deben superar el umbral
+    const allAbove = readings.every((r) => {
+      const flow = Number(r.flow_lmin);
+      return !isNaN(flow) && flow >= config.umbral_flow_lmin;
+    });
+
+    if (!allAbove) {
+      return false;
+    }
+
+    // Calcular estadísticas
+    const validFlows = readings.map(r => Number(r.flow_lmin)).filter(f => !isNaN(f));
+    if (validFlows.length === 0) return false;
+
+    const flow_promedio = validFlows.reduce((acc, flow) => acc + flow, 0) / validFlows.length;
+    const duracion_minutos = Math.round(coverageMs / 60000);
+    const volumen_estimado_l = flow_promedio * (coverageMs / 60000);
+
+    return {
+      readings,
+      flow_promedio,
+      duracion_minutos,
+      volumen_estimado_l
+    };
+  } catch (error) {
+    logger.error("Error en detección de fuga sostenida", {
+      deviceId,
+      error: error.message
+    });
+    return false;
+  }
 };
 
 /**

@@ -1,62 +1,46 @@
-// NOTA: Este rate limiter usa almacenamiento en memoria (Map).
-// En entornos con multiples instancias del backend (ej. Railway con scaling),
-// el limite se aplica por instancia individual, no globalmente.
-// Para produccion con escalado horizontal, considerar Redis o un store compartido.
-const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
-const DEFAULT_MAX_REQUESTS = 10;
-const RATE_LIMIT_STORE = new Map();
-
-const toPositiveInt = (value, fallback) => {
-  const parsed = Number.parseInt(String(value || ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-};
-
-const getClientIp = (req) => req.ip || req.socket?.remoteAddress || "unknown";
-
-const cleanupIfExpired = (key, now) => {
-  const entry = RATE_LIMIT_STORE.get(key);
-  if (entry && entry.resetAt <= now) {
-    RATE_LIMIT_STORE.delete(key);
-    return null;
-  }
-  return entry || null;
-};
+const rateLimit = require('express-rate-limit');
+const { RedisStore } = require('rate-limit-redis');
+const redis = require('redis');
 
 const createRateLimiter = ({
   key = "default",
-  windowMs = DEFAULT_WINDOW_MS,
-  maxRequests = DEFAULT_MAX_REQUESTS,
+  windowMs = 15 * 60 * 1000,
+  maxRequests = 10,
   message = "Demasiadas solicitudes, intenta de nuevo mas tarde"
 } = {}) => {
-  const resolvedWindowMs = toPositiveInt(windowMs, DEFAULT_WINDOW_MS);
-  const resolvedMaxRequests = toPositiveInt(maxRequests, DEFAULT_MAX_REQUESTS);
-
-  return (req, res, next) => {
-    const now = Date.now();
-    const bucketKey = `${key}:${getClientIp(req)}`;
-    let entry = cleanupIfExpired(bucketKey, now);
-
-    if (!entry) {
-      entry = { count: 0, resetAt: now + resolvedWindowMs };
-      RATE_LIMIT_STORE.set(bucketKey, entry);
-    }
-
-    entry.count += 1;
-
-    const retryAfterSeconds = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
-    res.setHeader("Retry-After", retryAfterSeconds);
-    res.setHeader("X-RateLimit-Limit", resolvedMaxRequests);
-    res.setHeader("X-RateLimit-Remaining", Math.max(0, resolvedMaxRequests - entry.count));
-
-    if (entry.count > resolvedMaxRequests) {
-      return res.status(429).json({
-        ok: false,
-        msg: message
+  // Intentar usar Redis si las variables de entorno están configuradas
+  if (process.env.REDIS_HOST || process.env.REDIS_PORT) {
+    try {
+      const redisClient = redis.createClient({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
       });
-    }
 
-    return next();
-  };
+      return rateLimit({
+        store: new RedisStore({
+          sendCommand: (...args) => redisClient.sendCommand(args),
+        }),
+        windowMs,
+        max: maxRequests,
+        message: { ok: false, msg: message },
+        standardHeaders: true,
+        legacyHeaders: false,
+      });
+    } catch (error) {
+      console.warn('Error configurando Redis, usando memoria:', error.message);
+    }
+  }
+
+  // Fallback a memoria
+  console.warn(`Rate limiter usando memoria para key: ${key}. Configura REDIS_HOST para usar Redis.`);
+  return rateLimit({
+    windowMs,
+    max: maxRequests,
+    message: { ok: false, msg: message },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 };
 
 module.exports = createRateLimiter;

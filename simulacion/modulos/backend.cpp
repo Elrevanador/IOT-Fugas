@@ -1,6 +1,7 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <ArduinoJson.h>
 #include <cstring>
 #include "modulos/config.h"
 #include "modulos/backend.h"
@@ -25,6 +26,23 @@ String backendBaseUrl() {
 
 String backendReadingsUrl() {
   return backendBaseUrl() + "/api/readings";
+}
+
+String backendPendingCommandsUrl() {
+  String url = backendBaseUrl() + "/api/commands/pending?";
+  if (DEVICE_ID > 0) {
+    url += "deviceId=" + String(DEVICE_ID);
+  } else {
+    url += "deviceName=" + String(DEVICE_NAME);
+  }
+  if (String(DEVICE_HARDWARE_UID).length() > 0) {
+    url += "&hardwareUid=" + String(DEVICE_HARDWARE_UID);
+  }
+  return url;
+}
+
+String backendCommandResponseUrl(unsigned long commandId) {
+  return backendBaseUrl() + "/api/commands/" + String(commandId) + "/response";
 }
 
 String backendModeTexto() {
@@ -52,6 +70,53 @@ static bool shouldRetryHttpCode(int code) {
   return code == 429 || code == 500 || code == 502 || code == 503 || code == 504;
 }
 
+static String escapeJson(const String &value) {
+  String escaped = "";
+  escaped.reserve(value.length() + 8);
+
+  for (size_t i = 0; i < value.length(); i++) {
+    char c = value.charAt(i);
+    if (c == '"' || c == '\\') {
+      escaped += '\\';
+      escaped += c;
+    } else if (c == '\n') {
+      escaped += "\\n";
+    } else if (c == '\r') {
+      escaped += "\\r";
+    } else if (c == '\t') {
+      escaped += "\\t";
+    } else {
+      escaped += c;
+    }
+  }
+
+  return escaped;
+}
+
+static bool beginBackendHttp(HTTPClient &http, WiFiClient &client, WiFiClientSecure &secureClient, const String &url, SystemState &state) {
+  http.setTimeout(BACKEND_TIMEOUT_MS);
+
+  if (backendUsaHttps(url)) {
+#if BACKEND_ALLOW_INSECURE_TLS
+    secureClient.setInsecure();
+#else
+    if (std::strlen(BACKEND_ROOT_CA_PEM) > 0) {
+      secureClient.setCACert(BACKEND_ROOT_CA_PEM);
+    } else {
+      state.backendOnline = false;
+      state.backendLastCode = -2;
+      state.backendLastMsg = "TLS seguro requiere BACKEND_ROOT_CA_PEM";
+      Serial.println("TLS seguro habilitado, pero falta BACKEND_ROOT_CA_PEM.");
+      Serial.println("Define BACKEND_ROOT_CA_PEM o usa BACKEND_ALLOW_INSECURE_TLS=1 solo en desarrollo.");
+      return false;
+    }
+#endif
+    return http.begin(secureClient, url);
+  }
+
+  return http.begin(client, url);
+}
+
 void enviarBackend(SystemState &state) {
   if (!asegurarWiFi()) {
     state.backendOnline = false;
@@ -77,7 +142,6 @@ void enviarBackend(SystemState &state) {
   WiFiClient client;
   WiFiClientSecure secureClient;
   HTTPClient http;
-  http.setTimeout(BACKEND_TIMEOUT_MS);
 
   String url = backendReadingsUrl();
   String payload = "{";
@@ -100,8 +164,20 @@ void enviarBackend(SystemState &state) {
 
   appendField("\"deviceName\":\"" + String(DEVICE_NAME) + "\"");
 
+  if (String(DEVICE_TYPE).length() > 0) {
+    appendField("\"deviceType\":\"" + String(DEVICE_TYPE) + "\"");
+  }
+
+  if (String(DEVICE_FIRMWARE_VERSION).length() > 0) {
+    appendField("\"firmwareVersion\":\"" + String(DEVICE_FIRMWARE_VERSION) + "\"");
+  }
+
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
     appendField("\"hardwareUid\":\"" + String(DEVICE_HARDWARE_UID) + "\"");
+  }
+
+  if (SENSOR_ID > 0) {
+    appendField("\"sensorId\":" + String(SENSOR_ID));
   }
 
   appendField("\"flow_lmin\":" + String(state.flujoLmin, 2));
@@ -116,31 +192,13 @@ void enviarBackend(SystemState &state) {
   Serial.println(url);
   Serial.print("deviceId="); Serial.println(DEVICE_ID);
   Serial.print("houseId="); Serial.println(HOUSE_ID);
+  Serial.print("sensorId="); Serial.println(SENSOR_ID);
+  Serial.print("deviceType="); Serial.println(DEVICE_TYPE);
+  Serial.print("firmwareVersion="); Serial.println(DEVICE_FIRMWARE_VERSION);
   Serial.print("hardwareUid="); Serial.println(DEVICE_HARDWARE_UID);
   Serial.println(payload);
 
-  bool httpIniciado = false;
-  if (backendUsaHttps(url)) {
-#if BACKEND_ALLOW_INSECURE_TLS
-    secureClient.setInsecure();
-#else
-    if (std::strlen(BACKEND_ROOT_CA_PEM) > 0) {
-      secureClient.setCACert(BACKEND_ROOT_CA_PEM);
-    } else {
-      state.backendOnline = false;
-      state.backendLastCode = -2;
-      state.backendLastMsg = "TLS seguro requiere BACKEND_ROOT_CA_PEM";
-      Serial.println("TLS seguro habilitado, pero falta BACKEND_ROOT_CA_PEM.");
-      Serial.println("Define BACKEND_ROOT_CA_PEM o usa BACKEND_ALLOW_INSECURE_TLS=1 solo en desarrollo.");
-      return;
-    }
-#endif
-    httpIniciado = http.begin(secureClient, url);
-  } else {
-    httpIniciado = http.begin(client, url);
-  }
-
-  if (!httpIniciado) {
+  if (!beginBackendHttp(http, client, secureClient, url, state)) {
     state.backendOnline = false;
     state.backendLastCode = -1;
     state.backendLastMsg = "No se pudo iniciar HTTP/HTTPS";
@@ -188,3 +246,163 @@ void enviarBackend(SystemState &state) {
   http.end();
 }
 
+static void ejecutarComando(SystemState &state, const String &tipo, String &codigo, String &mensaje) {
+  codigo = "OK";
+
+  if (tipo == "CERRAR_VALVULA") {
+    state.valvulaAbierta = false;
+    mensaje = "Valvula cerrada en simulacion";
+  } else if (tipo == "ABRIR_VALVULA") {
+    state.valvulaAbierta = true;
+    mensaje = "Valvula abierta en simulacion";
+  } else if (tipo == "SOLICITAR_ESTADO") {
+    mensaje = "Estado reportado desde simulacion";
+  } else if (tipo == "ACTUALIZAR_CONFIG") {
+    mensaje = "Configuracion recibida por simulacion";
+  } else if (tipo == "REINICIAR") {
+    mensaje = "Reinicio programado en simulacion";
+  } else if (tipo == "OTRO") {
+    mensaje = "Comando OTRO recibido por simulacion";
+  } else {
+    codigo = "ERROR";
+    mensaje = "Tipo de comando no soportado por simulacion";
+  }
+}
+
+static bool responderComandoBackend(SystemState &state, unsigned long commandId, const String &codigo, const String &mensaje) {
+  WiFiClient client;
+  WiFiClientSecure secureClient;
+  HTTPClient http;
+  String url = backendCommandResponseUrl(commandId);
+
+  if (!beginBackendHttp(http, client, secureClient, url, state)) {
+    Serial.println("No se pudo iniciar HTTP para responder comando.");
+    return false;
+  }
+
+  String payload = "{";
+  bool needsComma = false;
+  auto appendField = [&](const String &fragment) {
+    if (needsComma) {
+      payload += ",";
+    }
+    payload += fragment;
+    needsComma = true;
+  };
+
+  if (DEVICE_ID > 0) {
+    appendField("\"deviceId\":" + String(DEVICE_ID));
+  }
+
+  appendField("\"deviceName\":\"" + escapeJson(String(DEVICE_NAME)) + "\"");
+  if (String(DEVICE_HARDWARE_UID).length() > 0) {
+    appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
+  }
+  appendField("\"codigoResultado\":\"" + escapeJson(codigo) + "\"");
+  appendField("\"mensaje\":\"" + escapeJson(mensaje) + "\"");
+  String responsePayload = "\"payload\":{";
+  responsePayload += "\"state\":\"" + String(estadoTexto(state.estadoSistema)) + "\"";
+  responsePayload += ",\"risk\":" + String(state.nivelRiesgo);
+  responsePayload += ",\"valvula\":\"" + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"";
+  responsePayload += ",\"backendEnvios\":" + String(state.backendEnvios);
+  responsePayload += "}";
+  appendField(responsePayload);
+  payload += "}";
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device-key", INGEST_API_KEY);
+
+  int httpCode = http.POST(payload);
+  Serial.print("Respuesta comando #");
+  Serial.print(commandId);
+  Serial.print(" HTTP Code: ");
+  Serial.println(httpCode);
+
+  if (httpCode > 0) {
+    Serial.println(http.getString());
+  } else {
+    Serial.print("Error respondiendo comando: ");
+    Serial.println(http.errorToString(httpCode));
+  }
+
+  http.end();
+  return httpCode >= 200 && httpCode < 300;
+}
+
+void consultarComandosBackend(SystemState &state) {
+  if (!asegurarWiFi()) {
+    return;
+  }
+
+  WiFiClient client;
+  WiFiClientSecure secureClient;
+  HTTPClient http;
+  String url = backendPendingCommandsUrl();
+
+  if (!beginBackendHttp(http, client, secureClient, url, state)) {
+    Serial.println("No se pudo iniciar HTTP para consultar comandos.");
+    return;
+  }
+
+  http.addHeader("x-device-key", INGEST_API_KEY);
+
+  int httpCode = http.GET();
+  Serial.print("Consulta comandos HTTP Code: ");
+  Serial.println(httpCode);
+
+  if (httpCode < 200 || httpCode >= 300) {
+    if (httpCode > 0) {
+      Serial.println(http.getString());
+    } else {
+      Serial.print("Error consultando comandos: ");
+      Serial.println(http.errorToString(httpCode));
+    }
+    http.end();
+    return;
+  }
+
+  String response = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, response);
+  if (error) {
+    Serial.print("JSON comandos invalido: ");
+    Serial.println(error.c_str());
+    return;
+  }
+
+  JsonArray comandos = doc["comandos"].as<JsonArray>();
+  if (comandos.isNull() || comandos.size() == 0) {
+    Serial.println("Sin comandos remotos pendientes.");
+    return;
+  }
+
+  for (JsonObject comando : comandos) {
+    unsigned long commandId = comando["id"].as<unsigned long>();
+    String tipo = comando["tipo"].as<String>();
+    if (commandId == 0 || tipo.length() == 0) {
+      continue;
+    }
+
+    String codigo;
+    String mensaje;
+    ejecutarComando(state, tipo, codigo, mensaje);
+    state.comandosBackend++;
+    state.ultimoComandoBackend = tipo;
+
+    Serial.print("Comando remoto #");
+    Serial.print(commandId);
+    Serial.print(": ");
+    Serial.print(tipo);
+    Serial.print(" -> ");
+    Serial.println(mensaje);
+
+    bool responded = responderComandoBackend(state, commandId, codigo, mensaje);
+    if (responded && tipo == "REINICIAR" && codigo == "OK") {
+      Serial.println("Reiniciando ESP32 por comando remoto...");
+      delay(250);
+      ESP.restart();
+    }
+  }
+}

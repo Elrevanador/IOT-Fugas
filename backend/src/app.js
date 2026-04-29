@@ -14,6 +14,9 @@ const valvesRoutes = require("./routes/valves");
 const detectionConfigRoutes = require("./routes/detectionConfig");
 const commandsRoutes = require("./routes/commands");
 const auditRoutes = require("./routes/audit");
+const rolesRoutes = require("./routes/roles");
+const userRolesRoutes = require("./routes/userRoles");
+const systemStatesRoutes = require("./routes/systemStates");
 const publicRoutes = require("./routes/public");
 const errorHandler = require("./middlewares/errorHandler");
 const requestMeta = require("./middlewares/requestMeta");
@@ -23,7 +26,15 @@ const { getTrustProxySetting } = require("./config/env");
 const app = express();
 app.set("trust proxy", getTrustProxySetting());
 const isProduction = process.env.NODE_ENV === "production";
-const defaultDevOrigins = ["http://localhost:8000", "http://127.0.0.1:8000"];
+/** Puertos típicos del frontend en local (Angular `ng serve` 4200, servidores estáticos 8000/8001, etc.) */
+const defaultDevOrigins = [
+  "http://localhost:8000",
+  "http://127.0.0.1:8000",
+  "http://localhost:8001",
+  "http://127.0.0.1:8001",
+  "http://localhost:4200",
+  "http://127.0.0.1:4200"
+];
 const allowedOriginEnv = process.env.FRONTEND_ORIGIN || "";
 const allowedOrigins = new Set(
   allowedOriginEnv
@@ -65,6 +76,19 @@ const isDevelopmentNetworkOrigin = (origin) => {
   }
 };
 
+/**
+ * Orígenes loopback (cualquier puerto). Sirve cuando NODE_ENV=production pero pruebas el SPA en
+ * localhost:8001 contra API en localhost:3000 sin listar cada puerto en FRONTEND_ORIGIN.
+ */
+const isLoopbackBrowserOrigin = (origin) => {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+  } catch {
+    return false;
+  }
+};
+
 const routeGroups = [
   {
     name: "Sistema",
@@ -92,7 +116,14 @@ const routeGroups = [
       ["GET", "/api/users"],
       ["POST", "/api/users"],
       ["PUT", "/api/users/:id"],
-      ["DELETE", "/api/users/:id"]
+      ["DELETE", "/api/users/:id"],
+      ["GET", "/api/roles"],
+      ["POST", "/api/roles"],
+      ["PUT", "/api/roles/:id"],
+      ["DELETE", "/api/roles/:id"],
+      ["GET", "/api/user-roles"],
+      ["POST", "/api/user-roles"],
+      ["DELETE", "/api/user-roles/:userId/:roleId"]
     ]
   },
   {
@@ -119,6 +150,8 @@ const routeGroups = [
       ["POST", "/api/readings"],
       ["GET", "/api/readings"],
       ["GET", "/api/readings/latest"],
+      ["GET", "/api/system-states"],
+      ["POST", "/api/system-states"],
       ["GET", "/api/alerts"],
       ["PATCH", "/api/alerts/:id/ack"],
       ["GET", "/api/incidents"],
@@ -130,6 +163,7 @@ const routeGroups = [
     name: "Valvula, comandos y deteccion",
     routes: [
       ["GET", "/api/valves"],
+      ["GET", "/api/valves/actions"],
       ["GET", "/api/valves/device/:deviceId"],
       ["GET", "/api/valves/device/:deviceId/actions"],
       ["POST", "/api/valves/device/:deviceId/actions"],
@@ -137,6 +171,7 @@ const routeGroups = [
       ["PUT", "/api/detection-config/:deviceId"],
       ["GET", "/api/commands"],
       ["POST", "/api/commands"],
+      ["GET", "/api/commands/responses"],
       ["GET", "/api/commands/pending"],
       ["POST", "/api/commands/:id/response"]
     ]
@@ -314,7 +349,11 @@ app.use(
         return callback(null, true);
       }
 
-      if (allowedOrigins.has(origin) || isDevelopmentNetworkOrigin(origin)) {
+      if (
+        allowedOrigins.has(origin) ||
+        isDevelopmentNetworkOrigin(origin) ||
+        isLoopbackBrowserOrigin(origin)
+      ) {
         return callback(null, true);
       }
 
@@ -637,12 +676,15 @@ app.use("/api/public", publicRoutes);
 app.use("/api/readings", readingsRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/devices", devicesRoutes);
+app.use("/api/roles", rolesRoutes);
+app.use("/api/user-roles", userRolesRoutes);
 app.use("/api/locations", locationsRoutes);
 app.use("/api/sensors", sensorsRoutes);
 app.use("/api/incidents", incidentsRoutes);
 app.use("/api/valves", valvesRoutes);
 app.use("/api/detection-config", detectionConfigRoutes);
 app.use("/api/commands", commandsRoutes);
+app.use("/api/system-states", systemStatesRoutes);
 app.use("/api/audit", auditRoutes);
 
 app.use((req, res) => {

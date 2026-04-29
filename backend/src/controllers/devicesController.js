@@ -2,11 +2,19 @@ const { Op } = require("sequelize");
 const { Device, House } = require("../models");
 const { getUserHouseScope, isOperator } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
+const { createScopeFilter } = require("../middlewares/scopeFilter");
 const {
   createDeviceApiKey,
   createDeviceApiKeyHint,
   hashDeviceApiKey
 } = require("../services/deviceCredentials");
+const { recordAudit } = require("../services/audit");
+const logger = require("../utils/logger");
+
+// Validaciones de seguridad para dispositivos
+const DEVICE_NAME_REGEX = /^[a-zA-Z0-9\-_\s]+$/;
+const HARDWARE_UID_REGEX = /^[A-Z0-9\-_]+$/;
+const MAX_DEVICES_PER_HOUSE = 100;
 
 const serializeDevice = (device) => {
   if (!device) return null;
@@ -35,6 +43,23 @@ const createDevice = async (req, res, next) => {
       house_id: req.body.houseId ? Number(req.body.houseId) : null
     };
 
+    // Validaciones de seguridad
+    if (!DEVICE_NAME_REGEX.test(payload.name)) {
+      return res.status(400).json({ ok: false, msg: "Nombre del dispositivo contiene caracteres inválidos" });
+    }
+
+    if (payload.hardware_uid && !HARDWARE_UID_REGEX.test(payload.hardware_uid)) {
+      return res.status(400).json({ ok: false, msg: "Hardware UID contiene caracteres inválidos" });
+    }
+
+    if (payload.name.length < 3 || payload.name.length > 120) {
+      return res.status(400).json({ ok: false, msg: "Nombre del dispositivo debe tener entre 3 y 120 caracteres" });
+    }
+
+    if (payload.location.length < 3 || payload.location.length > 255) {
+      return res.status(400).json({ ok: false, msg: "Ubicación debe tener entre 3 y 255 caracteres" });
+    }
+
     const scopedHouseId = getUserHouseScope(req.user);
     if (scopedHouseId) {
       payload.house_id = scopedHouseId;
@@ -45,18 +70,30 @@ const createDevice = async (req, res, next) => {
       if (!house) {
         return res.status(404).json({ ok: false, msg: "Casa no encontrada" });
       }
-    }
 
-    const exists = await Device.findOne({ where: { name: payload.name } });
-    if (exists) {
-      return res.status(409).json({ ok: false, msg: "El nombre del dispositivo ya existe" });
-    }
-
-    if (payload.hardware_uid) {
-      const hardwareExists = await Device.findOne({ where: { hardware_uid: payload.hardware_uid } });
-      if (hardwareExists) {
-        return res.status(409).json({ ok: false, msg: "El hardwareUid del dispositivo ya existe" });
+      // Verificar límite de dispositivos por casa
+      const deviceCount = await Device.count({ where: { house_id: payload.house_id } });
+      if (deviceCount >= MAX_DEVICES_PER_HOUSE) {
+        return res.status(400).json({
+          ok: false,
+          msg: `La casa ya tiene el máximo de ${MAX_DEVICES_PER_HOUSE} dispositivos permitidos`
+        });
       }
+    }
+
+    // Verificar duplicados
+    const existingDevice = await Device.findOne({
+      where: {
+        [Op.or]: [
+          { name: payload.name },
+          ...(payload.hardware_uid ? [{ hardware_uid: payload.hardware_uid }] : [])
+        ]
+      }
+    });
+
+    if (existingDevice) {
+      const field = existingDevice.name === payload.name ? "nombre" : "hardware UID";
+      return res.status(409).json({ ok: false, msg: `Ya existe un dispositivo con este ${field}` });
     }
 
     const device = await Device.create(payload);
@@ -64,8 +101,33 @@ const createDevice = async (req, res, next) => {
       include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }]
     });
 
+    // Registrar auditoría
+    await recordAudit({
+      user: req.user,
+      entidad: "Device",
+      entidadId: device.id,
+      accion: "crear_dispositivo",
+      detalle: {
+        name: device.name,
+        house_id: device.house_id,
+        device_type: device.device_type
+      },
+      req
+    });
+
+    logger.info("Dispositivo creado exitosamente", {
+      deviceId: device.id,
+      name: device.name,
+      userId: req.user.id
+    });
+
     return res.status(201).json({ ok: true, device: serializeDevice(created) });
   } catch (error) {
+    logger.error("Error creando dispositivo", {
+      error: error.message,
+      userId: req.user?.id,
+      deviceName: req.body?.name
+    });
     return next(error);
   }
 };
@@ -151,16 +213,26 @@ const deleteDevice = async (req, res, next) => {
   }
 };
 
+/**
+ * Lista dispositivos con filtros opcionales
+ *
+ * @param {Object} req.query
+ * @param {number} [req.query.houseId] - Filtrar por casa específica
+ * @param {string} [req.query.status] - Filtrar por estado (ACTIVO, INACTIVO, MANTENIMIENTO)
+ * @param {string} [req.query.deviceType] - Filtrar por tipo de dispositivo
+ * @param {string} [req.query.search] - Búsqueda por nombre o ubicación
+ * @param {number} [req.query.limit=50] - Límite de resultados (máx 200)
+ * @param {number} [req.query.page] - Página para paginación
+ *
+ * @returns {Object} { ok: true, devices: [...], meta: {...} }
+ */
 const listDevices = async (req, res, next) => {
   try {
     const where = {};
     const { limit, offset, buildMeta } = resolvePagination(req.query, { defaultLimit: 50, maxLimit: 200 });
-    const scopedHouseId = getUserHouseScope(req.user);
-    if (scopedHouseId) {
-      where.house_id = scopedHouseId;
-    } else if (req.query.houseId) {
-      where.house_id = Number(req.query.houseId);
-    }
+
+    // Aplicar scope de casa usando el middleware centralizado
+    req.scopeFilter.applyToWhere(where, "houseId");
 
     if (req.query.status) {
       where.status = req.query.status;

@@ -11,18 +11,18 @@ const expandFullProjectMigration = require("../src/db/migrations/20260425_expand
 test("migracion inicial crea las tablas base cuando no existen", async () => {
   const createdTables = [];
   const addedIndexes = [];
-  const describedTables = new Set();
+  const describedTables = new Map();
 
   const queryInterface = {
     describeTable: async (tableName) => {
       if (!describedTables.has(tableName)) {
         throw new Error(`Tabla ${tableName} no existe`);
       }
-      return {};
+      return describedTables.get(tableName);
     },
-    createTable: async (tableName) => {
+    createTable: async (tableName, definition) => {
       createdTables.push(tableName);
-      describedTables.add(tableName);
+      describedTables.set(tableName, definition);
     },
     removeIndex: async () => {
       throw new Error("index no existe");

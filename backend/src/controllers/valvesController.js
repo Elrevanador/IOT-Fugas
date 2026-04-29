@@ -1,4 +1,4 @@
-const { Electrovalvula, AccionValvula, Device, House, ComandoRemoto } = require("../models");
+const { Electrovalvula, AccionValvula, Device, House, ComandoRemoto, User } = require("../models");
 const { getUserHouseScope, isOperator } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
 const { recordAudit } = require("../services/audit");
@@ -168,4 +168,46 @@ const listValveActions = async (req, res, next) => {
   }
 };
 
-module.exports = { listValves, getValveByDevice, triggerValveAction, listValveActions };
+const listAllValveActions = async (req, res, next) => {
+  try {
+    const { limit, offset, buildMeta } = resolvePagination(req.query, { defaultLimit: 50, maxLimit: 200 });
+    const where = {};
+    if (req.query.tipo) where.tipo = req.query.tipo;
+    if (req.query.estadoResultado) where.estado_resultado = req.query.estadoResultado;
+
+    const scopedHouseId = getUserHouseScope(req.user);
+    const deviceWhere = {};
+    if (scopedHouseId) deviceWhere.house_id = scopedHouseId;
+    else if (req.query.houseId) deviceWhere.house_id = Number(req.query.houseId);
+    if (req.query.deviceId) deviceWhere.id = Number(req.query.deviceId);
+
+    const valveInclude = {
+      model: Electrovalvula,
+      required: Object.keys(deviceWhere).length > 0,
+      include: [
+        {
+          model: Device,
+          attributes: ["id", "name", "house_id"],
+          where: Object.keys(deviceWhere).length ? deviceWhere : undefined,
+          required: Object.keys(deviceWhere).length > 0,
+          include: [{ model: House, attributes: ["id", "name", "code"], required: false }]
+        }
+      ]
+    };
+
+    const result = await AccionValvula.findAndCountAll({
+      where,
+      include: [valveInclude, { model: User, as: "usuario", attributes: ["id", "nombre", "email"], required: false }],
+      order: [["ts", "DESC"]],
+      limit,
+      offset,
+      distinct: true
+    });
+
+    return res.json({ ok: true, acciones: result.rows, pagination: buildMeta(result.count) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { listValves, getValveByDevice, triggerValveAction, listValveActions, listAllValveActions };

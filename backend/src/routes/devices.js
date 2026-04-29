@@ -8,6 +8,7 @@ const {
   rotateDeviceCredential
 } = require("../controllers/devicesController");
 const auth = require("../middlewares/auth");
+const { createScopeFilter } = require("../middlewares/scopeFilter");
 const validate = require("../middlewares/validate");
 
 const router = express.Router();
@@ -86,6 +87,7 @@ router.post(
 router.get(
   "/",
   auth,
+  createScopeFilter(), // Aplicar scope de casa
   [
     query("houseId").optional().isInt({ min: 1 }).withMessage("houseId invalido"),
     query("limit").optional().isInt({ min: 1, max: 200 }).withMessage("limit invalido"),

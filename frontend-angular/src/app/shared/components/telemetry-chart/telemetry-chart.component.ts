@@ -6,6 +6,12 @@ interface ChartPoint {
   label?: string | null;
 }
 
+interface AxisLabel {
+  label: string;
+  position: number;
+  anchor: 'start' | 'center' | 'end';
+}
+
 @Component({
   selector: 'app-telemetry-chart',
   standalone: true,
@@ -47,5 +53,21 @@ export class TelemetryChartComponent {
   readonly peakValue = computed(() => {
     const values = this.points().map((point) => Number(point.value || 0));
     return values.length ? Math.max(...values) : 0;
+  });
+
+  readonly axisLabels = computed<AxisLabel[]>(() => {
+    const points = this.points();
+    if (!points.length) return [];
+
+    const indexes =
+      points.length <= 4
+        ? points.map((_, index) => index)
+        : [0, Math.floor((points.length - 1) / 2), points.length - 1];
+
+    return Array.from(new Set(indexes)).map((index) => ({
+      label: points[index]?.label || `#${index + 1}`,
+      position: points.length === 1 ? 50 : (index / (points.length - 1)) * 100,
+      anchor: index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'center'
+    }));
   });
 }

@@ -1,0 +1,27 @@
+<aside class="sidebar" [class.collapsed]="collapsed">
+  <div class="sidebar-header">
+    <div class="logo">
+      <i class="fa-solid fa-droplet"></i>
+    </div>
+
+    @if (!collapsed) {
+      <div class="brand">
+        <h2>AquaSense</h2>
+        <span>IoT · monitoreo</span>
+      </div>
+    }
+  </div>
+
+  <nav class="menu" aria-label="Navegación principal">
+    @for (item of menu; track item.id) {
+      <div class="menu-item">
+        <a [routerLink]="item.path" routerLinkActive="active">
+          <i [class]="item.icono || 'fa-solid fa-circle'"></i>
+          @if (!collapsed) {
+            <span>{{ item.nombre }}</span>
+          }
+        </a>
+      </div>
+    }
+  </nav>
+</aside>

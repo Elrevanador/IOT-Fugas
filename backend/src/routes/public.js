@@ -5,6 +5,6 @@ const auth = require("../middlewares/auth");
 const router = express.Router();
 
 router.get("/dashboard", auth, getPublicDashboard);
-router.get("/dashboard/stream", auth.withQueryToken, streamPublicDashboard);
+router.get("/dashboard/stream", auth.authStream, streamPublicDashboard);
 
 module.exports = router;

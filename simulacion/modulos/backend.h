@@ -9,5 +9,6 @@ String backendReadingsUrl();
 String backendModeTexto();
 
 void enviarBackend(SystemState &state);
+void consultarComandosBackend(SystemState &state);
 
 #endif

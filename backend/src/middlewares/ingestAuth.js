@@ -43,10 +43,19 @@ const findDeviceForCredential = async (req) => {
   }
 
   const deviceName = getIncomingDeviceName(req);
-  if (!deviceName) return null;
+  if (deviceName) {
+    const device = await Device.findOne({
+      where: { name: deviceName },
+      attributes: ["id", "name", "api_key_hash", "api_key_hint", "hardware_uid"]
+    });
+    if (device) return device;
+  }
+
+  const hardwareUid = getIncomingHardwareUid(req);
+  if (!hardwareUid) return null;
 
   return Device.findOne({
-    where: { name: deviceName },
+    where: { hardware_uid: hardwareUid },
     attributes: ["id", "name", "api_key_hash", "api_key_hint", "hardware_uid"]
   });
 };
@@ -57,12 +66,13 @@ const enforceAuthenticatedDeviceIdentity = (req, device) => {
   const incomingDeviceId = getIncomingDeviceId(req);
   const incomingDeviceName = getIncomingDeviceName(req);
   const incomingHardwareUid = getIncomingHardwareUid(req);
+  const hardwareUidMatches = incomingHardwareUid && device.hardware_uid && incomingHardwareUid === device.hardware_uid;
 
   if (incomingDeviceId && incomingDeviceId !== Number(device.id)) {
     return "La credencial del dispositivo no coincide con deviceId";
   }
 
-  if (incomingDeviceName && incomingDeviceName !== device.name) {
+  if (incomingDeviceName && incomingDeviceName !== device.name && !hardwareUidMatches) {
     return "La credencial del dispositivo no coincide con deviceName";
   }
 

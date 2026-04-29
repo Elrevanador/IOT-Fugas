@@ -1,50 +1,58 @@
 <section class="register-layout">
-  <article class="register-hero glass-panel">
-    <div>
-      <span class="eyebrow">Onboarding</span>
-      <h1>Sube a bordo del centro de mando.</h1>
-      <p>
-        Crea tu acceso, entra al circuito en vivo y deja listo el panel Angular para operar sensores, alertas y telemetria del ESP32.
-      </p>
-    </div>
-
-    <div class="register-hero__steps">
-      <div>
-        <strong>1</strong>
-        <span>Crea tu cuenta residente u operativa.</span>
-      </div>
-      <div>
-        <strong>2</strong>
-        <span>Inicia sesion y sincroniza tu perfil con el backend.</span>
-      </div>
-      <div>
-        <strong>3</strong>
-        <span>Accede al dashboard y al flujo en tiempo real.</span>
-      </div>
-    </div>
-  </article>
-
-  <article class="register-page glass-panel">
-    <header class="register-page__header">
-      <span class="eyebrow">Acceso nuevo</span>
-      <h2>Alta de operador</h2>
-      <p>Nuevo flujo en Angular para credenciales, acceso seguro y preparacion del monitor unificado.</p>
+  <article class="register-card glass-panel">
+    <header class="register-header">
+      <span class="eyebrow">Registro</span>
+      <h2>Crear cuenta</h2>
     </header>
 
     <form class="register-form" [formGroup]="form" (ngSubmit)="submit()">
       <label>
         <span>Nombre</span>
-        <input type="text" formControlName="nombre" placeholder="Nombre y apellidos" />
+        <input
+          type="text"
+          formControlName="nombre"
+          placeholder="Nombre y apellidos"
+          autocomplete="name"
+          [class.input-invalid]="nombreError()"
+        />
+        @if (nombreError(); as message) {
+          <small class="field-error">{{ message }}</small>
+        }
       </label>
 
       <label>
         <span>Correo</span>
-        <input type="email" formControlName="email" placeholder="operador@aquasense.io" />
+        <input
+          type="email"
+          formControlName="email"
+          placeholder="operador@aquasense.io"
+          autocomplete="email"
+          [class.input-invalid]="emailError()"
+        />
+        @if (emailError(); as message) {
+          <small class="field-error">{{ message }}</small>
+        }
       </label>
 
       <label>
         <span>Contrasena</span>
-        <input type="password" formControlName="password" placeholder="Minimo 6 caracteres" />
+        <input
+          type="password"
+          formControlName="password"
+          placeholder="Ej: Agua123!"
+          autocomplete="new-password"
+          [class.input-invalid]="passwordError()"
+        />
+        @if (passwordError(); as message) {
+          <small class="field-error">{{ message }}</small>
+        }
+
+        <ul class="password-requirements" aria-label="Requisitos de contrasena">
+          <li [class.is-met]="passwordHasMinLength()">Minimo 8 caracteres</li>
+          <li [class.is-met]="passwordHasLowerAndUpper()">Mayuscula y minuscula</li>
+          <li [class.is-met]="passwordHasNumber()">Un numero</li>
+          <li [class.is-met]="passwordHasSymbol()">Un simbolo: &#64;$!%*?&amp;</li>
+        </ul>
       </label>
 
       <div class="strength-meter">
@@ -61,10 +69,14 @@
             <span>Crear cuenta</span>
           }
         </button>
-        <a routerLink="/login" class="ghost-link">Ya tengo acceso</a>
       </div>
     </form>
 
     <p class="feedback" [attr.data-tone]="feedbackTone()">{{ feedback() }}</p>
+
+    <footer>
+      <span>Ya tienes acceso?</span>
+      <a routerLink="/login">Iniciar sesion</a>
+    </footer>
   </article>
 </section>

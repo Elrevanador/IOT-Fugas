@@ -48,22 +48,31 @@ const attachDashboardStream = (req, res, initialPayload, user) => {
 const broadcastDashboardUpdate = async () => {
   if (!DASHBOARD_CLIENTS.size) return;
   const payloadCache = new Map();
+  const clientsToRemove = [];
 
   for (const client of Array.from(DASHBOARD_CLIENTS)) {
-    if (client.res.writableEnded) {
-      DASHBOARD_CLIENTS.delete(client);
-      continue;
-    }
+    try {
+      if (client.res.writableEnded || client.res.destroyed) {
+        clientsToRemove.push(client);
+        continue;
+      }
 
-    if (!payloadCache.has(client.scopeKey)) {
-      payloadCache.set(client.scopeKey, await buildPublicDashboardPayload(client.user));
-    }
+      if (!payloadCache.has(client.scopeKey)) {
+        payloadCache.set(client.scopeKey, await buildPublicDashboardPayload(client.user));
+      }
 
-    const sent = sendDashboardEvent(client.res, payloadCache.get(client.scopeKey));
-    if (!sent) {
-      DASHBOARD_CLIENTS.delete(client);
+      const sent = sendDashboardEvent(client.res, payloadCache.get(client.scopeKey));
+      if (!sent) {
+        clientsToRemove.push(client);
+      }
+    } catch (error) {
+      console.error(`Error broadcasting to client:`, error);
+      clientsToRemove.push(client);
     }
   }
+
+  // Cleanup en batch
+  clientsToRemove.forEach(client => DASHBOARD_CLIENTS.delete(client));
 };
 
 module.exports = { attachDashboardStream, broadcastDashboardUpdate };

@@ -1,0 +1,78 @@
+.app-layout {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  background: #0b1220;
+  position: relative;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-left: clamp(280px, 30vw, 320px);
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-layout.sidebar-collapsed .main-content {
+  margin-left: clamp(70px, 12vw, 88px);
+}
+
+.content-wrapper {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(14px, 2.6vw, 28px);
+  padding-left: max(clamp(14px, 2.6vw, 28px), env(safe-area-inset-left));
+  padding-right: max(clamp(14px, 2.6vw, 28px), env(safe-area-inset-right));
+  padding-bottom: max(clamp(14px, 2.6vw, 28px), env(safe-area-inset-bottom));
+}
+
+/* Desktop con hover: Sidebar fija + content margin */
+@media (hover: hover) and (min-width: 901px) {
+  .main-content {
+    margin-left: clamp(280px, 30vw, 320px);
+  }
+
+  .app-layout.sidebar-collapsed .main-content {
+    margin-left: clamp(70px, 12vw, 88px);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .content-wrapper {
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+}
+
+/* Tablets y móviles: Sidebar flotante + full width content */
+@media (max-width: 900px) or (hover: none) {
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .app-layout.sidebar-collapsed .main-content {
+    margin-left: 0;
+  }
+
+  .content-wrapper {
+    padding: clamp(1rem, 2vw, 1.5rem);
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+}
+
+/* Móviles pequeños */
+@media (max-width: 360px) {
+  .content-wrapper {
+    padding: clamp(0.75rem, 1.5vw, 1rem);
+  }
+}

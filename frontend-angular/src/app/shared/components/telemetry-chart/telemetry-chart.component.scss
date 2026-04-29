@@ -10,6 +10,7 @@
   background: rgba(255, 255, 255, 0.04);
   color: #9df8e6;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  overflow: hidden;
 }
 
 .chart-card[data-tone='amber'] {
@@ -21,30 +22,46 @@
 }
 
 .chart-card__header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: flex-start;
+  min-width: 0;
+}
+
+.chart-card__header div {
+  min-width: 0;
 }
 
 .chart-card__title {
   display: block;
   font-size: 0.9rem;
   color: rgba(227, 239, 252, 0.78);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chart-card__header p {
   margin: 0.3rem 0 0;
   color: rgba(227, 239, 252, 0.56);
   font-size: 0.85rem;
+  line-height: 1.35;
 }
 
 .chart-card__header strong {
-  font-size: 1.25rem;
+  justify-self: end;
+  max-width: 8.5rem;
+  color: currentColor;
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.15;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .chart-card__canvas {
-  height: 10rem;
+  height: clamp(8.5rem, 18vw, 10rem);
+  min-width: 0;
 }
 
 svg {
@@ -54,7 +71,8 @@ svg {
 }
 
 .chart-card__area {
-  fill: url(#chart-fill);
+  fill: currentColor;
+  opacity: 0.16;
 }
 
 .chart-card__line {
@@ -67,14 +85,46 @@ svg {
 }
 
 .chart-card__labels {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.4rem;
+  position: relative;
+  min-height: 1rem;
   color: rgba(227, 239, 252, 0.45);
   font-size: 0.75rem;
+}
+
+.chart-card__labels span {
+  position: absolute;
+  top: 0;
+  max-width: 5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-card__labels span[data-anchor='start'] {
+  transform: translateX(0);
+}
+
+.chart-card__labels span[data-anchor='center'] {
+  transform: translateX(-50%);
+}
+
+.chart-card__labels span[data-anchor='end'] {
+  transform: translateX(-100%);
 }
 
 .chart-card__empty {
   margin: 0;
   color: rgba(227, 239, 252, 0.58);
+}
+
+@media (max-width: 760px) {
+  .chart-card__header {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .chart-card__header strong {
+    justify-self: start;
+    text-align: left;
+  }
 }

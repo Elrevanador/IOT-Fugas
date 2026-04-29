@@ -52,6 +52,10 @@ Alert.belongsTo(Device, { foreignKey: "device_id" });
 // ---------- Roles y usuarios ----------
 User.belongsToMany(Role, { through: UserRole, foreignKey: "user_id", otherKey: "role_id", as: "roles" });
 Role.belongsToMany(User, { through: UserRole, foreignKey: "role_id", otherKey: "user_id", as: "users" });
+UserRole.belongsTo(User, { foreignKey: "user_id" });
+UserRole.belongsTo(Role, { foreignKey: "role_id" });
+User.hasMany(UserRole, { foreignKey: "user_id" });
+Role.hasMany(UserRole, { foreignKey: "role_id" });
 
 // ---------- Ubicaciones ----------
 House.hasMany(UbicacionInstalacion, { foreignKey: "house_id", as: "ubicaciones" });

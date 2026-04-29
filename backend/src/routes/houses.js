@@ -8,6 +8,7 @@ const {
   deleteHouse
 } = require("../controllers/housesController");
 const auth = require("../middlewares/auth");
+const { createScopeFilter } = require("../middlewares/scopeFilter");
 const validate = require("../middlewares/validate");
 
 const router = express.Router();
@@ -45,7 +46,7 @@ const houseUpdateValidators = [
     .withMessage("status invalido")
 ];
 
-router.get("/", auth, listHouses);
+router.get("/", auth, createScopeFilter({ key: "id" }), listHouses);
 router.get("/:id", auth, [param("id").isInt({ min: 1 }).withMessage("id invalido")], validate, getHouse);
 router.post("/", auth, houseBodyValidators, validate, createHouse);
 router.put(

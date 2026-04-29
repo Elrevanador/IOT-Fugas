@@ -2,6 +2,7 @@ const express = require("express");
 const { body, param, query } = require("express-validator");
 const {
   listCommands,
+  listCommandResponses,
   createCommand,
   pollPendingCommandsForDevice,
   submitCommandResponse
@@ -30,6 +31,20 @@ router.get(
   listCommands
 );
 
+router.get(
+  "/responses",
+  auth,
+  [
+    query("codigoResultado").optional().trim().isLength({ min: 1, max: 40 }).withMessage("codigoResultado invalido"),
+    query("commandId").optional().isInt({ min: 1 }).withMessage("commandId invalido"),
+    query("deviceId").optional().isInt({ min: 1 }).withMessage("deviceId invalido"),
+    query("limit").optional().isInt({ min: 1, max: 200 }).withMessage("limit invalido"),
+    query("page").optional().isInt({ min: 1 }).withMessage("page invalido")
+  ],
+  validate,
+  listCommandResponses
+);
+
 router.post(
   "/",
   auth,
@@ -49,7 +64,8 @@ router.get(
   ingestAuth,
   [
     query("deviceId").optional().isInt({ min: 1 }).withMessage("deviceId invalido"),
-    query("deviceName").optional().trim().isLength({ min: 3 }).withMessage("deviceName invalido")
+    query("deviceName").optional().trim().isLength({ min: 3 }).withMessage("deviceName invalido"),
+    query("hardwareUid").optional().trim().isLength({ min: 3, max: 120 }).withMessage("hardwareUid invalido")
   ],
   validate,
   pollPendingCommandsForDevice
@@ -62,6 +78,7 @@ router.post(
     param("id").isInt({ min: 1 }).withMessage("id invalido"),
     body("deviceId").optional().isInt({ min: 1 }).withMessage("deviceId invalido"),
     body("deviceName").optional().trim().isLength({ min: 3 }).withMessage("deviceName invalido"),
+    body("hardwareUid").optional().trim().isLength({ min: 3, max: 120 }).withMessage("hardwareUid invalido"),
     body("codigoResultado").trim().isLength({ min: 1, max: 40 }).withMessage("codigoResultado requerido"),
     body("mensaje").optional({ values: "falsy" }).trim().isLength({ max: 255 }).withMessage("mensaje invalido"),
     body("payload").optional({ nullable: true }).custom(jsonPayload).withMessage("payload invalido")

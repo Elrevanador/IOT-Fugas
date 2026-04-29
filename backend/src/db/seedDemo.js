@@ -200,10 +200,15 @@ const main = async () => {
     console.log("Demo multi-dispositivo listo.");
     console.log(`Casa: ${summary.house.name} (${summary.house.code})`);
     console.log(`Usuario: ${summary.credentials.email}`);
-    console.log(`Password: ${summary.credentials.password}`);
-    console.log(`Dispositivos: ${summary.devices.map((device) => device.name).join(", ")}`);
+    console.log(`Dispositivos: ${summary.devices.length} creados`);
     console.log(`Lecturas creadas: ${summary.readingCount}`);
-    console.log(`Device API key demo: ${summary.credentials.deviceApiKey}`);
+    console.log("✓ Credenciales mostradas en consola anterior (solo desarrollo)");
+
+    // Guardar credenciales en archivo seguro solo en desarrollo
+    if (process.env.NODE_ENV !== "production") {
+      const fs = require("fs");
+      fs.writeFileSync(".demo-credentials.json", JSON.stringify(summary.credentials, null, 2), { mode: 0o600 });
+    }
   } catch (error) {
     console.error("No se pudo crear el demo multi-dispositivo:", error);
     process.exitCode = 1;

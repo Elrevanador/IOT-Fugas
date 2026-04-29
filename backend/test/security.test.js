@@ -107,13 +107,13 @@ test("registro publico rechaza asociacion de casa enviada por el cliente", async
           body: {
             nombre: "Duvan",
             email: "duvan@example.com",
-            password: "123456",
+            password: "Abcd1234!",
             houseId: 99
           }
         });
 
         assert.equal(response.statusCode, 400);
-        assert.equal(response.body.msg, "No puedes asignar una casa durante el registro publico");
+        assert.equal(response.body.msg, "No puedes asignar una casa durante el registro público");
       } finally {
         await server.close();
       }
@@ -411,8 +411,11 @@ test("login aplica rate limit por IP", async () => {
           assert.equal(first.statusCode, 401);
           assert.equal(second.statusCode, 401);
           assert.equal(third.statusCode, 429);
-          assert.equal(third.body.msg, "Demasiados intentos de login, intenta de nuevo mas tarde");
-          assert.equal(third.headers["x-ratelimit-limit"], "2");
+          assert.equal(third.body.msg, "Demasiados intentos de login, intenta de nuevo más tarde");
+          assert.equal(
+            third.headers["ratelimit-limit"] ?? third.headers["x-ratelimit-limit"],
+            "2"
+          );
         } finally {
           await server.close();
         }

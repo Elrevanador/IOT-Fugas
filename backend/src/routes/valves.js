@@ -4,7 +4,8 @@ const {
   listValves,
   getValveByDevice,
   triggerValveAction,
-  listValveActions
+  listValveActions,
+  listAllValveActions
 } = require("../controllers/valvesController");
 const auth = require("../middlewares/auth");
 const validate = require("../middlewares/validate");
@@ -12,6 +13,7 @@ const validate = require("../middlewares/validate");
 const router = express.Router();
 const acciones = ["ABRIR", "CERRAR", "RESETEAR", "CAMBIAR_MODO"];
 const modos = ["AUTO", "MANUAL", "BLOQUEADA"];
+const resultados = ["PENDIENTE", "EXITOSO", "ERROR"];
 
 router.get(
   "/",
@@ -23,6 +25,21 @@ router.get(
   ],
   validate,
   listValves
+);
+
+router.get(
+  "/actions",
+  auth,
+  [
+    query("houseId").optional().isInt({ min: 1 }).withMessage("houseId invalido"),
+    query("deviceId").optional().isInt({ min: 1 }).withMessage("deviceId invalido"),
+    query("tipo").optional().isIn(acciones).withMessage("tipo invalido"),
+    query("estadoResultado").optional().isIn(resultados).withMessage("estadoResultado invalido"),
+    query("limit").optional().isInt({ min: 1, max: 200 }).withMessage("limit invalido"),
+    query("page").optional().isInt({ min: 1 }).withMessage("page invalido")
+  ],
+  validate,
+  listAllValveActions
 );
 
 router.get(

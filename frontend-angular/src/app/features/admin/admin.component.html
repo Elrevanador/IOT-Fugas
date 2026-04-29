@@ -1,0 +1,829 @@
+<section class="admin-page">
+  <header class="admin-page__intro">
+    <span class="admin-page__tag">Administración</span>
+    <h1>Datos del sistema</h1>
+    <p class="admin-page__hint">{{ message() }}</p>
+  </header>
+
+  @if (isAdmin()) {
+    <div class="admin-stats" aria-label="Resumen">
+      <article><span>Casas</span><strong>{{ stats().houses }}</strong></article>
+      <article><span>Usuarios</span><strong>{{ stats().users }}</strong></article>
+      <article><span>Dispositivos</span><strong>{{ stats().devices }}</strong></article>
+      <article><span>Sensores</span><strong>{{ stats().sensors }}</strong></article>
+      <article><span>Lecturas</span><strong>{{ stats().readings }}</strong></article>
+      <article><span>Alertas</span><strong>{{ stats().alerts }}</strong></article>
+      <article><span>Activas</span><strong>{{ stats().activeAlerts }}</strong></article>
+      <article><span>Incidentes</span><strong>{{ stats().incidents }}</strong></article>
+      <article><span>Comandos</span><strong>{{ stats().commands }}</strong></article>
+      <article><span>Auditoria</span><strong>{{ stats().audit }}</strong></article>
+    </div>
+
+    @if (deviceCredential(); as credential) {
+      <div class="admin-note admin-note--accent">
+        <strong>Clave nueva para {{ credential.name }}</strong>
+        <p>{{ credential.apiKey }}</p>
+      </div>
+    }
+
+    <section class="admin-workspace">
+      <aside class="admin-sidebar" aria-label="Rutas de administracion">
+        <div class="admin-sidebar__header">
+          <span>Rutas</span>
+          <strong>Admin</strong>
+        </div>
+
+        <a routerLink="/dashboard" class="admin-sidebar__dashboard">
+          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <nav class="admin-sidebar__nav">
+        @for (scene of scenes; track scene.id) {
+          <button
+            type="button"
+            class="scene-tab"
+            [class.scene-tab--active]="activeScene() === scene.id"
+            [attr.aria-current]="activeScene() === scene.id ? 'page' : null"
+            (click)="setScene(scene.id)"
+            [title]="scene.detail"
+          >
+            <i [class]="scene.icon" aria-hidden="true"></i>
+            <span class="scene-tab__copy">
+              <span class="scene-tab__label">{{ scene.label }}</span>
+              <span class="scene-tab__detail">{{ scene.detail }}</span>
+            </span>
+          </button>
+        }
+        </nav>
+      </aside>
+
+      <div class="admin-workspace__content">
+      <section class="scene-toolbar" aria-label="Filtros de administracion">
+        <label class="scene-search">
+          <span>Buscar</span>
+          <input
+            #sceneSearch
+            type="text"
+            [value]="query()"
+            (input)="updateQuery(sceneSearch.value)"
+            placeholder="Nombre, codigo, estado, payload..."
+          />
+        </label>
+
+        @if (activeScene() === 'devices') {
+          <label class="scene-filter">
+            <span>Estado</span>
+            <select #deviceStatusSelect [value]="deviceStatusFilter()" (change)="setDeviceStatusFilterFromInput(deviceStatusSelect.value)">
+              <option value="ALL">Todos</option>
+              <option value="ACTIVO">ACTIVO</option>
+              <option value="NORMAL">NORMAL</option>
+              <option value="ALERTA">ALERTA</option>
+              <option value="FUGA">FUGA</option>
+              <option value="ERROR">ERROR</option>
+              <option value="INACTIVO">INACTIVO</option>
+              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+            </select>
+          </label>
+        }
+
+        @if (activeScene() === 'alerts') {
+          <label class="scene-filter">
+            <span>Severidad</span>
+            <select #severitySelect [value]="alertSeverityFilter()" (change)="setAlertSeverityFilterFromInput(severitySelect.value)">
+              <option value="ALL">Todas</option>
+              <option value="ALERTA">ALERTA</option>
+              <option value="FUGA">FUGA</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+          </label>
+          <label class="scene-filter">
+            <span>Estado</span>
+            <select #ackSelect [value]="alertAcknowledgedFilter()" (change)="setAlertAcknowledgedFilterFromInput(ackSelect.value)">
+              <option value="ALL">Todas</option>
+              <option value="PENDING">Pendientes</option>
+              <option value="ACK">Confirmadas</option>
+            </select>
+          </label>
+        }
+      </section>
+
+    <section class="admin-layout" [class.admin-layout--detail]="detailType() !== null">
+      <div class="admin-layout__main">
+        @if (activeScene() === 'houses') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">houses</span><h2>Casas</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateHouseModal()">Nueva casa</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Casa</th><th>Codigo</th><th>Estado</th><th>Usuarios</th><th>Dispositivos</th><th></th></tr></thead>
+                <tbody>
+                  @for (house of paginatedHouses(); track house.id) {
+                    <tr>
+                      <td><strong>{{ house.name }}</strong><small>{{ house.address || 'Sin direccion' }}</small></td>
+                      <td>{{ house.code }}</td>
+                      <td><span class="status-pill">{{ house.status }}</span></td>
+                      <td>{{ house.Users?.length || 0 }}</td>
+                      <td>{{ house.Devices?.length || 0 }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editHouse(house)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteHouse(house)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay casas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'users') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">users</span><h2>Usuarios</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateUserModal()">Nuevo usuario</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Usuario</th><th>Rol auth</th><th>Casa</th><th></th></tr></thead>
+                <tbody>
+                  @for (user of paginatedUsers(); track user.id) {
+                    <tr>
+                      <td><strong>{{ user.nombre }}</strong><small>{{ user.email }}</small></td>
+                      <td><span class="status-pill">{{ user.role }}</span></td>
+                      <td>{{ user.House?.name || 'Sin casa' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editUser(user)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteUser(user)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="empty-cell">No hay usuarios.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'roles') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">roles</span><h2>Catalogo de roles</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateRoleModal()">Nuevo rol</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Rol</th><th>Codigo</th><th>Descripcion</th><th>Usuarios</th><th></th></tr></thead>
+                <tbody>
+                  @for (role of paginatedRoles(); track role.id) {
+                    <tr>
+                      <td><strong>{{ role.nombre }}</strong></td>
+                      <td><span class="status-pill">{{ role.code }}</span></td>
+                      <td>{{ role.descripcion || 'Sin descripcion' }}</td>
+                      <td>{{ role.users?.length || 0 }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editRole(role)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteRole(role)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay roles en el catalogo.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'userRoles') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">user_roles</span><h2>Asignaciones de roles</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateUserRoleModal()">Asignar rol</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Usuario</th><th>Rol</th><th>Asignado</th><th></th></tr></thead>
+                <tbody>
+                  @for (userRole of paginatedUserRoles(); track userRole.user_id + ':' + userRole.role_id) {
+                    <tr>
+                      <td><strong>{{ userRole.User?.nombre || ('Usuario #' + userRole.user_id) }}</strong><small>{{ userRole.User?.email || 'Sin email' }}</small></td>
+                      <td><span class="status-pill">{{ userRole.Role?.code || userRole.role_id }}</span></td>
+                      <td>{{ userRole.assigned_at | date:'short' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="danger-action" (click)="deleteUserRole(userRole)">Quitar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="empty-cell">No hay asignaciones.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'devices') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">devices</span><h2>Dispositivos</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateDeviceModal()">Nuevo dispositivo</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Dispositivo</th><th>Casa</th><th>Estado</th><th>Firmware</th><th>Clave</th><th></th></tr></thead>
+                <tbody>
+                  @for (device of paginatedDevices(); track device.id) {
+                    <tr>
+                      <td>
+                        <button type="button" class="row-link" (click)="selectDevice(device)">
+                          <strong>{{ device.name }}</strong>
+                          <small>{{ device.location || 'Sin ubicacion' }}</small>
+                        </button>
+                      </td>
+                      <td>{{ device.House?.name || 'Sin casa' }}</td>
+                      <td><span class="status-pill" [attr.data-tone]="device.status">{{ device.status }}</span></td>
+                      <td>{{ device.firmware_version || 'n/d' }}</td>
+                      <td>{{ device.apiKeyHint || 'Global' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editDevice(device)">Editar</button>
+                        <button type="button" class="ghost-action" (click)="rotateCredential(device)">Rotar clave</button>
+                        <button type="button" class="danger-action" (click)="deleteDevice(device)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay dispositivos.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'locations') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">ubicacion_instalacion</span><h2>Ubicaciones</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateLocationModal()">Nueva ubicacion</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Ubicacion</th><th>Casa</th><th>Area</th><th>Piso</th><th></th></tr></thead>
+                <tbody>
+                  @for (location of paginatedLocations(); track location.id) {
+                    <tr>
+                      <td><strong>{{ location.nombre }}</strong><small>{{ location.descripcion || 'Sin descripcion' }}</small></td>
+                      <td>{{ location.House?.name || houseName(location.house_id) }}</td>
+                      <td>{{ location.area || 'n/d' }}</td>
+                      <td>{{ location.piso || 'n/d' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editLocation(location)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteLocation(location)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay ubicaciones.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'sensors') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">sensores</span><h2>Sensores</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateSensorModal()">Nuevo sensor</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Sensor</th><th>Dispositivo</th><th>Ubicacion</th><th>Rango</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                  @for (sensor of paginatedSensors(); track sensor.id) {
+                    <tr>
+                      <td><strong>{{ sensor.tipo }}</strong><small>{{ sensor.modelo || 'Sin modelo' }} {{ sensor.unidad || '' }}</small></td>
+                      <td>{{ sensor.Device?.name || deviceName(sensor.device_id) }}</td>
+                      <td>{{ sensor.ubicacion?.nombre || locationName(sensor.ubicacion_id) }}</td>
+                      <td>{{ sensor.rango_min ?? 'n/d' }} - {{ sensor.rango_max ?? 'n/d' }}</td>
+                      <td><span class="status-pill">{{ sensor.activo ? 'ACTIVO' : 'INACTIVO' }}</span></td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editSensor(sensor)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteSensor(sensor)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay sensores.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'readings') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">readings</span><h2>Lecturas</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Fecha</th><th>Dispositivo</th><th>Flujo</th><th>Presion</th><th>Riesgo</th><th>Estado</th></tr></thead>
+                <tbody>
+                  @for (reading of paginatedReadings(); track reading.id) {
+                    <tr>
+                      <td>{{ reading.ts | date:'short' }}</td>
+                      <td><strong>{{ reading.Device?.name || deviceName(reading.device_id) }}</strong><small>Sensor {{ reading.sensor_id || 'n/d' }}</small></td>
+                      <td>{{ reading.flow_lmin }} L/min</td>
+                      <td>{{ reading.pressure_kpa }} kPa</td>
+                      <td>{{ reading.risk }}%</td>
+                      <td><span class="status-pill" [attr.data-tone]="reading.state">{{ reading.state }}</span></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay lecturas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'alerts') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">alerts</span><h2>Alertas</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Evento</th><th>Dispositivo</th><th>Casa</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                  @for (alert of paginatedAlerts(); track alert.id) {
+                    <tr>
+                      <td>
+                        <button type="button" class="row-link" (click)="selectAlert(alert)">
+                          <strong>{{ alert.severity }}</strong>
+                          <small>{{ alert.message }}</small>
+                        </button>
+                      </td>
+                      <td>{{ alert.Device?.name || 'Sin dispositivo' }}</td>
+                      <td>{{ alert.Device?.House?.name || 'Sin casa' }}</td>
+                      <td><span class="status-pill" [attr.data-tone]="alert.severity">{{ alert.acknowledged ? 'Confirmada' : 'Pendiente' }}</span></td>
+                      <td class="table-actions">
+                        @if (!alert.acknowledged) {
+                          <button type="button" class="primary-action" (click)="acknowledgeAlert(alert)">Confirmar</button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay alertas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'incidents') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">incidente_fuga</span><h2>Incidentes</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Incidente</th><th>Dispositivo</th><th>Casa</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                  @for (incident of paginatedIncidents(); track incident.id) {
+                    <tr>
+                      <td>
+                        <button type="button" class="row-link" (click)="selectIncident(incident)">
+                          <strong>{{ incidentSeverity(incident) }}</strong>
+                          <small>{{ incidentDescription(incident) }}</small>
+                        </button>
+                      </td>
+                      <td>{{ incident.Device?.name || 'Sin dispositivo' }}</td>
+                      <td>{{ incident.Device?.House?.name || 'Sin casa' }}</td>
+                      <td><span class="status-pill" [attr.data-tone]="incidentSeverity(incident)">{{ incident.estado }}</span></td>
+                      <td class="table-actions">
+                        @if (incident.estado !== 'CERRADO') {
+                          <button type="button" class="primary-action" (click)="updateIncidentStatus(incident, 'CERRADO')">Cerrar</button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay incidentes.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'valves') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">electrovalvulas</span><h2>Valvulas</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Valvula</th><th>Dispositivo</th><th>Casa</th><th>Estado</th><th>Modo</th><th></th></tr></thead>
+                <tbody>
+                  @for (valve of paginatedValves(); track valve.id) {
+                    <tr>
+                      <td><button type="button" class="row-link" (click)="selectValve(valve)"><strong>#{{ valve.id }}</strong><small>{{ valve.ultima_accion_at ? (valve.ultima_accion_at | date:'short') : 'Sin acciones' }}</small></button></td>
+                      <td>{{ valve.Device?.name || deviceName(valve.device_id) }}</td>
+                      <td>{{ valve.Device?.House?.name || 'Sin casa' }}</td>
+                      <td><span class="status-pill">{{ valve.estado }}</span></td>
+                      <td>{{ valve.modo }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="valveActionFromValve(valve, 'ABRIR')">Abrir</button>
+                        <button type="button" class="danger-action" (click)="valveActionFromValve(valve, 'CERRAR')">Cerrar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay valvulas inicializadas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'valveActions') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">acciones_valvula</span><h2>Historial de valvulas</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Accion</th><th>Dispositivo</th><th>Origen</th><th>Resultado</th><th>Fecha</th><th>Usuario</th></tr></thead>
+                <tbody>
+                  @for (action of paginatedValveActions(); track action.id) {
+                    <tr>
+                      <td><strong>{{ action.tipo }}</strong><small>{{ action.detalle || 'Sin detalle' }}</small></td>
+                      <td>{{ action.Electrovalvula?.Device?.name || ('Valvula #' + action.valvula_id) }}</td>
+                      <td>{{ action.origen }}</td>
+                      <td><span class="status-pill">{{ action.estado_resultado }}</span></td>
+                      <td>{{ action.ts | date:'short' }}</td>
+                      <td>{{ action.usuario?.nombre || 'Sistema' }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay acciones de valvula.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'detection') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">configuracion_deteccion</span><h2>Deteccion de fugas</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Dispositivo</th><th>Umbral flujo</th><th>Ventana</th><th>Presion</th><th>Opciones</th><th></th></tr></thead>
+                <tbody>
+                  @for (config of paginatedDetectionConfigs(); track config.device_id) {
+                    <tr>
+                      <td><strong>{{ config.Device?.name || deviceName(config.device_id) }}</strong><small>{{ config.Device?.House?.name || 'Sin casa' }}</small></td>
+                      <td>{{ config.umbral_flow_lmin }} L/min</td>
+                      <td>{{ config.ventana_minutos }} min</td>
+                      <td>{{ config.umbral_presion_min_kpa ?? 'n/d' }} - {{ config.umbral_presion_max_kpa ?? 'n/d' }} kPa</td>
+                      <td><span class="status-pill">{{ config.activo ? 'ACTIVA' : 'INACTIVA' }}</span> {{ config.auto_cierre_valvula ? 'Auto cierre' : 'Manual' }}</td>
+                      <td class="table-actions"><button type="button" class="ghost-action" (click)="editConfig(config)">Editar</button></td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay configuraciones.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'commands') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">comandos_remotos</span><h2>Comandos</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateCommandModal()">Nuevo comando</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Comando</th><th>Dispositivo</th><th>Prioridad</th><th>Estado</th><th>Creado</th><th>Respuesta</th></tr></thead>
+                <tbody>
+                  @for (command of paginatedCommands(); track command.id) {
+                    <tr>
+                      <td><button type="button" class="row-link" (click)="selectCommand(command)"><strong>{{ command.tipo }}</strong><small>{{ formatJson(command.payload) }}</small></button></td>
+                      <td>{{ command.Device?.name || deviceName(command.device_id) }}</td>
+                      <td>{{ command.prioridad }}</td>
+                      <td><span class="status-pill">{{ command.estado }}</span></td>
+                      <td>{{ command.created_at | date:'short' }}</td>
+                      <td>{{ command.respuesta?.codigo_resultado || 'Pendiente' }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay comandos.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'responses') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">respuestas_comando</span><h2>Respuestas de comandos</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Respuesta</th><th>Comando</th><th>Dispositivo</th><th>Mensaje</th><th>Recibido</th></tr></thead>
+                <tbody>
+                  @for (response of paginatedResponses(); track response.id) {
+                    <tr>
+                      <td><strong>{{ response.codigo_resultado }}</strong><small>{{ formatJson(response.payload) }}</small></td>
+                      <td>#{{ response.comando_id }} {{ response.ComandoRemoto?.tipo || '' }}</td>
+                      <td>{{ response.ComandoRemoto?.Device?.name || 'Sin dispositivo' }}</td>
+                      <td>{{ response.mensaje || 'Sin mensaje' }}</td>
+                      <td>{{ response.recibido_at | date:'short' }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay respuestas.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'states') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">estado_sistema</span><h2>Estados del sistema</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateStateModal()">Registrar estado</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Estado</th><th>Dispositivo</th><th>Motivo</th><th>Metadata</th><th>Fecha</th></tr></thead>
+                <tbody>
+                  @for (state of paginatedStates(); track state.id) {
+                    <tr>
+                      <td><span class="status-pill" [attr.data-tone]="state.estado">{{ state.estado }}</span></td>
+                      <td>{{ state.Device?.name || deviceName(state.device_id) }}</td>
+                      <td>{{ state.motivo || 'Sin motivo' }}</td>
+                      <td><small>{{ formatJson(state.metadata) }}</small></td>
+                      <td>{{ state.ts | date:'short' }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay estados historicos.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'audit') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">auditoria_sistema</span><h2>Auditoria</h2></div>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Accion</th><th>Entidad</th><th>Usuario</th><th>Detalle</th><th>Fecha</th></tr></thead>
+                <tbody>
+                  @for (item of paginatedAudit(); track item.id) {
+                    <tr>
+                      <td><button type="button" class="row-link" (click)="selectAudit(item)"><strong>{{ item.accion }}</strong><small>{{ item.ip || 'Sin IP' }}</small></button></td>
+                      <td>{{ item.entidad }} {{ item.entidad_id || '' }}</td>
+                      <td>{{ item.User?.email || 'Sistema' }}</td>
+                      <td><small>{{ formatJson(item.detalle) }}</small></td>
+                      <td>{{ item.ts | date:'short' }}</td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="5" class="empty-cell">No hay eventos de auditoria.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        <footer class="pagination-bar">
+          <span>Pagina {{ page() }} de {{ totalPages() }}</span>
+          <span>{{ pageItems() }} elementos visibles</span>
+          <div class="pagination-bar__actions">
+            <button type="button" class="ghost-action" (click)="previousPage()" [disabled]="page() === 1">Anterior</button>
+            <button type="button" class="ghost-action" (click)="nextPage()" [disabled]="page() === totalPages()">Siguiente</button>
+          </div>
+        </footer>
+      </div>
+
+      @if (detailType()) {
+        <aside class="detail-panel">
+          <header class="detail-panel__header">
+            <div><span class="eyebrow">Detalle</span><h2>{{ detailTitle() }}</h2></div>
+            <button type="button" class="ghost-action" (click)="clearSelection()">Cerrar</button>
+          </header>
+
+          @if (detailType() === 'device' && selectedDevice(); as device) {
+            <div class="detail-stack">
+              <div class="detail-card"><span>Casa</span><strong>{{ device.House?.name || 'Sin casa' }}</strong></div>
+              <div class="detail-card"><span>Estado</span><strong>{{ device.status }}</strong></div>
+              <div class="detail-card"><span>Tipo</span><strong>{{ device.device_type || 'Sin clasificar' }}</strong></div>
+              <div class="detail-card"><span>Firmware</span><strong>{{ device.firmware_version || 'No reportado' }}</strong></div>
+              <div class="detail-card"><span>Hardware UID</span><strong>{{ device.hardware_uid || 'No definido' }}</strong></div>
+              <div class="detail-card"><span>Ultimo contacto</span><strong>{{ device.last_seen_at ? (device.last_seen_at | date:'short') : 'Sin lectura' }}</strong></div>
+              <div class="detail-card detail-card--wide">
+                <span>Control de valvula</span>
+                <div class="valve-controls">
+                  <button type="button" class="primary-action" (click)="valveAction(device, 'ABRIR')" [disabled]="busy()">Abrir</button>
+                  <button type="button" class="danger-action" (click)="valveAction(device, 'CERRAR')" [disabled]="busy()">Cerrar</button>
+                  <button type="button" class="ghost-action" (click)="valveAction(device, 'RESETEAR')" [disabled]="busy()">Resetear</button>
+                  <button type="button" class="ghost-action" (click)="valveAction(device, 'CAMBIAR_MODO')" [disabled]="busy()">Modo</button>
+                </div>
+              </div>
+            </div>
+          }
+
+          @if (detailType() === 'alert' && selectedAlert(); as alert) {
+            <div class="detail-stack">
+              <div class="detail-card"><span>Severidad</span><strong>{{ alert.severity }}</strong></div>
+              <div class="detail-card detail-card--wide"><span>Mensaje</span><strong>{{ alert.message }}</strong></div>
+              <div class="detail-card"><span>Dispositivo</span><strong>{{ alert.Device?.name || 'Sin dispositivo' }}</strong></div>
+              <div class="detail-card"><span>Fecha</span><strong>{{ alert.ts | date:'short' }}</strong></div>
+              <div class="detail-card"><span>Estado</span><strong>{{ alert.acknowledged ? 'Confirmada' : 'Pendiente' }}</strong></div>
+            </div>
+          }
+
+          @if (detailType() === 'incident' && selectedIncident(); as incident) {
+            <div class="detail-stack">
+              <div class="detail-card"><span>Severidad</span><strong>{{ incidentSeverity(incident) }}</strong></div>
+              <div class="detail-card"><span>Dispositivo</span><strong>{{ incident.Device?.name || 'Sin dispositivo' }}</strong></div>
+              <div class="detail-card"><span>Fecha</span><strong>{{ incident.detected_at | date:'short' }}</strong></div>
+              <div class="detail-card detail-card--wide"><span>Descripcion</span><strong>{{ incidentDescription(incident) }}</strong></div>
+              <div class="detail-card"><span>Estado</span><strong>{{ incident.estado }}</strong></div>
+              @if (incidentResolvedAt(incident); as resolvedAt) {
+                <div class="detail-card"><span>Resolucion</span><strong>{{ resolvedAt | date:'short' }}</strong></div>
+              }
+            </div>
+          }
+
+          @if (detailType() === 'valve' && selectedValve(); as valve) {
+            <div class="detail-stack">
+              <div class="detail-card"><span>Dispositivo</span><strong>{{ valve.Device?.name || deviceName(valve.device_id) }}</strong></div>
+              <div class="detail-card"><span>Estado</span><strong>{{ valve.estado }}</strong></div>
+              <div class="detail-card"><span>Modo</span><strong>{{ valve.modo }}</strong></div>
+              <div class="detail-card"><span>Ultima accion</span><strong>{{ valve.ultima_accion_at ? (valve.ultima_accion_at | date:'short') : 'Sin acciones' }}</strong></div>
+            </div>
+          }
+
+          @if (detailType() === 'command' && selectedCommand(); as command) {
+            <div class="detail-stack">
+              <div class="detail-card"><span>Tipo</span><strong>{{ command.tipo }}</strong></div>
+              <div class="detail-card"><span>Estado</span><strong>{{ command.estado }}</strong></div>
+              <div class="detail-card"><span>Dispositivo</span><strong>{{ command.Device?.name || deviceName(command.device_id) }}</strong></div>
+              <div class="detail-card detail-card--wide"><span>Payload</span><pre>{{ formatJson(command.payload) }}</pre></div>
+              @if (command.respuesta) {
+                <div class="detail-card detail-card--wide"><span>Respuesta</span><pre>{{ formatJson(command.respuesta) }}</pre></div>
+              }
+            </div>
+          }
+
+          @if (detailType() === 'audit' && selectedAudit(); as item) {
+            <div class="detail-stack">
+              <div class="detail-card"><span>Accion</span><strong>{{ item.accion }}</strong></div>
+              <div class="detail-card"><span>Entidad</span><strong>{{ item.entidad }} {{ item.entidad_id || '' }}</strong></div>
+              <div class="detail-card"><span>Usuario</span><strong>{{ item.User?.email || 'Sistema' }}</strong></div>
+              <div class="detail-card detail-card--wide"><span>Detalle</span><pre>{{ formatJson(item.detalle) }}</pre></div>
+            </div>
+          }
+        </aside>
+      }
+    </section>
+      </div>
+    </section>
+
+    <app-modal [isOpen]="showHouseModal()" [title]="editingHouse() ? 'Editar casa' : 'Nueva casa'" (close)="closeHouseModal()">
+      <form class="admin-form" [formGroup]="houseForm" (ngSubmit)="submitHouse()">
+        <label><span>Nombre</span><input type="text" formControlName="name" /></label>
+        <label><span>Direccion</span><input type="text" formControlName="address" /></label>
+        <label><span>Responsable</span><input type="text" formControlName="owner_name" /></label>
+        <label><span>Telefono</span><input type="text" formControlName="contact_phone" /></label>
+        <label><span>Estado</span><select formControlName="status"><option value="ACTIVA">ACTIVA</option><option value="INACTIVA">INACTIVA</option><option value="MANTENIMIENTO">MANTENIMIENTO</option></select></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeHouseModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showUserModal()" [title]="editingUser() ? 'Editar usuario' : 'Nuevo usuario'" (close)="closeUserModal()">
+      <form class="admin-form" [formGroup]="userForm" (ngSubmit)="submitUser()">
+        <label><span>Nombre</span><input type="text" formControlName="nombre" /></label>
+        <label><span>Email</span><input type="email" formControlName="email" /></label>
+        <label><span>Clave</span><input type="password" formControlName="password" /></label>
+        <label><span>Casa</span><select formControlName="houseId"><option [ngValue]="0">Sin asignar</option>@for (house of houses(); track house.id) {<option [ngValue]="house.id">{{ house.name }} | {{ house.code }}</option>}</select></label>
+        <label><span>Rol auth</span><select formControlName="role"><option value="admin">admin</option><option value="operator">operator</option><option value="resident">resident</option></select></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeUserModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showRoleModal()" [title]="editingRole() ? 'Editar rol' : 'Nuevo rol'" (close)="closeRoleModal()">
+      <form class="admin-form" [formGroup]="roleForm" (ngSubmit)="submitRole()">
+        <label><span>Codigo</span><input type="text" formControlName="code" /></label>
+        <label><span>Nombre</span><input type="text" formControlName="nombre" /></label>
+        <label class="admin-form__wide"><span>Descripcion</span><input type="text" formControlName="descripcion" /></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeRoleModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showUserRoleModal()" title="Asignar rol a usuario" (close)="showUserRoleModal.set(false)">
+      <form class="admin-form" [formGroup]="userRoleForm" (ngSubmit)="submitUserRole()">
+        <label><span>Usuario</span><select formControlName="userId"><option [ngValue]="0">Selecciona usuario</option>@for (user of users(); track user.id) {<option [ngValue]="user.id">{{ user.nombre }} | {{ user.email }}</option>}</select></label>
+        <label><span>Rol</span><select formControlName="roleId"><option [ngValue]="0">Selecciona rol</option>@for (role of roles(); track role.id) {<option [ngValue]="role.id">{{ role.nombre }} | {{ role.code }}</option>}</select></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Asignar</button><button type="button" class="ghost-action" (click)="showUserRoleModal.set(false)">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showDeviceModal()" [title]="editingDevice() ? 'Editar dispositivo' : 'Nuevo dispositivo'" (close)="closeDeviceModal()">
+      <form class="admin-form admin-form--device" [formGroup]="deviceForm" (ngSubmit)="submitDevice()">
+        <label><span>Nombre</span><input type="text" formControlName="name" /></label>
+        <label><span>Casa</span><select formControlName="houseId"><option [ngValue]="null">Selecciona una casa</option>@for (house of houses(); track house.id) {<option [ngValue]="house.id">{{ house.name }} | {{ house.code }}</option>}</select></label>
+        <label><span>Ubicacion</span><input type="text" formControlName="location" /></label>
+        <label><span>Estado</span><select formControlName="status"><option value="ACTIVO">ACTIVO</option><option value="NORMAL">NORMAL</option><option value="ALERTA">ALERTA</option><option value="FUGA">FUGA</option><option value="ERROR">ERROR</option><option value="INACTIVO">INACTIVO</option><option value="MANTENIMIENTO">MANTENIMIENTO</option></select></label>
+        <label><span>Tipo</span><input type="text" formControlName="deviceType" /></label>
+        <label><span>Firmware</span><input type="text" formControlName="firmwareVersion" /></label>
+        <label><span>Hardware UID</span><input type="text" formControlName="hardwareUid" /></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeDeviceModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showLocationModal()" [title]="editingLocation() ? 'Editar ubicacion' : 'Nueva ubicacion'" (close)="closeLocationModal()">
+      <form class="admin-form" [formGroup]="locationForm" (ngSubmit)="submitLocation()">
+        <label><span>Casa</span><select formControlName="houseId"><option [ngValue]="0">Selecciona una casa</option>@for (house of houses(); track house.id) {<option [ngValue]="house.id">{{ house.name }}</option>}</select></label>
+        <label><span>Nombre</span><input type="text" formControlName="nombre" /></label>
+        <label><span>Area</span><input type="text" formControlName="area" /></label>
+        <label><span>Piso</span><input type="text" formControlName="piso" /></label>
+        <label class="admin-form__wide"><span>Descripcion</span><input type="text" formControlName="descripcion" /></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeLocationModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showSensorModal()" [title]="editingSensor() ? 'Editar sensor' : 'Nuevo sensor'" (close)="closeSensorModal()">
+      <form class="admin-form admin-form--device" [formGroup]="sensorForm" (ngSubmit)="submitSensor()">
+        <label><span>Dispositivo</span><select formControlName="deviceId"><option [ngValue]="0">Selecciona dispositivo</option>@for (device of devices(); track device.id) {<option [ngValue]="device.id">{{ device.name }}</option>}</select></label>
+        <label><span>Tipo</span><select formControlName="tipo"><option value="caudal">caudal</option><option value="presion">presion</option><option value="valvula">valvula</option><option value="temperatura">temperatura</option><option value="otro">otro</option></select></label>
+        <label><span>Ubicacion</span><select formControlName="ubicacionId"><option [ngValue]="0">Sin ubicacion</option>@for (location of locations(); track location.id) {<option [ngValue]="location.id">{{ location.nombre }} | {{ houseName(location.house_id) }}</option>}</select></label>
+        <label><span>Modelo</span><input type="text" formControlName="modelo" /></label>
+        <label><span>Unidad</span><input type="text" formControlName="unidad" /></label>
+        <label><span>Rango min</span><input type="number" formControlName="rangoMin" /></label>
+        <label><span>Rango max</span><input type="number" formControlName="rangoMax" /></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="activo" /><span>Activo</span></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeSensorModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showConfigModal()" title="Configuracion de deteccion" (close)="closeConfigModal()">
+      <form class="admin-form" [formGroup]="configForm" (ngSubmit)="submitConfig()">
+        <label><span>Dispositivo</span><select formControlName="deviceId"><option [ngValue]="0">Selecciona dispositivo</option>@for (device of devices(); track device.id) {<option [ngValue]="device.id">{{ device.name }}</option>}</select></label>
+        <label><span>Umbral flujo L/min</span><input type="number" step="0.01" formControlName="umbralFlow" /></label>
+        <label><span>Ventana minutos</span><input type="number" formControlName="ventanaMinutos" /></label>
+        <label><span>Presion min kPa</span><input type="number" formControlName="presionMin" /></label>
+        <label><span>Presion max kPa</span><input type="number" formControlName="presionMax" /></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="autoCierre" /><span>Auto cierre</span></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="notificarEmail" /><span>Notificar email</span></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="activo" /><span>Activo</span></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeConfigModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showCommandModal()" title="Nuevo comando remoto" (close)="showCommandModal.set(false)">
+      <form class="admin-form" [formGroup]="commandForm" (ngSubmit)="submitCommand()">
+        <label><span>Dispositivo</span><select formControlName="deviceId"><option [ngValue]="0">Selecciona dispositivo</option>@for (device of devices(); track device.id) {<option [ngValue]="device.id">{{ device.name }}</option>}</select></label>
+        <label><span>Tipo</span><select formControlName="tipo"><option value="CERRAR_VALVULA">CERRAR_VALVULA</option><option value="ABRIR_VALVULA">ABRIR_VALVULA</option><option value="ACTUALIZAR_CONFIG">ACTUALIZAR_CONFIG</option><option value="REINICIAR">REINICIAR</option><option value="SOLICITAR_ESTADO">SOLICITAR_ESTADO</option><option value="OTRO">OTRO</option></select></label>
+        <label><span>Prioridad</span><select formControlName="prioridad"><option value="BAJA">BAJA</option><option value="NORMAL">NORMAL</option><option value="ALTA">ALTA</option><option value="CRITICA">CRITICA</option></select></label>
+        <label><span>Expira</span><input type="datetime-local" formControlName="expiresAt" /></label>
+        <label class="admin-form__wide"><span>Payload JSON</span><textarea formControlName="payload" rows="4"></textarea></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Enviar</button><button type="button" class="ghost-action" (click)="showCommandModal.set(false)">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showStateModal()" title="Registrar estado del sistema" (close)="showStateModal.set(false)">
+      <form class="admin-form" [formGroup]="stateForm" (ngSubmit)="submitState()">
+        <label><span>Dispositivo</span><select formControlName="deviceId"><option [ngValue]="0">Selecciona dispositivo</option>@for (device of devices(); track device.id) {<option [ngValue]="device.id">{{ device.name }}</option>}</select></label>
+        <label><span>Estado</span><select formControlName="estado"><option value="NORMAL">NORMAL</option><option value="ALERTA">ALERTA</option><option value="FUGA">FUGA</option><option value="MANTENIMIENTO">MANTENIMIENTO</option><option value="OFFLINE">OFFLINE</option></select></label>
+        <label class="admin-form__wide"><span>Motivo</span><input type="text" formControlName="motivo" /></label>
+        <label class="admin-form__wide"><span>Metadata JSON</span><textarea formControlName="metadata" rows="4"></textarea></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Registrar</button><button type="button" class="ghost-action" (click)="showStateModal.set(false)">Cancelar</button></div>
+      </form>
+    </app-modal>
+  } @else {
+    <div class="admin-note admin-note--warning">
+      <strong>Acceso restringido</strong>
+      <p>Esta vista queda reservada para administradores autenticados.</p>
+    </div>
+  }
+</section>
