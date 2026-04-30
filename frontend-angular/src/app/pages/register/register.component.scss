@@ -6,10 +6,10 @@
   position: relative;
   min-height: 100dvh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 1.5rem;
-  overflow: hidden;
+  overflow-y: auto;
   animation: fade-up 360ms ease;
 }
 
@@ -49,9 +49,10 @@
 
 .register-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
   display: grid;
   gap: 1.2rem;
+  margin: auto 0;
 }
 
 .register-header {

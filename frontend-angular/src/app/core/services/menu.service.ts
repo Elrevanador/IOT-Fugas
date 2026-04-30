@@ -33,7 +33,7 @@ export class MenuService {
       }
     ];
 
-    if (this.auth.isAdmin()) {
+    if (this.auth.hasFrontendAccess('/admin')) {
       base.push({
         id: 2,
         nombre: 'Administración',
@@ -55,12 +55,6 @@ export class MenuService {
 
   hasAccess(fullPath: string): boolean {
     const normalized = fullPath.replace(/\/+$/, '') || '/';
-    if (normalized === '/dashboard' || normalized.startsWith('/dashboard')) {
-      return true;
-    }
-    if (normalized === '/admin' || normalized.startsWith('/admin')) {
-      return this.auth.isAdmin();
-    }
-    return false;
+    return this.auth.hasFrontendAccess(normalized);
   }
 }

@@ -9,10 +9,33 @@
 export interface AuthUser {
   id: number;
   nombre: string;
+  apellido?: string;
+  username?: string;
   email: string;
   role: 'admin' | 'resident' | string;
+  estado?: string;
+  roles?: string[];
+  permissions?: AuthPermission[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface AuthPermission {
+  id: number;
+  code: string;
+  nombre: string;
+  frontendPath?: string | null;
+  backendPath?: string | null;
+  icono?: string | null;
+  orden?: number;
+  parentId?: number | null;
+  estado?: string;
+  permissions: {
+    view: boolean;
+    create: boolean;
+    update: boolean;
+    delete: boolean;
+  };
 }
 
 export interface LoginPayload {
@@ -28,8 +51,11 @@ export interface LoginResponse {
 
 export interface RegisterPayload {
   nombre: string;
+  apellido: string;
+  username: string;
   email: string;
   password: string;
+  confirmPassword: string;
 }
 
 export interface RegisterResponse {

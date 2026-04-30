@@ -26,22 +26,22 @@ export class LoginComponent {
   readonly feedbackTone = signal<'info' | 'error' | 'success'>('info');
 
   readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.minLength(3)]],
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
 
   readonly emailHint = computed(() => {
     const value = this.form.controls.email.value || '';
     if (!value) return 'Esperando cuenta operativa';
-    return value.includes('@') ? 'Formato listo para autenticar' : 'Falta un correo valido';
+    return value.includes('@') ? 'Correo listo para autenticar' : 'Username listo para autenticar';
   });
 
   async submit() {
     if (this.form.invalid || this.isSubmitting()) {
       this.form.markAllAsTouched();
-      this.feedback.set('Completa correo y contrasena antes de entrar.');
+      this.feedback.set('Completa correo o username y contrasena antes de entrar.');
       this.feedbackTone.set('error');
-      this.toast.warning('Completa correo y contrasena antes de entrar.');
+      this.toast.warning('Completa correo o username y contrasena antes de entrar.');
       return;
     }
 

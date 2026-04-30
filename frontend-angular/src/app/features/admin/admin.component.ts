@@ -26,8 +26,11 @@ interface House {
 interface User {
   id: number;
   nombre: string;
+  apellido: string | null;
+  username: string | null;
   email: string;
   role: string;
+  estado: string;
   house_id: number | null;
   House?: House | null;
 }
@@ -38,6 +41,7 @@ interface Role {
   nombre: string;
   descripcion: string | null;
   users?: User[];
+  resources?: ResourceItem[];
 }
 
 interface UserRole {
@@ -46,6 +50,42 @@ interface UserRole {
   assigned_at: string;
   User?: User | null;
   Role?: Role | null;
+}
+
+interface PermissionFlags {
+  view: boolean;
+  create: boolean;
+  update: boolean;
+  delete: boolean;
+}
+
+interface ResourceRole {
+  id: number;
+  code: string;
+  nombre: string;
+  permissions?: PermissionFlags;
+}
+
+interface ResourceItem {
+  id: number;
+  code: string;
+  nombre: string;
+  backendPath: string | null;
+  frontendPath: string | null;
+  icono: string | null;
+  orden: number;
+  parentId: number | null;
+  estado: string;
+  roles?: ResourceRole[];
+}
+
+interface RoleResourceAssignment {
+  roleId: number;
+  resourceId: number;
+  assignedAt: string;
+  permissions: PermissionFlags;
+  role?: Pick<Role, 'id' | 'code' | 'nombre'> | null;
+  resource?: Pick<ResourceItem, 'id' | 'code' | 'nombre' | 'frontendPath' | 'backendPath'> | null;
 }
 
 interface Device {
@@ -214,6 +254,8 @@ type Scene =
   | 'users'
   | 'roles'
   | 'userRoles'
+  | 'resources'
+  | 'roleResources'
   | 'devices'
   | 'locations'
   | 'sensors'
@@ -244,6 +286,7 @@ export class AdminComponent {
   private readonly api = inject(ApiService);
   private readonly fb = inject(FormBuilder);
   private readonly pageSize = 7;
+  private readonly passwordPolicy = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
@@ -252,6 +295,8 @@ export class AdminComponent {
   readonly users = signal<User[]>([]);
   readonly roles = signal<Role[]>([]);
   readonly userRoles = signal<UserRole[]>([]);
+  readonly resources = signal<ResourceItem[]>([]);
+  readonly roleResources = signal<RoleResourceAssignment[]>([]);
   readonly devices = signal<Device[]>([]);
   readonly locations = signal<LocationItem[]>([]);
   readonly sensors = signal<SensorItem[]>([]);
@@ -286,6 +331,8 @@ export class AdminComponent {
   readonly showUserModal = signal(false);
   readonly showRoleModal = signal(false);
   readonly showUserRoleModal = signal(false);
+  readonly showResourceModal = signal(false);
+  readonly showRoleResourceModal = signal(false);
   readonly showDeviceModal = signal(false);
   readonly showLocationModal = signal(false);
   readonly showSensorModal = signal(false);
@@ -296,6 +343,7 @@ export class AdminComponent {
   readonly editingHouse = signal<House | null>(null);
   readonly editingUser = signal<User | null>(null);
   readonly editingRole = signal<Role | null>(null);
+  readonly editingResource = signal<ResourceItem | null>(null);
   readonly editingDevice = signal<Device | null>(null);
   readonly editingLocation = signal<LocationItem | null>(null);
   readonly editingSensor = signal<SensorItem | null>(null);
@@ -313,10 +361,13 @@ export class AdminComponent {
   readonly userForm = this.fb.nonNullable.group({
     id: [0],
     nombre: ['', [Validators.required, Validators.minLength(3)]],
+    apellido: ['', [Validators.required, Validators.minLength(2)]],
+    username: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(80), Validators.pattern(/^[a-zA-Z0-9._-]+$/)]],
     email: ['', [Validators.required, Validators.email]],
-    password: [''],
+    password: ['', [Validators.pattern(this.passwordPolicy)]],
     houseId: [0],
-    role: ['resident', [Validators.required]]
+    role: ['resident', [Validators.required]],
+    estado: ['ACTIVO', [Validators.required]]
   });
 
   readonly roleForm = this.fb.nonNullable.group({
@@ -329,6 +380,27 @@ export class AdminComponent {
   readonly userRoleForm = this.fb.nonNullable.group({
     userId: [0, [Validators.required, Validators.min(1)]],
     roleId: [0, [Validators.required, Validators.min(1)]]
+  });
+
+  readonly resourceForm = this.fb.nonNullable.group({
+    id: [0],
+    code: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80), Validators.pattern(/^[a-zA-Z0-9._:-]+$/)]],
+    nombre: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    backendPath: ['', [Validators.maxLength(160)]],
+    frontendPath: ['', [Validators.maxLength(160)]],
+    icono: ['', [Validators.maxLength(80)]],
+    orden: [0, [Validators.required, Validators.min(0), Validators.max(10000)]],
+    parentId: [0],
+    estado: ['ACTIVO', [Validators.required]]
+  });
+
+  readonly roleResourceForm = this.fb.nonNullable.group({
+    roleId: [0, [Validators.required, Validators.min(1)]],
+    resourceId: [0, [Validators.required, Validators.min(1)]],
+    canView: [true],
+    canCreate: [false],
+    canUpdate: [false],
+    canDelete: [false]
   });
 
   readonly deviceForm = this.fb.nonNullable.group({
@@ -389,12 +461,14 @@ export class AdminComponent {
     metadata: ['']
   });
 
-  protected readonly isAdmin = computed(() => this.auth.currentUser()?.role === 'admin');
+  protected readonly isAdmin = computed(() => this.auth.isAdmin());
   protected readonly scenes = [
     { id: 'houses', label: 'Casas', detail: 'houses', icon: 'fa-solid fa-house' },
     { id: 'users', label: 'Usuarios', detail: 'users', icon: 'fa-solid fa-users' },
     { id: 'roles', label: 'Roles', detail: 'roles', icon: 'fa-solid fa-user-shield' },
     { id: 'userRoles', label: 'User roles', detail: 'user_roles', icon: 'fa-solid fa-id-badge' },
+    { id: 'resources', label: 'Recursos', detail: 'resources', icon: 'fa-solid fa-sitemap' },
+    { id: 'roleResources', label: 'Permisos', detail: 'role_resources', icon: 'fa-solid fa-key' },
     { id: 'devices', label: 'Devices', detail: 'devices', icon: 'fa-solid fa-microchip' },
     { id: 'locations', label: 'Ubicaciones', detail: 'ubicacion_instalacion', icon: 'fa-solid fa-location-dot' },
     { id: 'sensors', label: 'Sensores', detail: 'sensores', icon: 'fa-solid fa-gauge-high' },
@@ -413,6 +487,9 @@ export class AdminComponent {
   readonly stats = computed(() => ({
     houses: this.houses().length,
     users: this.users().length,
+    roles: this.roles().length,
+    resources: this.resources().length,
+    permissions: this.roleResources().length,
     devices: this.devices().length,
     sensors: this.sensors().length,
     readings: this.readings().length,
@@ -434,7 +511,7 @@ export class AdminComponent {
   readonly filteredUsers = computed(() => {
     const term = this.query().trim().toLowerCase();
     return this.users().filter((user) =>
-      this.matchesTerm(term, [user.nombre, user.email, user.role, user.House?.name])
+      this.matchesTerm(term, [user.nombre, user.apellido, user.username, user.email, user.role, user.estado, user.House?.name])
     );
   });
 
@@ -447,6 +524,35 @@ export class AdminComponent {
     const term = this.query().trim().toLowerCase();
     return this.userRoles().filter((userRole) =>
       this.matchesTerm(term, [userRole.User?.nombre, userRole.User?.email, userRole.Role?.code, userRole.Role?.nombre])
+    );
+  });
+
+  readonly filteredResources = computed(() => {
+    const term = this.query().trim().toLowerCase();
+    return this.resources().filter((resource) =>
+      this.matchesTerm(term, [
+        resource.code,
+        resource.nombre,
+        resource.backendPath,
+        resource.frontendPath,
+        resource.icono,
+        resource.estado,
+        this.resourceParentName(resource.parentId),
+        this.resourceRoleCodes(resource)
+      ])
+    );
+  });
+
+  readonly filteredRoleResources = computed(() => {
+    const term = this.query().trim().toLowerCase();
+    return this.roleResources().filter((assignment) =>
+      this.matchesTerm(term, [
+        assignment.role?.code,
+        assignment.role?.nombre,
+        assignment.resource?.code,
+        assignment.resource?.nombre,
+        this.permissionSummary(assignment.permissions)
+      ])
     );
   });
 
@@ -609,6 +715,8 @@ export class AdminComponent {
   readonly paginatedUsers = computed(() => this.paginate(this.filteredUsers()));
   readonly paginatedRoles = computed(() => this.paginate(this.filteredRoles()));
   readonly paginatedUserRoles = computed(() => this.paginate(this.filteredUserRoles()));
+  readonly paginatedResources = computed(() => this.paginate(this.filteredResources()));
+  readonly paginatedRoleResources = computed(() => this.paginate(this.filteredRoleResources()));
   readonly paginatedDevices = computed(() => this.paginate(this.filteredDevices()));
   readonly paginatedLocations = computed(() => this.paginate(this.filteredLocations()));
   readonly paginatedSensors = computed(() => this.paginate(this.filteredSensors()));
@@ -760,16 +868,22 @@ export class AdminComponent {
     const raw = this.userForm.getRawValue();
     const isEditing = Boolean(raw.id);
     const password = raw.password.trim();
-    if (this.userForm.invalid || (!isEditing && password.length < 6) || (isEditing && password && password.length < 6)) {
+    const invalidPassword =
+      (!isEditing && (password.length < 8 || !this.passwordPolicy.test(password))) ||
+      (isEditing && password.length > 0 && (password.length < 8 || !this.passwordPolicy.test(password)));
+    if (this.userForm.invalid || invalidPassword) {
       this.userForm.markAllAsTouched();
-      this.message.set('Revisa los datos del usuario. La clave debe tener minimo 6 caracteres.');
+      this.message.set('La clave debe tener minimo 8 caracteres, mayusculas, minusculas, numeros y simbolos.');
       return;
     }
 
     const body: Record<string, unknown> = {
       nombre: raw.nombre.trim(),
+      apellido: raw.apellido.trim(),
+      username: raw.username.trim().toLowerCase(),
       email: raw.email.trim(),
-      role: raw.role
+      role: raw.role,
+      estado: raw.estado
     };
     if (password) body['password'] = password;
     if (raw.houseId) body['houseId'] = raw.houseId;
@@ -827,6 +941,64 @@ export class AdminComponent {
       this.message.set('Rol asignado al usuario.');
       this.showUserRoleModal.set(false);
       this.resetUserRoleForm();
+      await this.load(false);
+    });
+  }
+
+  protected async submitResource() {
+    if (this.resourceForm.invalid) {
+      this.resourceForm.markAllAsTouched();
+      this.message.set('Revisa los campos del recurso antes de guardar.');
+      return;
+    }
+
+    const raw = this.resourceForm.getRawValue();
+    const body = {
+      code: raw.code.trim().toLowerCase(),
+      nombre: raw.nombre.trim(),
+      backendPath: raw.backendPath.trim() || null,
+      frontendPath: raw.frontendPath.trim() || null,
+      icono: raw.icono.trim() || null,
+      orden: Number(raw.orden),
+      parentId: raw.parentId || null,
+      estado: raw.estado
+    };
+
+    await this.runBusy(async () => {
+      if (raw.id) {
+        await firstValueFrom(this.api.put(`/api/resources/${raw.id}`, body));
+        this.message.set('Recurso actualizado correctamente.');
+      } else {
+        await firstValueFrom(this.api.post('/api/resources', body));
+        this.message.set('Recurso creado correctamente.');
+      }
+      this.closeResourceModal();
+      await this.load(false);
+    });
+  }
+
+  protected async submitRoleResource() {
+    if (this.roleResourceForm.invalid) {
+      this.roleResourceForm.markAllAsTouched();
+      this.message.set('Selecciona rol, recurso y permisos para guardar.');
+      return;
+    }
+
+    const raw = this.roleResourceForm.getRawValue();
+    await this.runBusy(async () => {
+      await firstValueFrom(
+        this.api.post('/api/role-resources', {
+          roleId: raw.roleId,
+          resourceId: raw.resourceId,
+          canView: raw.canView,
+          canCreate: raw.canCreate,
+          canUpdate: raw.canUpdate,
+          canDelete: raw.canDelete
+        })
+      );
+      this.message.set('Permisos del rol actualizados.');
+      this.showRoleResourceModal.set(false);
+      this.resetRoleResourceForm();
       await this.load(false);
     });
   }
@@ -1022,10 +1194,13 @@ export class AdminComponent {
     this.userForm.setValue({
       id: user.id,
       nombre: user.nombre,
+      apellido: user.apellido || '',
+      username: user.username || '',
       email: user.email,
       password: '',
       houseId: user.house_id || 0,
-      role: user.role || 'resident'
+      role: user.role || 'resident',
+      estado: user.estado || 'ACTIVO'
     });
     this.showUserModal.set(true);
   }
@@ -1039,6 +1214,34 @@ export class AdminComponent {
       descripcion: role.descripcion || ''
     });
     this.showRoleModal.set(true);
+  }
+
+  protected editResource(resource: ResourceItem) {
+    this.editingResource.set(resource);
+    this.resourceForm.setValue({
+      id: resource.id,
+      code: resource.code,
+      nombre: resource.nombre,
+      backendPath: resource.backendPath || '',
+      frontendPath: resource.frontendPath || '',
+      icono: resource.icono || '',
+      orden: resource.orden || 0,
+      parentId: resource.parentId || 0,
+      estado: resource.estado || 'ACTIVO'
+    });
+    this.showResourceModal.set(true);
+  }
+
+  protected editRoleResource(assignment: RoleResourceAssignment) {
+    this.roleResourceForm.setValue({
+      roleId: assignment.roleId,
+      resourceId: assignment.resourceId,
+      canView: assignment.permissions.view,
+      canCreate: assignment.permissions.create,
+      canUpdate: assignment.permissions.update,
+      canDelete: assignment.permissions.delete
+    });
+    this.showRoleResourceModal.set(true);
   }
 
   protected editDevice(device: Device) {
@@ -1137,6 +1340,26 @@ export class AdminComponent {
     await this.runBusy(async () => {
       await firstValueFrom(this.api.delete(`/api/user-roles/${userRole.user_id}/${userRole.role_id}`));
       this.message.set('Asignacion de rol eliminada.');
+      await this.load(false);
+    });
+  }
+
+  protected async deleteResource(resource: ResourceItem) {
+    const confirmed = await this.confirmDanger('Eliminar recurso', `Eliminar el recurso ${resource.nombre}?`);
+    if (!confirmed) return;
+    await this.runBusy(async () => {
+      await firstValueFrom(this.api.delete(`/api/resources/${resource.id}`));
+      this.message.set('Recurso eliminado correctamente.');
+      await this.load(false);
+    });
+  }
+
+  protected async deleteRoleResource(assignment: RoleResourceAssignment) {
+    const confirmed = await this.confirmDanger('Quitar permiso', 'Quitar esta asignacion de permisos del rol?');
+    if (!confirmed) return;
+    await this.runBusy(async () => {
+      await firstValueFrom(this.api.delete(`/api/role-resources/${assignment.roleId}/${assignment.resourceId}`));
+      this.message.set('Permiso eliminado del rol.');
       await this.load(false);
     });
   }
@@ -1253,6 +1476,16 @@ export class AdminComponent {
     this.showUserRoleModal.set(true);
   }
 
+  protected openCreateResourceModal() {
+    this.resetResourceForm();
+    this.showResourceModal.set(true);
+  }
+
+  protected openCreateRoleResourceModal() {
+    this.resetRoleResourceForm();
+    this.showRoleResourceModal.set(true);
+  }
+
   protected openCreateDeviceModal() {
     this.resetDeviceForm();
     this.showDeviceModal.set(true);
@@ -1293,6 +1526,11 @@ export class AdminComponent {
     this.editingRole.set(null);
   }
 
+  protected closeResourceModal() {
+    this.showResourceModal.set(false);
+    this.editingResource.set(null);
+  }
+
   protected closeDeviceModal() {
     this.showDeviceModal.set(false);
     this.editingDevice.set(null);
@@ -1328,10 +1566,13 @@ export class AdminComponent {
     this.userForm.reset({
       id: 0,
       nombre: '',
+      apellido: '',
+      username: '',
       email: '',
       password: '',
       houseId: 0,
-      role: 'resident'
+      role: 'resident',
+      estado: 'ACTIVO'
     });
   }
 
@@ -1346,6 +1587,31 @@ export class AdminComponent {
 
   protected resetUserRoleForm() {
     this.userRoleForm.reset({ userId: 0, roleId: 0 });
+  }
+
+  protected resetResourceForm() {
+    this.resourceForm.reset({
+      id: 0,
+      code: '',
+      nombre: '',
+      backendPath: '',
+      frontendPath: '',
+      icono: 'fa-solid fa-circle',
+      orden: (this.resources().length + 1) * 10,
+      parentId: 0,
+      estado: 'ACTIVO'
+    });
+  }
+
+  protected resetRoleResourceForm() {
+    this.roleResourceForm.reset({
+      roleId: this.roles()[0]?.id || 0,
+      resourceId: this.resources()[0]?.id || 0,
+      canView: true,
+      canCreate: false,
+      canUpdate: false,
+      canDelete: false
+    });
   }
 
   protected resetDeviceForm() {
@@ -1407,6 +1673,7 @@ export class AdminComponent {
 
   protected readonly trackById = (_index: number, item: { id: number }) => item.id;
   protected readonly trackByUserRole = (_index: number, item: UserRole) => `${item.user_id}:${item.role_id}`;
+  protected readonly trackByRoleResource = (_index: number, item: RoleResourceAssignment) => `${item.roleId}:${item.resourceId}`;
 
   protected incidentSeverity(incident: Incident) {
     if (incident.estado === 'ABIERTO' || incident.estado === 'CONFIRMADO') return 'FUGA';
@@ -1458,8 +1725,28 @@ export class AdminComponent {
     return this.locations().find((location) => location.id === Number(locationId))?.nombre || `Ubicacion #${locationId}`;
   }
 
+  protected resourceParentName(parentId: number | null | undefined) {
+    if (!parentId) return 'Raiz';
+    return this.resources().find((resource) => resource.id === Number(parentId))?.nombre || `Recurso #${parentId}`;
+  }
+
+  protected resourceRoleCodes(resource: ResourceItem) {
+    return (resource.roles || []).map((role) => role.code).join(', ');
+  }
+
+  protected permissionSummary(permissions: PermissionFlags | undefined) {
+    if (!permissions) return 'Sin permisos';
+    const granted = [
+      permissions.view ? 'ver' : null,
+      permissions.create ? 'crear' : null,
+      permissions.update ? 'editar' : null,
+      permissions.delete ? 'eliminar' : null
+    ].filter(Boolean);
+    return granted.length ? granted.join(', ') : 'Sin permisos';
+  }
+
   private async load(showMessage = true) {
-    if (this.auth.currentUser()?.role !== 'admin') {
+    if (!this.auth.isAdmin()) {
       this.message.set('Tu cuenta no tiene permisos de administracion.');
       this.toast.warning('Tu cuenta no tiene permisos de administracion.');
       return;
@@ -1471,6 +1758,8 @@ export class AdminComponent {
         users,
         roles,
         userRoles,
+        resources,
+        roleResources,
         devices,
         locations,
         sensors,
@@ -1488,6 +1777,8 @@ export class AdminComponent {
         firstValueFrom(this.api.get<{ users: User[] }>('/api/users')),
         firstValueFrom(this.api.get<{ roles: Role[] }>('/api/roles')),
         firstValueFrom(this.api.get<{ userRoles: UserRole[] }>('/api/user-roles')),
+        firstValueFrom(this.api.get<{ resources: ResourceItem[] }>('/api/resources')),
+        firstValueFrom(this.api.get<{ roleResources: RoleResourceAssignment[] }>('/api/role-resources')),
         firstValueFrom(this.api.get<{ devices: Device[] }>('/api/devices', { limit: 200 })),
         firstValueFrom(this.api.get<{ ubicaciones: LocationItem[] }>('/api/locations', { limit: 200 })),
         firstValueFrom(this.api.get<{ sensores: SensorItem[] }>('/api/sensors', { limit: 200 })),
@@ -1516,6 +1807,8 @@ export class AdminComponent {
       this.users.set(users.users || []);
       this.roles.set(roles.roles || []);
       this.userRoles.set(userRoles.userRoles || []);
+      this.resources.set(resources.resources || []);
+      this.roleResources.set(roleResources.roleResources || []);
       this.devices.set(deviceList);
       this.locations.set(locations.ubicaciones || []);
       this.sensors.set(sensors.sensores || []);
@@ -1553,6 +1846,8 @@ export class AdminComponent {
       case 'users': return this.paginatedUsers().length;
       case 'roles': return this.paginatedRoles().length;
       case 'userRoles': return this.paginatedUserRoles().length;
+      case 'resources': return this.paginatedResources().length;
+      case 'roleResources': return this.paginatedRoleResources().length;
       case 'devices': return this.paginatedDevices().length;
       case 'locations': return this.paginatedLocations().length;
       case 'sensors': return this.paginatedSensors().length;
@@ -1575,6 +1870,8 @@ export class AdminComponent {
       case 'users': return this.filteredUsers().length;
       case 'roles': return this.filteredRoles().length;
       case 'userRoles': return this.filteredUserRoles().length;
+      case 'resources': return this.filteredResources().length;
+      case 'roleResources': return this.filteredRoleResources().length;
       case 'devices': return this.filteredDevices().length;
       case 'locations': return this.filteredLocations().length;
       case 'sensors': return this.filteredSensors().length;

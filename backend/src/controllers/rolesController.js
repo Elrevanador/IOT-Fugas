@@ -1,4 +1,4 @@
-const { Role, User, UserRole } = require("../models");
+const { Resource, Role, RoleResource, User, UserRole } = require("../models");
 const { isAdmin } = require("../middlewares/authorize");
 const { recordAudit } = require("../services/audit");
 
@@ -17,6 +17,13 @@ const listRoles = async (req, res, next) => {
           as: "users",
           attributes: ["id", "nombre", "email", "role"],
           through: { attributes: ["assigned_at"] },
+          required: false
+        },
+        {
+          model: Resource,
+          as: "resources",
+          attributes: ["id", "code", "nombre", "backend_path", "frontend_path", "estado"],
+          through: { attributes: ["can_view", "can_create", "can_update", "can_delete"] },
           required: false
         }
       ],
@@ -112,6 +119,11 @@ const deleteRole = async (req, res, next) => {
     const assigned = await UserRole.count({ where: { role_id: role.id } });
     if (assigned > 0) {
       return res.status(409).json({ ok: false, msg: "No puedes eliminar un rol asignado a usuarios" });
+    }
+
+    const resourcesAssigned = await RoleResource.count({ where: { role_id: role.id } });
+    if (resourcesAssigned > 0) {
+      return res.status(409).json({ ok: false, msg: "No puedes eliminar un rol asignado a recursos" });
     }
 
     await role.destroy();

@@ -7,6 +7,8 @@ const initSchemaMigration = require("../src/db/migrations/20260420_0001_init_sch
 const deviceCredentialsMigration = require("../src/db/migrations/20260420_add_device_api_credentials");
 const deviceMetadataMigration = require("../src/db/migrations/20260420_add_device_metadata");
 const expandFullProjectMigration = require("../src/db/migrations/20260425_expand_full_project_schema");
+const rbacResourcesMigration = require("../src/db/migrations/20260430_add_rbac_resources");
+const userIdentityMigration = require("../src/db/migrations/20260430_add_user_identity_fields");
 
 test("migracion inicial crea las tablas base cuando no existen", async () => {
   const createdTables = [];
@@ -237,6 +239,151 @@ test("migracion 20260425 es idempotente cuando las tablas ya existen", async () 
   const sequelize = { query: async () => {} };
 
   await expandFullProjectMigration.up({ sequelize, queryInterface, transaction: {} });
+
+  assert.deepEqual(createdTables, []);
+  assert.deepEqual(addedColumns, []);
+});
+
+test("migracion 20260430 crea recursos y permisos RBAC", async () => {
+  const createdTables = [];
+  const addedIndexes = [];
+  const seedQueries = [];
+  const describedTables = new Map([
+    ["roles", { id: {} }],
+    ["users", { id: {} }]
+  ]);
+
+  const queryInterface = {
+    describeTable: async (tableName) => {
+      if (!describedTables.has(tableName)) {
+        throw new Error(`Tabla ${tableName} no existe`);
+      }
+      return describedTables.get(tableName);
+    },
+    createTable: async (tableName, definition) => {
+      createdTables.push(tableName);
+      describedTables.set(tableName, definition);
+    },
+    addColumn: async () => {
+      throw new Error("No deberia agregar columnas en tablas nuevas");
+    },
+    showIndex: async () => [],
+    addIndex: async (tableName, fields, options) => {
+      addedIndexes.push({ tableName, fields, name: options && options.name });
+    }
+  };
+
+  const sequelize = {
+    query: async (sql, opts) => {
+      seedQueries.push({ sql, replacements: opts && opts.replacements });
+    }
+  };
+
+  await rbacResourcesMigration.up({ sequelize, queryInterface, transaction: {} });
+
+  assert.deepEqual(createdTables, ["resources", "role_resources"]);
+  assert.equal(addedIndexes.some((idx) => idx.name === "resources_code_idx"), true);
+  assert.equal(addedIndexes.some((idx) => idx.name === "role_resources_role_idx"), true);
+  assert.equal(
+    seedQueries.some((item) => item.replacements && item.replacements[0] === "dashboard"),
+    true,
+    "Falta seed del recurso dashboard"
+  );
+  assert.equal(
+    seedQueries.some((item) => item.sql.includes("INSERT INTO role_resources")),
+    true,
+    "Falta seed de permisos por rol"
+  );
+});
+
+test("migracion 20260430 agrega identidad de usuario", async () => {
+  const addedColumns = [];
+  const addedIndexes = [];
+  let described = { id: {}, nombre: {}, email: {}, password_hash: {} };
+
+  const queryInterface = {
+    describeTable: async (tableName) => {
+      if (tableName !== "users") throw new Error(`Tabla ${tableName} no existe`);
+      return described;
+    },
+    addColumn: async (tableName, columnName) => {
+      addedColumns.push({ tableName, columnName });
+      described = { ...described, [columnName]: {} };
+    },
+    showIndex: async () => [],
+    addIndex: async (tableName, fields, options) => {
+      addedIndexes.push({ tableName, fields, name: options && options.name });
+    }
+  };
+
+  await userIdentityMigration.up({ queryInterface, transaction: {} });
+
+  assert.deepEqual(addedColumns, [
+    { tableName: "users", columnName: "apellido" },
+    { tableName: "users", columnName: "username" },
+    { tableName: "users", columnName: "estado" }
+  ]);
+  assert.equal(addedIndexes.some((idx) => idx.name === "users_username_idx"), true);
+  assert.equal(addedIndexes.some((idx) => idx.name === "users_estado_idx"), true);
+});
+
+test("migracion 20260430 es idempotente cuando RBAC ya existe", async () => {
+  const createdTables = [];
+  const addedColumns = [];
+  const describedTables = new Map([
+    ["resources", {
+      id: {},
+      code: {},
+      nombre: {},
+      backend_path: {},
+      frontend_path: {},
+      icono: {},
+      orden: {},
+      parent_id: {},
+      estado: {},
+      created_at: {},
+      updated_at: {}
+    }],
+    ["role_resources", {
+      role_id: {},
+      resource_id: {},
+      can_view: {},
+      can_create: {},
+      can_update: {},
+      can_delete: {},
+      assigned_at: {}
+    }]
+  ]);
+
+  const queryInterface = {
+    describeTable: async (tableName) => {
+      if (!describedTables.has(tableName)) {
+        throw new Error(`Tabla ${tableName} no existe`);
+      }
+      return describedTables.get(tableName);
+    },
+    createTable: async (tableName) => {
+      createdTables.push(tableName);
+    },
+    addColumn: async (tableName, columnName) => {
+      addedColumns.push({ tableName, columnName });
+    },
+    showIndex: async () => [
+      { name: "resources_code_idx" },
+      { name: "resources_parent_idx" },
+      { name: "resources_estado_idx" },
+      { name: "resources_orden_idx" },
+      { name: "role_resources_resource_idx" },
+      { name: "role_resources_role_idx" }
+    ],
+    addIndex: async () => {
+      throw new Error("No deberia recrear indices existentes");
+    }
+  };
+
+  const sequelize = { query: async () => {} };
+
+  await rbacResourcesMigration.up({ sequelize, queryInterface, transaction: {} });
 
   assert.deepEqual(createdTables, []);
   assert.deepEqual(addedColumns, []);

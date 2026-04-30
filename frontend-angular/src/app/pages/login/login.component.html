@@ -7,11 +7,12 @@
 
     <form [formGroup]="form" (ngSubmit)="submit()">
       <label>
-        <span>Correo</span>
+        <span>Correo o username</span>
         <input
-          type="email"
+          type="text"
           formControlName="email"
-          placeholder="operador@aquasense.io"
+          placeholder="operador@aquasense.io o operador_01"
+          autocomplete="username"
         />
         <small>{{ emailHint() }}</small>
       </label>

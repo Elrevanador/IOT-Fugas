@@ -11,11 +11,39 @@
         <input
           type="text"
           formControlName="nombre"
-          placeholder="Nombre y apellidos"
-          autocomplete="name"
+          placeholder="Duvan"
+          autocomplete="given-name"
           [class.input-invalid]="nombreError()"
         />
         @if (nombreError(); as message) {
+          <small class="field-error">{{ message }}</small>
+        }
+      </label>
+
+      <label>
+        <span>Apellido</span>
+        <input
+          type="text"
+          formControlName="apellido"
+          placeholder="Ramirez"
+          autocomplete="family-name"
+          [class.input-invalid]="apellidoError()"
+        />
+        @if (apellidoError(); as message) {
+          <small class="field-error">{{ message }}</small>
+        }
+      </label>
+
+      <label>
+        <span>Username</span>
+        <input
+          type="text"
+          formControlName="username"
+          placeholder="duvan.ramirez"
+          autocomplete="username"
+          [class.input-invalid]="usernameError()"
+        />
+        @if (usernameError(); as message) {
           <small class="field-error">{{ message }}</small>
         }
       </label>
@@ -53,6 +81,20 @@
           <li [class.is-met]="passwordHasNumber()">Un numero</li>
           <li [class.is-met]="passwordHasSymbol()">Un simbolo: &#64;$!%*?&amp;</li>
         </ul>
+      </label>
+
+      <label>
+        <span>Confirmar contrasena</span>
+        <input
+          type="password"
+          formControlName="confirmPassword"
+          placeholder="Repite tu contrasena"
+          autocomplete="new-password"
+          [class.input-invalid]="confirmPasswordError()"
+        />
+        @if (confirmPasswordError(); as message) {
+          <small class="field-error">{{ message }}</small>
+        }
       </label>
 
       <div class="strength-meter">

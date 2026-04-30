@@ -6,6 +6,8 @@ const ReadingModel = require("./Reading");
 const AlertModel = require("./Alert");
 const RoleModel = require("./Role");
 const UserRoleModel = require("./UserRole");
+const ResourceModel = require("./Resource");
+const RoleResourceModel = require("./RoleResource");
 const UbicacionInstalacionModel = require("./UbicacionInstalacion");
 const SensorModel = require("./Sensor");
 const EstadoSistemaModel = require("./EstadoSistema");
@@ -25,6 +27,8 @@ const Reading = ReadingModel(sequelize);
 const Alert = AlertModel(sequelize);
 const Role = RoleModel(sequelize);
 const UserRole = UserRoleModel(sequelize);
+const Resource = ResourceModel(sequelize);
+const RoleResource = RoleResourceModel(sequelize);
 const UbicacionInstalacion = UbicacionInstalacionModel(sequelize);
 const Sensor = SensorModel(sequelize);
 const EstadoSistema = EstadoSistemaModel(sequelize);
@@ -56,6 +60,25 @@ UserRole.belongsTo(User, { foreignKey: "user_id" });
 UserRole.belongsTo(Role, { foreignKey: "role_id" });
 User.hasMany(UserRole, { foreignKey: "user_id" });
 Role.hasMany(UserRole, { foreignKey: "role_id" });
+
+Role.belongsToMany(Resource, {
+  through: RoleResource,
+  foreignKey: "role_id",
+  otherKey: "resource_id",
+  as: "resources"
+});
+Resource.belongsToMany(Role, {
+  through: RoleResource,
+  foreignKey: "resource_id",
+  otherKey: "role_id",
+  as: "roles"
+});
+RoleResource.belongsTo(Role, { foreignKey: "role_id" });
+RoleResource.belongsTo(Resource, { foreignKey: "resource_id" });
+Role.hasMany(RoleResource, { foreignKey: "role_id" });
+Resource.hasMany(RoleResource, { foreignKey: "resource_id" });
+Resource.belongsTo(Resource, { foreignKey: "parent_id", as: "parent" });
+Resource.hasMany(Resource, { foreignKey: "parent_id", as: "children" });
 
 // ---------- Ubicaciones ----------
 House.hasMany(UbicacionInstalacion, { foreignKey: "house_id", as: "ubicaciones" });
@@ -119,6 +142,8 @@ module.exports = {
   Alert,
   Role,
   UserRole,
+  Resource,
+  RoleResource,
   UbicacionInstalacion,
   Sensor,
   EstadoSistema,

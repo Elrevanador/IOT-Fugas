@@ -3,18 +3,35 @@ const jwt = require("jsonwebtoken");
 const { House, User } = require("../models");
 const { getJwtSecret } = require("../config/env");
 const { normalizeRole } = require("../middlewares/authorize");
+const { buildUserAccessProfile } = require("../services/accessControl");
 const { recordAudit } = require("../services/audit");
 const logger = require("../utils/logger");
 
 // Configuración de seguridad
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_TIME_MINUTES = 30;
-const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
+
+const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
+
+const serializeAuthUser = (user, access, house = null) => ({
+  id: user.id,
+  nombre: user.nombre,
+  apellido: user.apellido || "",
+  username: user.username || "",
+  email: user.email,
+  role: user.role,
+  estado: user.estado || "ACTIVO",
+  roles: access.roles,
+  permissions: access.permissions,
+  ...(house !== undefined ? { house } : {})
+});
 
 const register = async (req, res, next) => {
   try {
-    const { nombre, email, password } = req.body;
+    const { nombre, apellido, email, password } = req.body;
+    const username = normalizeUsername(req.body.username);
 
     // Validar que no se pueda asignar casa en registro público
     if (req.body.houseId !== undefined && req.body.houseId !== null && req.body.houseId !== "") {
@@ -29,10 +46,22 @@ const register = async (req, res, next) => {
       });
     }
 
+    if (!USERNAME_REGEX.test(username)) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El username solo puede contener letras, numeros, punto, guion o guion bajo"
+      });
+    }
+
     // Verificar email existente
     const exists = await User.findOne({ where: { email: email.toLowerCase() } });
     if (exists) {
       return res.status(409).json({ ok: false, msg: "Email ya registrado" });
+    }
+
+    const usernameExists = await User.findOne({ where: { username } });
+    if (usernameExists) {
+      return res.status(409).json({ ok: false, msg: "Username ya registrado" });
     }
 
     // Crear hash de contraseña
@@ -43,13 +72,17 @@ const register = async (req, res, next) => {
     // Crear usuario
     const user = await User.create({
       nombre: nombre.trim(),
+      apellido: apellido.trim(),
+      username,
       email: email.toLowerCase().trim(),
       password_hash,
       house_id: null,
       role,
+      estado: "ACTIVO",
       email_verified: false,
       failed_login_attempts: 0,
-      locked_until: null
+      locked_until: null,
+      password_changed_at: new Date()
     });
 
     // Registrar auditoría
@@ -64,15 +97,11 @@ const register = async (req, res, next) => {
 
     logger.info("Usuario registrado exitosamente", { userId: user.id, email: user.email });
 
+    const access = await buildUserAccessProfile(user, { silent: true });
+
     return res.status(201).json({
       ok: true,
-      user: {
-        id: user.id,
-        nombre: user.nombre,
-        email: user.email,
-        role: user.role,
-        house: null
-      }
+      user: serializeAuthUser(user, access, null)
     });
   } catch (error) {
     logger.error("Error en registro de usuario", { error: error.message, email: req.body.email });
@@ -83,17 +112,31 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    const normalizedEmail = email.toLowerCase().trim();
+    const identifier = String(email || "").toLowerCase().trim();
 
     // Buscar usuario
-    const user = await User.findOne({
-      where: { email: normalizedEmail },
+    let user = await User.findOne({
+      where: { email: identifier },
       include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }]
     });
+    if (!user && !identifier.includes("@")) {
+      user = await User.findOne({
+        where: { username: identifier },
+        include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }]
+      });
+    }
 
     if (!user) {
-      logger.warn("Intento de login con email no registrado", { email: normalizedEmail, ip: req.ip });
+      logger.warn("Intento de login con cuenta no registrada", { identifier, ip: req.ip });
       return res.status(401).json({ ok: false, msg: "Credenciales inválidas" });
+    }
+
+    if (user.estado === "INACTIVO") {
+      return res.status(403).json({ ok: false, msg: "Usuario inactivo" });
+    }
+
+    if (user.estado === "BLOQUEADO") {
+      return res.status(423).json({ ok: false, msg: "Usuario bloqueado" });
     }
 
     // Verificar si la cuenta está bloqueada
@@ -155,6 +198,7 @@ const login = async (req, res, next) => {
       {
         id: user.id,
         email: user.email,
+        username: user.username || null,
         nombre: user.nombre,
         role: user.role,
         houseId: user.house_id || null
@@ -179,15 +223,12 @@ const login = async (req, res, next) => {
 
     logger.info("Login exitoso", { userId: user.id, email: user.email, role: user.role });
 
+    const access = await buildUserAccessProfile(user, { silent: true });
+
     return res.json({
       ok: true,
       token,
-      user: {
-        id: user.id,
-        nombre: user.nombre,
-        email: user.email,
-        role: user.role
-      }
+      user: serializeAuthUser(user, access, undefined)
     });
   } catch (error) {
     logger.error("Error en login", { error: error.message, email: req.body.email });
@@ -215,13 +256,12 @@ const me = async (req, res, next) => {
       req
     });
 
+    const access = await buildUserAccessProfile(user, { silent: true });
+
     return res.json({
       ok: true,
       user: {
-        id: user.id,
-        email: user.email,
-        nombre: user.nombre,
-        role: user.role,
+        ...serializeAuthUser(user, access, undefined),
         house: user.House
           ? {
               id: user.House.id,
@@ -281,7 +321,8 @@ const changePassword = async (req, res, next) => {
     await dbUser.update({
       password_hash: newPasswordHash,
       failed_login_attempts: 0,
-      locked_until: null
+      locked_until: null,
+      password_changed_at: new Date()
     });
 
     // Registrar auditoría

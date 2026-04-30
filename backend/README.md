@@ -17,11 +17,28 @@ DB_RUN_MIGRATIONS=true
 JWT_SECRET=cambia_esto_por_un_secreto_largo
 INGEST_API_KEY=cambia_esto_por_una_clave_larga
 FRONTEND_ORIGIN=https://tu-frontend.app
-TRUST_PROXY=loopback
+TRUST_PROXY=1
 AUTH_RATE_LIMIT_WINDOW_MS=900000
 AUTH_LOGIN_RATE_LIMIT_MAX=10
 AUTH_REGISTER_RATE_LIMIT_MAX=5
-DATABASE_URL=mysql://root:eqglpsLmtWwLplFwxaDJAROxeToqOizu@roundhouse.proxy.rlwy.net:51802/railway
+DATABASE_URL=mysql://USUARIO:PASSWORD@HOST:PUERTO/NOMBRE_DB
+```
+
+Nunca subas una URL real de base de datos ni secretos de Railway al repositorio. Las credenciales reales van solo en Variables de Railway.
+
+Variables opcionales para generar cuentas temporales de validacion:
+
+```env
+DEMO_ADMIN_EMAIL=demo.admin@iot.local
+DEMO_ADMIN_USERNAME=demo_admin
+DEMO_ADMIN_PASSWORD=AdminDemo123!
+DEMO_OPERATOR_EMAIL=demo.operador@iot.local
+DEMO_OPERATOR_USERNAME=demo_operador
+DEMO_OPERATOR_PASSWORD=OperadorDemo123!
+DEMO_RESIDENT_EMAIL=demo.residente@iot.local
+DEMO_RESIDENT_USERNAME=demo_residente
+DEMO_RESIDENT_PASSWORD=Demo12345!
+DEMO_DEVICE_API_KEY=dev_demo_iot_water_multi_123456
 ```
 
 ## Seguridad y operacion
@@ -30,6 +47,7 @@ DATABASE_URL=mysql://root:eqglpsLmtWwLplFwxaDJAROxeToqOizu@roundhouse.proxy.rlwy
 - `POST /api/readings` acepta la clave global `INGEST_API_KEY` y tambien claves propias por dispositivo.
 - El backend genera `X-Request-Id` en cada respuesta y acepta uno entrante si ya vienes trazando peticiones.
 - `POST /api/auth/login` y `POST /api/auth/register` tienen rate limit por IP en memoria. Para confiar en IPs reenviadas por proxy configura `TRUST_PROXY`; por defecto queda desactivado.
+- El modulo RBAC usa `users`, `roles`, `user_roles`, `resources` y `role_resources`. `GET /api/auth/me` devuelve `roles` y `permissions` para validar el acceso a modulos sin romper el campo `role` existente.
 - El body JSON tiene limite de `32kb`.
 - El stream `GET /api/public/dashboard/stream` acepta `?token=...` porque `EventSource` no envia `Authorization` de forma nativa. El resto de endpoints no aceptan JWT por query string.
 - Puedes generar o rotar una credencial propia con `POST /api/devices/:id/credentials`. La respuesta devuelve `generatedApiKey` una sola vez.
@@ -42,6 +60,8 @@ DATABASE_URL=mysql://root:eqglpsLmtWwLplFwxaDJAROxeToqOizu@roundhouse.proxy.rlwy
 - `GET /api/readings?limit=50&page=1&deviceId=1&houseId=2&state=ALERTA&from=2026-04-20T00:00:00Z&until=2026-04-20T23:59:59Z`
 - `GET /api/alerts?limit=50&page=1&deviceId=1&houseId=2&severity=FUGA&acknowledged=false`
 - `GET /api/devices?limit=50&page=1&houseId=2&status=ACTIVO&search=esp32`
+- `GET /api/resources`
+- `POST /api/role-resources`
 - `POST /api/devices/12/credentials`
 - `GET /api/incidents?estado=ABIERTO&deviceId=12`
 - `PUT /api/detection-config/12`
@@ -58,6 +78,38 @@ Las respuestas de listas incluyen `pagination` con `page`, `limit`, `total` y `t
 3. Usa `npm install` como install command si Railway lo pide.
 4. Usa `npm start` como start command.
 5. Configura las variables del ejemplo anterior.
+
+Para la entrega, sube el link publico del backend de Railway y credenciales de prueba de la aplicacion, no credenciales de MySQL ni secretos de Railway. Despues de ejecutar el seed demo puedes compartir:
+
+```txt
+Backend Railway: https://tu-backend.up.railway.app
+Health check: https://tu-backend.up.railway.app/api/health
+
+Administrador:
+email: demo.admin@iot.local
+username: demo_admin
+password: AdminDemo123!
+
+Operador:
+email: demo.operador@iot.local
+username: demo_operador
+password: OperadorDemo123!
+
+Residente:
+email: demo.residente@iot.local
+username: demo_residente
+password: Demo12345!
+```
+
+La cuenta administradora permite validar usuarios, roles, recursos, permisos y modulos de administracion. La cuenta operadora y la residente sirven para validar restricciones de seguridad por rol. Cambia o elimina estas claves al terminar la revision.
+
+Para crear los datos demo en Railway, ejecuta una sola vez:
+
+```bash
+ALLOW_DEMO_SEED=true npm run seed:demo
+```
+
+El comando queda bloqueado en `production` si no pasas `ALLOW_DEMO_SEED=true`.
 
 ## Migrar base completa a Railway
 
@@ -119,7 +171,7 @@ Demo multi-dispositivo:
 npm run seed:demo
 ```
 
-El seed crea/actualiza una casa demo, un residente, tres dispositivos con lecturas recientes y una alerta para validar el dashboard multi-dispositivo. En `production` queda bloqueado salvo que definas `ALLOW_DEMO_SEED=true`.
+El seed crea/actualiza una casa demo, usuarios admin/operador/residente, tres dispositivos con lecturas recientes y una alerta para validar el dashboard multi-dispositivo. En `production` queda bloqueado salvo que definas `ALLOW_DEMO_SEED=true`.
 
 Tests:
 

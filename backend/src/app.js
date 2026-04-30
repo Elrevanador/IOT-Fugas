@@ -16,6 +16,8 @@ const commandsRoutes = require("./routes/commands");
 const auditRoutes = require("./routes/audit");
 const rolesRoutes = require("./routes/roles");
 const userRolesRoutes = require("./routes/userRoles");
+const resourcesRoutes = require("./routes/resources");
+const roleResourcesRoutes = require("./routes/roleResources");
 const systemStatesRoutes = require("./routes/systemStates");
 const publicRoutes = require("./routes/public");
 const errorHandler = require("./middlewares/errorHandler");
@@ -123,7 +125,14 @@ const routeGroups = [
       ["DELETE", "/api/roles/:id"],
       ["GET", "/api/user-roles"],
       ["POST", "/api/user-roles"],
-      ["DELETE", "/api/user-roles/:userId/:roleId"]
+      ["DELETE", "/api/user-roles/:userId/:roleId"],
+      ["GET", "/api/resources"],
+      ["POST", "/api/resources"],
+      ["PUT", "/api/resources/:id"],
+      ["DELETE", "/api/resources/:id"],
+      ["GET", "/api/role-resources"],
+      ["POST", "/api/role-resources"],
+      ["DELETE", "/api/role-resources/:roleId/:resourceId"]
     ]
   },
   {
@@ -634,11 +643,11 @@ app.get("/api/docs", (req, res) => {
           <h2>Registro y Login</h2>
 <pre><code>curl -X POST ${baseUrl}/api/auth/register \\
   -H "Content-Type: application/json" \\
-  -d '{"nombre":"Duvan","email":"duvan@test.com","password":"123456"}'
+  -d '{"nombre":"Duvan","apellido":"Prueba","username":"duvan_test","email":"duvan@test.com","password":"Duvan123!","confirmPassword":"Duvan123!"}'
 
 curl -X POST ${baseUrl}/api/auth/login \\
   -H "Content-Type: application/json" \\
-  -d '{"email":"duvan@test.com","password":"123456"}'</code></pre>
+  -d '{"email":"duvan@test.com","password":"Duvan123!"}'</code></pre>
         </article>
 
         <article class="panel wide">
@@ -678,6 +687,8 @@ app.use("/api/alerts", alertsRoutes);
 app.use("/api/devices", devicesRoutes);
 app.use("/api/roles", rolesRoutes);
 app.use("/api/user-roles", userRolesRoutes);
+app.use("/api/resources", resourcesRoutes);
+app.use("/api/role-resources", roleResourcesRoutes);
 app.use("/api/locations", locationsRoutes);
 app.use("/api/sensors", sensorsRoutes);
 app.use("/api/incidents", incidentsRoutes);

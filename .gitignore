@@ -24,5 +24,7 @@ frontend/dist/
 .env*.local
 backend/.env
 backend/.env*.local
+.demo-credentials.json
+backend/.demo-credentials.json
 backups/
 backend/backups/

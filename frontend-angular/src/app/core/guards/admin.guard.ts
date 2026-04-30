@@ -9,7 +9,7 @@ export const adminGuard: CanActivateFn = async () => {
 
   await auth.ensureSessionLoaded();
 
-  if (auth.isAuthenticated() && auth.isAdmin()) {
+  if (auth.isAuthenticated() && auth.hasFrontendAccess('/admin')) {
     return true;
   }
 

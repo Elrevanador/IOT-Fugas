@@ -9,6 +9,9 @@
     <div class="admin-stats" aria-label="Resumen">
       <article><span>Casas</span><strong>{{ stats().houses }}</strong></article>
       <article><span>Usuarios</span><strong>{{ stats().users }}</strong></article>
+      <article><span>Roles</span><strong>{{ stats().roles }}</strong></article>
+      <article><span>Recursos</span><strong>{{ stats().resources }}</strong></article>
+      <article><span>Permisos</span><strong>{{ stats().permissions }}</strong></article>
       <article><span>Dispositivos</span><strong>{{ stats().devices }}</strong></article>
       <article><span>Sensores</span><strong>{{ stats().sensors }}</strong></article>
       <article><span>Lecturas</span><strong>{{ stats().readings }}</strong></article>
@@ -149,12 +152,14 @@
             </header>
             <div class="table-shell">
               <table>
-                <thead><tr><th>Usuario</th><th>Rol auth</th><th>Casa</th><th></th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Username</th><th>Rol auth</th><th>Estado</th><th>Casa</th><th></th></tr></thead>
                 <tbody>
                   @for (user of paginatedUsers(); track user.id) {
                     <tr>
-                      <td><strong>{{ user.nombre }}</strong><small>{{ user.email }}</small></td>
+                      <td><strong>{{ user.nombre }} {{ user.apellido || '' }}</strong><small>{{ user.email }}</small></td>
+                      <td>{{ user.username || 'Sin username' }}</td>
                       <td><span class="status-pill">{{ user.role }}</span></td>
+                      <td><span class="status-pill">{{ user.estado || 'ACTIVO' }}</span></td>
                       <td>{{ user.House?.name || 'Sin casa' }}</td>
                       <td class="table-actions">
                         <button type="button" class="ghost-action" (click)="editUser(user)">Editar</button>
@@ -162,7 +167,7 @@
                       </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="4" class="empty-cell">No hay usuarios.</td></tr>
+                    <tr><td colspan="6" class="empty-cell">No hay usuarios.</td></tr>
                   }
                 </tbody>
               </table>
@@ -221,6 +226,72 @@
                     </tr>
                   } @empty {
                     <tr><td colspan="4" class="empty-cell">No hay asignaciones.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'resources') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">resources</span><h2>Recursos del sistema</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateResourceModal()">Nuevo recurso</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Recurso</th><th>Frontend</th><th>Backend</th><th>Padre</th><th>Orden</th><th>Roles</th><th></th></tr></thead>
+                <tbody>
+                  @for (resource of paginatedResources(); track resource.id) {
+                    <tr>
+                      <td>
+                        <strong>{{ resource.nombre }}</strong>
+                        <small>{{ resource.code }} · {{ resource.estado }}</small>
+                      </td>
+                      <td>{{ resource.frontendPath || 'Sin ruta' }}</td>
+                      <td>{{ resource.backendPath || 'Sin ruta' }}</td>
+                      <td>{{ resourceParentName(resource.parentId) }}</td>
+                      <td>{{ resource.orden }}</td>
+                      <td>{{ resourceRoleCodes(resource) || 'Sin roles' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editResource(resource)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteResource(resource)">Eliminar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="7" class="empty-cell">No hay recursos registrados.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        }
+
+        @if (activeScene() === 'roleResources') {
+          <article class="workspace-card">
+            <header class="workspace-card__header">
+              <div><span class="eyebrow">role_resources</span><h2>Permisos por rol</h2></div>
+              <button type="button" class="ghost-action" (click)="openCreateRoleResourceModal()">Asignar permisos</button>
+            </header>
+            <div class="table-shell">
+              <table>
+                <thead><tr><th>Rol</th><th>Recurso</th><th>Ruta</th><th>Permisos</th><th>Asignado</th><th></th></tr></thead>
+                <tbody>
+                  @for (assignment of paginatedRoleResources(); track assignment.roleId + ':' + assignment.resourceId) {
+                    <tr>
+                      <td><strong>{{ assignment.role?.nombre || ('Rol #' + assignment.roleId) }}</strong><small>{{ assignment.role?.code || 'Sin codigo' }}</small></td>
+                      <td><strong>{{ assignment.resource?.nombre || ('Recurso #' + assignment.resourceId) }}</strong><small>{{ assignment.resource?.code || 'Sin codigo' }}</small></td>
+                      <td>{{ assignment.resource?.frontendPath || assignment.resource?.backendPath || 'Sin ruta' }}</td>
+                      <td>{{ permissionSummary(assignment.permissions) }}</td>
+                      <td>{{ assignment.assignedAt | date:'short' }}</td>
+                      <td class="table-actions">
+                        <button type="button" class="ghost-action" (click)="editRoleResource(assignment)">Editar</button>
+                        <button type="button" class="danger-action" (click)="deleteRoleResource(assignment)">Quitar</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="6" class="empty-cell">No hay permisos asignados a roles.</td></tr>
                   }
                 </tbody>
               </table>
@@ -723,10 +794,13 @@
     <app-modal [isOpen]="showUserModal()" [title]="editingUser() ? 'Editar usuario' : 'Nuevo usuario'" (close)="closeUserModal()">
       <form class="admin-form" [formGroup]="userForm" (ngSubmit)="submitUser()">
         <label><span>Nombre</span><input type="text" formControlName="nombre" /></label>
+        <label><span>Apellido</span><input type="text" formControlName="apellido" /></label>
+        <label><span>Username</span><input type="text" formControlName="username" /></label>
         <label><span>Email</span><input type="email" formControlName="email" /></label>
         <label><span>Clave</span><input type="password" formControlName="password" /></label>
         <label><span>Casa</span><select formControlName="houseId"><option [ngValue]="0">Sin asignar</option>@for (house of houses(); track house.id) {<option [ngValue]="house.id">{{ house.name }} | {{ house.code }}</option>}</select></label>
         <label><span>Rol auth</span><select formControlName="role"><option value="admin">admin</option><option value="operator">operator</option><option value="resident">resident</option></select></label>
+        <label><span>Estado</span><select formControlName="estado"><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">INACTIVO</option><option value="BLOQUEADO">BLOQUEADO</option></select></label>
         <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeUserModal()">Cancelar</button></div>
       </form>
     </app-modal>
@@ -745,6 +819,32 @@
         <label><span>Usuario</span><select formControlName="userId"><option [ngValue]="0">Selecciona usuario</option>@for (user of users(); track user.id) {<option [ngValue]="user.id">{{ user.nombre }} | {{ user.email }}</option>}</select></label>
         <label><span>Rol</span><select formControlName="roleId"><option [ngValue]="0">Selecciona rol</option>@for (role of roles(); track role.id) {<option [ngValue]="role.id">{{ role.nombre }} | {{ role.code }}</option>}</select></label>
         <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Asignar</button><button type="button" class="ghost-action" (click)="showUserRoleModal.set(false)">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showResourceModal()" [title]="editingResource() ? 'Editar recurso' : 'Nuevo recurso'" (close)="closeResourceModal()">
+      <form class="admin-form admin-form--device" [formGroup]="resourceForm" (ngSubmit)="submitResource()">
+        <label><span>Codigo</span><input type="text" formControlName="code" /></label>
+        <label><span>Nombre</span><input type="text" formControlName="nombre" /></label>
+        <label><span>Ruta backend</span><input type="text" formControlName="backendPath" /></label>
+        <label><span>Ruta frontend</span><input type="text" formControlName="frontendPath" /></label>
+        <label><span>Icono</span><input type="text" formControlName="icono" /></label>
+        <label><span>Orden</span><input type="number" formControlName="orden" /></label>
+        <label><span>Padre</span><select formControlName="parentId"><option [ngValue]="0">Sin padre</option>@for (resource of resources(); track resource.id) {<option [ngValue]="resource.id">{{ resource.nombre }} | {{ resource.code }}</option>}</select></label>
+        <label><span>Estado</span><select formControlName="estado"><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">INACTIVO</option></select></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="closeResourceModal()">Cancelar</button></div>
+      </form>
+    </app-modal>
+
+    <app-modal [isOpen]="showRoleResourceModal()" title="Permisos por rol" (close)="showRoleResourceModal.set(false)">
+      <form class="admin-form" [formGroup]="roleResourceForm" (ngSubmit)="submitRoleResource()">
+        <label><span>Rol</span><select formControlName="roleId"><option [ngValue]="0">Selecciona rol</option>@for (role of roles(); track role.id) {<option [ngValue]="role.id">{{ role.nombre }} | {{ role.code }}</option>}</select></label>
+        <label><span>Recurso</span><select formControlName="resourceId"><option [ngValue]="0">Selecciona recurso</option>@for (resource of resources(); track resource.id) {<option [ngValue]="resource.id">{{ resource.nombre }} | {{ resource.code }}</option>}</select></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="canView" /><span>Ver</span></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="canCreate" /><span>Crear</span></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="canUpdate" /><span>Editar</span></label>
+        <label class="checkbox-row"><input type="checkbox" formControlName="canDelete" /><span>Eliminar</span></label>
+        <div class="form-actions"><button type="submit" class="primary-action" [disabled]="busy()">Guardar</button><button type="button" class="ghost-action" (click)="showRoleResourceModal.set(false)">Cancelar</button></div>
       </form>
     </app-modal>
 

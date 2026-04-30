@@ -5,8 +5,10 @@ const assert = require("node:assert/strict");
 
 const {
   DEMO_DEVICES,
+  DEMO_USER_SPECS,
   assertDemoSeedAllowed,
   getDemoSeedConfig,
+  getDemoUsersConfig,
   seedDemoData
 } = require("../src/db/seedDemo");
 
@@ -56,6 +58,7 @@ test("seed demo usa valores configurables por ambiente", () => {
   const config = getDemoSeedConfig({
     DEMO_HOUSE_CODE: "CASA-X",
     DEMO_RESIDENT_EMAIL: "persona@example.com",
+    DEMO_RESIDENT_USERNAME: "persona_x",
     DEMO_RESIDENT_PASSWORD: "secret",
     DEMO_DEVICE_API_KEY: "dev_custom"
   });
@@ -63,15 +66,42 @@ test("seed demo usa valores configurables por ambiente", () => {
   assert.deepEqual(config, {
     houseCode: "CASA-X",
     residentEmail: "persona@example.com",
+    residentUsername: "persona_x",
     residentPassword: "secret",
     deviceApiKey: "dev_custom"
   });
 });
 
-test("seed demo crea tres dispositivos, lecturas y una alerta", async () => {
+test("seed demo configura cuentas admin, operador y residente", () => {
+  const users = getDemoUsersConfig({
+    DEMO_ADMIN_EMAIL: "admin@example.com",
+    DEMO_ADMIN_USERNAME: "admin_x",
+    DEMO_ADMIN_PASSWORD: "AdminSecret123!",
+    DEMO_OPERATOR_EMAIL: "operador@example.com",
+    DEMO_OPERATOR_USERNAME: "operador_x",
+    DEMO_OPERATOR_PASSWORD: "OperatorSecret123!"
+  });
+
+  assert.equal(users.length, DEMO_USER_SPECS.length);
+  assert.deepEqual(
+    users.map((user) => user.role),
+    ["admin", "operator", "resident"]
+  );
+  assert.equal(users[0].email, "admin@example.com");
+  assert.equal(users[0].username, "admin_x");
+  assert.equal(users[0].password, "AdminSecret123!");
+  assert.equal(users[1].email, "operador@example.com");
+  assert.equal(users[1].username, "operador_x");
+  assert.equal(users[1].password, "OperatorSecret123!");
+  assert.equal(users[2].email, "demo.residente@iot.local");
+});
+
+test("seed demo crea usuarios, tres dispositivos, lecturas y una alerta", async () => {
   const models = {
     House: createModel(10),
     User: createModel(20),
+    Role: createModel(60),
+    UserRole: createModel(70),
     Device: createModel(30),
     Reading: createModel(40),
     Alert: createModel(50)
@@ -93,10 +123,16 @@ test("seed demo crea tres dispositivos, lecturas y una alerta", async () => {
 
   const bulkCreateCall = models.Reading.calls.find((call) => call.method === "bulkCreate");
   const alertCreateCall = models.Alert.calls.find((call) => call.method === "create");
+  const userRoleCalls = models.UserRole.calls.filter((call) => call.method === "findOrCreate");
 
+  assert.equal(summary.users.length, 3);
   assert.equal(summary.devices.length, 3);
   assert.equal(summary.readingCount, DEMO_DEVICES.reduce((sum, device) => sum + device.readings.length, 0));
   assert.equal(bulkCreateCall.rows.length, summary.readingCount);
   assert.equal(alertCreateCall.payload.severity, "ALERTA");
+  assert.equal(userRoleCalls.length, 3);
+  assert.equal(summary.credentials.users.length, 3);
+  assert.equal(summary.credentials.users[0].role, "admin");
   assert.equal(summary.credentials.email, "demo.residente@iot.local");
+  assert.equal(summary.credentials.username, "demo_residente");
 });

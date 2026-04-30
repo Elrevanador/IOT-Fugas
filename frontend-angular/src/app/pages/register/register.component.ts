@@ -26,8 +26,11 @@ export class RegisterComponent {
 
   readonly form = this.fb.nonNullable.group({
     nombre: ['', [Validators.required, Validators.minLength(3)]],
+    apellido: ['', [Validators.required, Validators.minLength(2)]],
+    username: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(80), Validators.pattern(/^[a-zA-Z0-9._-]+$/)]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, backendPasswordValidator()]]
+    password: ['', [Validators.required, backendPasswordValidator()]],
+    confirmPassword: ['', [Validators.required]]
   });
 
   protected passwordStrength() {
@@ -61,7 +64,7 @@ export class RegisterComponent {
   }
 
   async submit() {
-    if (this.form.invalid || this.isSubmitting()) {
+    if (this.form.invalid || !this.passwordsMatch() || this.isSubmitting()) {
       this.form.markAllAsTouched();
       const message = this.firstInvalidMessage();
       this.feedback.set(message);
@@ -102,10 +105,30 @@ export class RegisterComponent {
     return this.resolveEmailError();
   }
 
+  protected apellidoError() {
+    const control = this.form.controls.apellido;
+    if (!this.shouldShowError(control)) return '';
+    return this.resolveApellidoError();
+  }
+
+  protected usernameError() {
+    const control = this.form.controls.username;
+    if (!this.shouldShowError(control)) return '';
+    return this.resolveUsernameError();
+  }
+
   protected passwordError() {
     const control = this.form.controls.password;
     if (!this.shouldShowError(control)) return '';
     return this.resolvePasswordError();
+  }
+
+  protected confirmPasswordError() {
+    const control = this.form.controls.confirmPassword;
+    if (!this.shouldShowError(control) && (control.pristine || this.passwordsMatch())) return '';
+    if (control.hasError('required')) return 'Confirma tu contrasena.';
+    if (!this.passwordsMatch()) return 'Las contrasenas no coinciden.';
+    return '';
   }
 
   private shouldShowError(control: AbstractControl) {
@@ -118,8 +141,11 @@ export class RegisterComponent {
 
   private firstInvalidMessage() {
     if (this.form.controls.nombre.invalid) return this.resolveNombreError();
+    if (this.form.controls.apellido.invalid) return this.resolveApellidoError();
+    if (this.form.controls.username.invalid) return this.resolveUsernameError();
     if (this.form.controls.email.invalid) return this.resolveEmailError();
     if (this.form.controls.password.invalid) return this.resolvePasswordError();
+    if (this.form.controls.confirmPassword.invalid || !this.passwordsMatch()) return this.confirmPasswordError();
     return 'Revisa los datos antes de crear la cuenta.';
   }
 
@@ -137,6 +163,22 @@ export class RegisterComponent {
     return 'Revisa el correo ingresado.';
   }
 
+  private resolveApellidoError() {
+    const control = this.form.controls.apellido;
+    if (control.hasError('required')) return 'Ingresa tu apellido.';
+    if (control.hasError('minlength')) return 'El apellido debe tener al menos 2 caracteres.';
+    return 'Revisa el apellido ingresado.';
+  }
+
+  private resolveUsernameError() {
+    const control = this.form.controls.username;
+    if (control.hasError('required')) return 'Ingresa un username.';
+    if (control.hasError('minlength')) return 'El username debe tener al menos 3 caracteres.';
+    if (control.hasError('maxlength')) return 'El username no puede superar 80 caracteres.';
+    if (control.hasError('pattern')) return 'Usa solo letras, numeros, punto, guion o guion bajo.';
+    return 'Revisa el username ingresado.';
+  }
+
   private resolvePasswordError() {
     const control = this.form.controls.password;
     if (control.hasError('required')) return 'Ingresa una contrasena.';
@@ -146,6 +188,10 @@ export class RegisterComponent {
       return 'Usa mayuscula, minuscula, numero y un simbolo: @$!%*?&.';
     }
     return 'Revisa la contrasena ingresada.';
+  }
+
+  private passwordsMatch() {
+    return this.form.controls.password.value === this.form.controls.confirmPassword.value;
   }
 
 }

@@ -9,7 +9,7 @@ const listUsers = async (req, res, next) => {
     }
 
     const users = await User.findAll({
-      attributes: ["id", "nombre", "email", "role", "house_id", "created_at"],
+      attributes: ["id", "nombre", "apellido", "username", "email", "role", "estado", "house_id", "created_at"],
       include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }],
       order: [["id", "ASC"]]
     });
@@ -26,12 +26,20 @@ const createUser = async (req, res, next) => {
       return res.status(403).json({ ok: false, msg: "Solo un admin puede crear usuarios" });
     }
 
-    const { nombre, email, password, houseId } = req.body;
+    const { nombre, apellido, email, password, houseId } = req.body;
     const role = normalizeRole(req.body.role || "resident");
+    const estado = String(req.body.estado || "ACTIVO").trim().toUpperCase();
+    const username = String(req.body.username || "").trim().toLowerCase();
 
-    const exists = await User.findOne({ where: { email } });
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const exists = await User.findOne({ where: { email: normalizedEmail } });
     if (exists) {
       return res.status(409).json({ ok: false, msg: "Email ya registrado" });
+    }
+
+    const usernameExists = await User.findOne({ where: { username } });
+    if (usernameExists) {
+      return res.status(409).json({ ok: false, msg: "Username ya registrado" });
     }
 
     let house = null;
@@ -42,18 +50,22 @@ const createUser = async (req, res, next) => {
       }
     }
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
     const user = await User.create({
       nombre: String(nombre || "").trim(),
-      email: String(email || "").trim(),
+      apellido: String(apellido || "").trim(),
+      username,
+      email: normalizedEmail,
       password_hash,
       house_id: house?.id || null,
-      role
+      role,
+      estado,
+      password_changed_at: new Date()
     });
 
     const created = await User.findByPk(user.id, {
-      attributes: ["id", "nombre", "email", "role", "house_id", "created_at"],
+      attributes: ["id", "nombre", "apellido", "username", "email", "role", "estado", "house_id", "created_at"],
       include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }]
     });
 
@@ -74,13 +86,23 @@ const updateUser = async (req, res, next) => {
       return res.status(404).json({ ok: false, msg: "Usuario no encontrado" });
     }
 
-    const { nombre, email, password, houseId } = req.body;
+    const { nombre, apellido, email, password, houseId } = req.body;
     const role = normalizeRole(req.body.role || user.role);
+    const estado = String(req.body.estado || user.estado || "ACTIVO").trim().toUpperCase();
+    const username = String(req.body.username || "").trim().toLowerCase();
 
-    if (email.trim() !== user.email) {
-      const duplicate = await User.findOne({ where: { email } });
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (normalizedEmail !== user.email) {
+      const duplicate = await User.findOne({ where: { email: normalizedEmail } });
       if (duplicate) {
         return res.status(409).json({ ok: false, msg: "Email ya registrado" });
+      }
+    }
+
+    if (username !== user.username) {
+      const duplicateUsername = await User.findOne({ where: { username } });
+      if (duplicateUsername) {
+        return res.status(409).json({ ok: false, msg: "Username ya registrado" });
       }
     }
 
@@ -94,20 +116,24 @@ const updateUser = async (req, res, next) => {
 
     const payload = {
       nombre: String(nombre || "").trim(),
-      email: String(email || "").trim(),
+      apellido: String(apellido || "").trim(),
+      username,
+      email: normalizedEmail,
       house_id: house?.id || null,
-      role
+      role,
+      estado
     };
 
     if (password) {
-      const salt = await bcrypt.genSalt(10);
+      const salt = await bcrypt.genSalt(12);
       payload.password_hash = await bcrypt.hash(password, salt);
+      payload.password_changed_at = new Date();
     }
 
     await user.update(payload);
 
     const updated = await User.findByPk(user.id, {
-      attributes: ["id", "nombre", "email", "role", "house_id", "created_at"],
+      attributes: ["id", "nombre", "apellido", "username", "email", "role", "estado", "house_id", "created_at"],
       include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }]
     });
 

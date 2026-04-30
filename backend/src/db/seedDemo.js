@@ -6,8 +6,47 @@ const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
 
 const sequelize = require("./sequelize");
-const { Alert, Device, House, Reading, User } = require("../models");
+const { Alert, Device, House, Reading, Role, User, UserRole } = require("../models");
 const { createDeviceApiKeyHint, hashDeviceApiKey } = require("../services/deviceCredentials");
+
+const ROLE_NAMES = {
+  admin: "Administrador",
+  operator: "Operador",
+  resident: "Residente"
+};
+
+const DEMO_USER_SPECS = [
+  {
+    key: "admin",
+    role: "admin",
+    nombre: "Admin",
+    apellido: "Demo",
+    defaultEmail: "demo.admin@iot.local",
+    defaultUsername: "demo_admin",
+    defaultPassword: "AdminDemo123!",
+    scopedToHouse: false
+  },
+  {
+    key: "operator",
+    role: "operator",
+    nombre: "Operador",
+    apellido: "Demo",
+    defaultEmail: "demo.operador@iot.local",
+    defaultUsername: "demo_operador",
+    defaultPassword: "OperadorDemo123!",
+    scopedToHouse: true
+  },
+  {
+    key: "resident",
+    role: "resident",
+    nombre: "Residente",
+    apellido: "Demo",
+    defaultEmail: "demo.residente@iot.local",
+    defaultUsername: "demo_residente",
+    defaultPassword: "Demo12345!",
+    scopedToHouse: true
+  }
+];
 
 const DEMO_DEVICES = [
   {
@@ -58,9 +97,21 @@ const assertDemoSeedAllowed = (env = process.env) => {
 const getDemoSeedConfig = (env = process.env) => ({
   houseCode: env.DEMO_HOUSE_CODE || "DEMO-CASA-MULTI",
   residentEmail: env.DEMO_RESIDENT_EMAIL || "demo.residente@iot.local",
+  residentUsername: env.DEMO_RESIDENT_USERNAME || "demo_residente",
   residentPassword: env.DEMO_RESIDENT_PASSWORD || "Demo12345!",
   deviceApiKey: env.DEMO_DEVICE_API_KEY || "dev_demo_iot_water_multi_123456"
 });
+
+const getDemoUsersConfig = (env = process.env) =>
+  DEMO_USER_SPECS.map((spec) => {
+    const prefix = `DEMO_${spec.key.toUpperCase()}`;
+    return {
+      ...spec,
+      email: env[`${prefix}_EMAIL`] || spec.defaultEmail,
+      username: env[`${prefix}_USERNAME`] || spec.defaultUsername,
+      password: env[`${prefix}_PASSWORD`] || spec.defaultPassword
+    };
+  });
 
 const timestampMinutesAgo = (now, minutesAgo) => new Date(now.getTime() - minutesAgo * 60_000);
 
@@ -78,8 +129,40 @@ const upsertRecord = async (model, where, values, transaction) => {
   return record;
 };
 
+const ensureRole = async (models, roleCode, transaction) => {
+  if (!models.Role || typeof models.Role.findOrCreate !== "function") return null;
+
+  return upsertRecord(
+    models.Role,
+    { code: roleCode },
+    {
+      code: roleCode,
+      nombre: ROLE_NAMES[roleCode] || roleCode,
+      descripcion: `Rol demo ${ROLE_NAMES[roleCode] || roleCode}`
+    },
+    transaction
+  );
+};
+
+const ensureUserRole = async (models, user, role, transaction) => {
+  if (!models.UserRole || typeof models.UserRole.findOrCreate !== "function" || !user?.id || !role?.id) {
+    return null;
+  }
+
+  return upsertRecord(
+    models.UserRole,
+    { user_id: user.id, role_id: role.id },
+    {
+      user_id: user.id,
+      role_id: role.id,
+      assigned_at: new Date()
+    },
+    transaction
+  );
+};
+
 const seedDemoData = async ({
-  models = { Alert, Device, House, Reading, User },
+  models = { Alert, Device, House, Reading, Role, User, UserRole },
   sequelizeInstance = sequelize,
   bcryptLib = bcrypt,
   credentialService = { createDeviceApiKeyHint, hashDeviceApiKey },
@@ -88,6 +171,7 @@ const seedDemoData = async ({
 } = {}) => {
   assertDemoSeedAllowed(env);
   const config = getDemoSeedConfig(env);
+  const demoUsers = getDemoUsersConfig(env);
 
   return sequelizeInstance.transaction(async (transaction) => {
     const house = await upsertRecord(
@@ -104,19 +188,33 @@ const seedDemoData = async ({
       transaction
     );
 
-    const password_hash = await bcryptLib.hash(config.residentPassword, 10);
-    const user = await upsertRecord(
-      models.User,
-      { email: config.residentEmail },
-      {
-        nombre: "Residente Demo",
-        email: config.residentEmail,
-        password_hash,
-        role: "resident",
-        house_id: house.id
-      },
-      transaction
-    );
+    const createdUsers = [];
+    for (const userSpec of demoUsers) {
+      const password_hash = await bcryptLib.hash(userSpec.password, 10);
+      const user = await upsertRecord(
+        models.User,
+        { email: userSpec.email },
+        {
+          nombre: userSpec.nombre,
+          apellido: userSpec.apellido,
+          username: userSpec.username,
+          email: userSpec.email,
+          password_hash,
+          role: userSpec.role,
+          house_id: userSpec.scopedToHouse ? house.id : null,
+          estado: "ACTIVO",
+          email_verified: true,
+          failed_login_attempts: 0,
+          locked_until: null,
+          password_changed_at: new Date()
+        },
+        transaction
+      );
+
+      const role = await ensureRole(models, userSpec.role, transaction);
+      await ensureUserRole(models, user, role, transaction);
+      createdUsers.push({ record: user, spec: userSpec });
+    }
 
     const deviceApiKeyHash = credentialService.hashDeviceApiKey(config.deviceApiKey);
     const apiKeyHint = credentialService.createDeviceApiKeyHint(config.deviceApiKey);
@@ -179,15 +277,30 @@ const seedDemoData = async ({
       );
     }
 
+    const residentUser = createdUsers.find(({ spec }) => spec.role === "resident") || createdUsers[0];
+
     return {
       house: { id: house.id, code: house.code, name: house.name },
-      user: { id: user.id, email: user.email },
+      user: residentUser ? { id: residentUser.record.id, email: residentUser.record.email } : null,
+      users: createdUsers.map(({ record, spec }) => ({
+        id: record.id,
+        role: spec.role,
+        email: record.email,
+        username: record.username
+      })),
       devices: devices.map(({ record }) => ({ id: record.id, name: record.name })),
       readingCount: readingRows.length,
       credentials: {
-        email: config.residentEmail,
-        password: config.residentPassword,
-        deviceApiKey: config.deviceApiKey
+        email: residentUser?.spec.email || config.residentEmail,
+        username: residentUser?.spec.username || config.residentUsername,
+        password: residentUser?.spec.password || config.residentPassword,
+        deviceApiKey: config.deviceApiKey,
+        users: createdUsers.map(({ spec }) => ({
+          role: spec.role,
+          email: spec.email,
+          username: spec.username,
+          password: spec.password
+        }))
       }
     };
   });
@@ -199,15 +312,15 @@ const main = async () => {
     const summary = await seedDemoData();
     console.log("Demo multi-dispositivo listo.");
     console.log(`Casa: ${summary.house.name} (${summary.house.code})`);
-    console.log(`Usuario: ${summary.credentials.email}`);
+    console.log(`Usuarios demo: ${summary.credentials.users.map((user) => `${user.role}:${user.email}`).join(", ")}`);
     console.log(`Dispositivos: ${summary.devices.length} creados`);
     console.log(`Lecturas creadas: ${summary.readingCount}`);
-    console.log("✓ Credenciales mostradas en consola anterior (solo desarrollo)");
 
     // Guardar credenciales en archivo seguro solo en desarrollo
     if (process.env.NODE_ENV !== "production") {
       const fs = require("fs");
       fs.writeFileSync(".demo-credentials.json", JSON.stringify(summary.credentials, null, 2), { mode: 0o600 });
+      console.log("Credenciales guardadas en .demo-credentials.json (ignorado por Git)");
     }
   } catch (error) {
     console.error("No se pudo crear el demo multi-dispositivo:", error);
@@ -223,7 +336,9 @@ if (require.main === module) {
 
 module.exports = {
   DEMO_DEVICES,
+  DEMO_USER_SPECS,
   assertDemoSeedAllowed,
   getDemoSeedConfig,
+  getDemoUsersConfig,
   seedDemoData
 };

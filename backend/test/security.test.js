@@ -106,8 +106,11 @@ test("registro publico rechaza asociacion de casa enviada por el cliente", async
           path: "/api/auth/register",
           body: {
             nombre: "Duvan",
+            apellido: "Ramirez",
+            username: "duvan_test",
             email: "duvan@example.com",
             password: "Abcd1234!",
+            confirmPassword: "Abcd1234!",
             houseId: 99
           }
         });

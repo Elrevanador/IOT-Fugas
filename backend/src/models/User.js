@@ -12,6 +12,16 @@ module.exports = (sequelize) => {
         defaultValue: "resident"
       },
       nombre: { type: DataTypes.STRING(120), allowNull: false },
+      apellido: { type: DataTypes.STRING(120), allowNull: true },
+      username: {
+        type: DataTypes.STRING(80),
+        allowNull: true,
+        unique: true,
+        validate: {
+          len: [3, 80],
+          is: /^[a-zA-Z0-9._-]+$/
+        }
+      },
       email: {
         type: DataTypes.STRING(254), // RFC 5321 max email length
         allowNull: false,
@@ -27,6 +37,11 @@ module.exports = (sequelize) => {
         validate: {
           len: [8, 255] // Mínimo 8 caracteres para hash
         }
+      },
+      estado: {
+        type: DataTypes.ENUM("ACTIVO", "INACTIVO", "BLOQUEADO"),
+        allowNull: false,
+        defaultValue: "ACTIVO"
       },
       // Campos de seguridad adicionales
       email_verified: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -44,6 +59,8 @@ module.exports = (sequelize) => {
         { fields: ["house_id"] },
         { fields: ["role"] },
         { fields: ["email"], unique: true },
+        { fields: ["username"], unique: true },
+        { fields: ["estado"] },
         { fields: ["email_verified"] },
         { fields: ["last_login_at"] },
         { fields: ["locked_until"] }

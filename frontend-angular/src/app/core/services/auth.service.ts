@@ -15,7 +15,11 @@ export class AuthService {
   private sessionLoadPromise: Promise<void> | null = null;
   readonly currentUser = signal<AuthUser | null>(null);
   readonly isAuthenticated = computed(() => Boolean(this.tokenState() && this.currentUser()));
-  readonly isAdmin = computed(() => this.currentUser()?.role === 'admin');
+  readonly isAdmin = computed(() => {
+    const user = this.currentUser();
+    return user?.role === 'admin' || Boolean(user?.roles?.includes('admin'));
+  });
+  readonly permissions = computed(() => this.currentUser()?.permissions ?? []);
 
   /**
    * Garantiza que la sesión esté cargada.
@@ -89,6 +93,28 @@ export class AuthService {
 
   getToken() {
     return this.tokenState();
+  }
+
+  hasPermission(resourceCode: string, action: 'view' | 'create' | 'update' | 'delete' = 'view') {
+    if (this.isAdmin()) return true;
+    const resource = this.permissions().find((item) => item.code === resourceCode);
+    return Boolean(resource?.permissions?.[action]);
+  }
+
+  hasFrontendAccess(path: string) {
+    const normalized = path.replace(/\/+$/, '') || '/';
+    if (normalized === '/dashboard' || normalized.startsWith('/dashboard')) {
+      return this.hasPermission('dashboard', 'view') || this.isAuthenticated();
+    }
+
+    if (normalized === '/admin' || normalized.startsWith('/admin')) {
+      return this.isAdmin();
+    }
+
+    return this.permissions().some((resource) => {
+      const frontendPath = (resource.frontendPath || '').replace(/\/+$/, '');
+      return Boolean(frontendPath && normalized.startsWith(frontendPath) && resource.permissions.view);
+    });
   }
 
   private setToken(token: string) {
