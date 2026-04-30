@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, type AbstractControl } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -755,6 +755,7 @@ export class AdminComponent {
   });
 
   constructor() {
+    this.configureUserPasswordValidators(false);
     void this.load();
   }
 
@@ -868,12 +869,11 @@ export class AdminComponent {
     const raw = this.userForm.getRawValue();
     const isEditing = Boolean(raw.id);
     const password = raw.password.trim();
-    const invalidPassword =
-      (!isEditing && (password.length < 8 || !this.passwordPolicy.test(password))) ||
-      (isEditing && password.length > 0 && (password.length < 8 || !this.passwordPolicy.test(password)));
-    if (this.userForm.invalid || invalidPassword) {
+    this.configureUserPasswordValidators(isEditing);
+
+    if (this.userForm.invalid) {
       this.userForm.markAllAsTouched();
-      this.message.set('La clave debe tener minimo 8 caracteres, mayusculas, minusculas, numeros y simbolos.');
+      this.message.set('Revisa los campos del usuario antes de guardar.');
       return;
     }
 
@@ -1191,6 +1191,7 @@ export class AdminComponent {
 
   protected editUser(user: User) {
     this.editingUser.set(user);
+    this.configureUserPasswordValidators(true);
     this.userForm.setValue({
       id: user.id,
       nombre: user.nombre,
@@ -1563,6 +1564,7 @@ export class AdminComponent {
   }
 
   protected resetUserForm() {
+    this.configureUserPasswordValidators(false);
     this.userForm.reset({
       id: 0,
       nombre: '',
@@ -1745,6 +1747,37 @@ export class AdminComponent {
     return granted.length ? granted.join(', ') : 'Sin permisos';
   }
 
+  protected fieldError(form: { get(path: string): AbstractControl | null }, controlName: string, label: string) {
+    const control = form.get(controlName);
+    if (!control || !control.invalid || !(control.touched || control.dirty)) return '';
+
+    const errors = control.errors || {};
+    if (errors['required']) return `${label} es obligatorio.`;
+    if (errors['email']) return 'Ingresa un email valido.';
+    if (errors['minlength']) return `${label} debe tener al menos ${errors['minlength'].requiredLength} caracteres.`;
+    if (errors['maxlength']) return `${label} no puede superar ${errors['maxlength'].requiredLength} caracteres.`;
+    if (errors['min']) {
+      return controlName.toLowerCase().endsWith('id')
+        ? `Selecciona ${label.toLowerCase()}.`
+        : `${label} debe ser mayor o igual a ${errors['min'].min}.`;
+    }
+    if (errors['max']) return `${label} debe ser menor o igual a ${errors['max'].max}.`;
+    if (errors['pattern']) {
+      if (controlName === 'password') {
+        return 'La clave debe incluir mayusculas, minusculas, numeros y simbolos.';
+      }
+      if (controlName === 'username') {
+        return 'Username solo permite letras, numeros, punto, guion o guion bajo.';
+      }
+      if (controlName === 'code') {
+        return 'Codigo solo permite letras, numeros, punto, guion, guion bajo o dos puntos.';
+      }
+      return `${label} tiene un formato invalido.`;
+    }
+
+    return `${label} no es valido.`;
+  }
+
   private async load(showMessage = true) {
     if (!this.auth.isAdmin()) {
       this.message.set('Tu cuenta no tiene permisos de administracion.');
@@ -1909,6 +1942,15 @@ export class AdminComponent {
       this.message.set(`${label} debe ser JSON valido.`);
       return { ok: false, value: null };
     }
+  }
+
+  private configureUserPasswordValidators(isEditing: boolean) {
+    const validators = isEditing
+      ? [Validators.minLength(8), Validators.pattern(this.passwordPolicy)]
+      : [Validators.required, Validators.minLength(8), Validators.pattern(this.passwordPolicy)];
+
+    this.userForm.controls.password.setValidators(validators);
+    this.userForm.controls.password.updateValueAndValidity({ emitEvent: false });
   }
 
   private async runBusy(task: () => Promise<void>) {
