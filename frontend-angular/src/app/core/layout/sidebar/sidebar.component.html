@@ -10,12 +10,16 @@
         <span>IoT · monitoreo</span>
       </div>
     }
+
+    <button class="close-sidebar" type="button" (click)="close()" aria-label="Cerrar menú">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
   </div>
 
   <nav class="menu" aria-label="Navegación principal">
     @for (item of menu; track item.id) {
       <div class="menu-item">
-        <a [routerLink]="item.path" routerLinkActive="active">
+        <a [routerLink]="item.path" routerLinkActive="active" (click)="close()">
           <i [class]="item.icono || 'fa-solid fa-circle'"></i>
           @if (!collapsed) {
             <span>{{ item.nombre }}</span>

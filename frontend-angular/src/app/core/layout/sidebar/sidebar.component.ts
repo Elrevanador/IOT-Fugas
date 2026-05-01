@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 import { MenuService } from '../../services/menu.service';
@@ -13,10 +13,15 @@ import { MenuService } from '../../services/menu.service';
 })
 export class SidebarComponent {
   @Input({ required: true }) collapsed = false;
+  @Output() readonly closeSidebar = new EventEmitter<void>();
 
   private readonly menuService = inject(MenuService);
 
   get menu() {
     return this.menuService.getMenu();
+  }
+
+  close(): void {
+    this.closeSidebar.emit();
   }
 }

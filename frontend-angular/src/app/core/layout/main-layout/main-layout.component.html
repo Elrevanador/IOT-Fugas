@@ -1,5 +1,9 @@
 <div class="app-layout" [class.sidebar-collapsed]="sidebarCollapsed">
-  <app-sidebar [collapsed]="sidebarCollapsed"></app-sidebar>
+  @if (!sidebarCollapsed) {
+    <button class="sidebar-backdrop" type="button" (click)="closeSidebar()" aria-label="Cerrar menú"></button>
+  }
+
+  <app-sidebar [collapsed]="sidebarCollapsed" (closeSidebar)="closeSidebar()"></app-sidebar>
 
   <main class="main-content">
     <app-topbar (toggleSidebarEvent)="toggleSidebar()"></app-topbar>

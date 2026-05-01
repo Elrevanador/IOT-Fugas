@@ -18,4 +18,8 @@ export class MainLayoutComponent {
   toggleSidebar(): void {
     this.sidebarCollapsed = !this.sidebarCollapsed;
   }
+
+  closeSidebar(): void {
+    this.sidebarCollapsed = true;
+  }
 }

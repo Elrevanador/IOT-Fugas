@@ -58,6 +58,35 @@
   z-index: 1;
 }
 
+.close-sidebar {
+  display: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-left: auto;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e5e7eb;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.close-sidebar:hover {
+  background: rgba(20, 184, 166, 0.16);
+  border-color: rgba(20, 184, 166, 0.42);
+}
+
+.close-sidebar:active {
+  transform: scale(0.96);
+}
+
+.close-sidebar:focus-visible {
+  outline: 2px solid #14b8a6;
+  outline-offset: 2px;
+}
+
 .logo {
   min-width: clamp(40px, 8vw, 48px);
   height: clamp(40px, 8vw, 48px);
@@ -170,6 +199,10 @@
   .sidebar.collapsed {
     transform: translateX(-100%);
     width: min(280px, 75vw);
+  }
+
+  .close-sidebar {
+    display: inline-flex;
   }
 }
 

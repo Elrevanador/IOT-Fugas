@@ -18,6 +18,10 @@
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.sidebar-backdrop {
+  display: none;
+}
+
 .app-layout.sidebar-collapsed .main-content {
   margin-left: clamp(70px, 12vw, 88px);
 }
@@ -54,6 +58,18 @@
 
 /* Tablets y móviles: Sidebar flotante + full width content */
 @media (max-width: 900px) or (hover: none) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    border: 0;
+    padding: 0;
+    background: rgba(2, 6, 23, 0.58);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+  }
+
   .main-content {
     margin-left: 0;
     width: 100%;
