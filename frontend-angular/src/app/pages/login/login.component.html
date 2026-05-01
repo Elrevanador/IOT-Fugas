@@ -31,8 +31,9 @@
             type="button"
             class="password-field__toggle"
             (click)="togglePasswordVisibility()"
+            [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
           >
-            {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
+            <i [class]="showPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" aria-hidden="true"></i>
           </button>
         </div>
       </label>

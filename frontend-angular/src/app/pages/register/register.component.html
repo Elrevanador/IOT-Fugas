@@ -63,7 +63,7 @@
       </label>
 
       <label>
-        <span>Contrasena</span>
+        <span>Contraseña</span>
         <input
           type="password"
           formControlName="password"
@@ -75,20 +75,20 @@
           <small class="field-error">{{ message }}</small>
         }
 
-        <ul class="password-requirements" aria-label="Requisitos de contrasena">
-          <li [class.is-met]="passwordHasMinLength()">Minimo 8 caracteres</li>
-          <li [class.is-met]="passwordHasLowerAndUpper()">Mayuscula y minuscula</li>
-          <li [class.is-met]="passwordHasNumber()">Un numero</li>
-          <li [class.is-met]="passwordHasSymbol()">Un simbolo: &#64;$!%*?&amp;</li>
+        <ul class="password-requirements" aria-label="Requisitos de contraseña">
+          <li [class.is-met]="passwordHasMinLength()">Mínimo 8 caracteres</li>
+          <li [class.is-met]="passwordHasLowerAndUpper()">Mayúscula y minúscula</li>
+          <li [class.is-met]="passwordHasNumber()">Un número</li>
+          <li [class.is-met]="passwordHasSymbol()">Un símbolo: &#64;$!%*?&amp;</li>
         </ul>
       </label>
 
       <label>
-        <span>Confirmar contrasena</span>
+        <span>Confirmar contraseña</span>
         <input
           type="password"
           formControlName="confirmPassword"
-          placeholder="Repite tu contrasena"
+          placeholder="Repite tu contraseña"
           autocomplete="new-password"
           [class.input-invalid]="confirmPasswordError()"
         />
@@ -117,8 +117,8 @@
     <p class="feedback" [attr.data-tone]="feedbackTone()">{{ feedback() }}</p>
 
     <footer>
-      <span>Ya tienes acceso?</span>
-      <a routerLink="/login">Iniciar sesion</a>
+      <span>¿Ya tienes acceso?</span>
+      <a routerLink="/login">Iniciar sesión</a>
     </footer>
   </article>
 </section>

@@ -104,11 +104,37 @@
       </section>
 
   @if (activeTab() === 'overview') {
+    <section class="operational-summary glass-panel" [attr.data-state]="currentState() || 'NORMAL'">
+      <div class="operational-summary__copy">
+        <span class="eyebrow">Estado actual</span>
+        <h2>{{ currentState() || 'NORMAL' }}</h2>
+        <p>
+          {{ highlightedReading()?.deviceName || highlightedDevice()?.name || latestReading()?.deviceName || 'Dispositivo principal' }}
+          · {{ highlightedReading()?.houseName || latestReading()?.houseName || 'Casa sin asignar' }}
+        </p>
+      </div>
+
+      <div class="operational-summary__metrics" aria-label="Resumen operativo">
+        <div>
+          <span>Riesgo</span>
+          <strong>{{ highlightedReading()?.risk ?? latestReading()?.risk ?? 0 }}%</strong>
+        </div>
+        <div>
+          <span>Enlace</span>
+          <strong>{{ scopedDeviceOnline() ? 'Online' : 'Observación' }}</strong>
+        </div>
+        <div>
+          <span>Último paquete</span>
+          <strong>{{ lastPacketLabel() }}</strong>
+        </div>
+      </div>
+    </section>
+
     @if (currentState() === 'FUGA' || currentState() === 'ALERTA') {
       <section class="critical-banner" [attr.data-tone]="heroTone()">
         <div>
-          <span class="eyebrow">Intervencion</span>
-          <h2>{{ currentState() === 'FUGA' ? 'Fuga confirmada en el circuito' : 'Anomalia sostenida detectada' }}</h2>
+          <span class="eyebrow">Intervención</span>
+          <h2>{{ currentState() === 'FUGA' ? 'Fuga confirmada en el circuito' : 'Anomalía sostenida detectada' }}</h2>
           <p>
             {{ highlightedReading()?.deviceName || highlightedDevice()?.name || 'Dispositivo' }} reporta
             {{ highlightedReading()?.pressure_kpa ?? 0 | number:'1.0-1' }} kPa y
@@ -150,7 +176,7 @@
                 <small>L/min</small>
               </div>
               <div>
-                <span>Presion</span>
+                <span>Presión</span>
                 <strong>{{ card.pressure | number:'1.0-2' }}</strong>
                 <small>kPa</small>
               </div>
@@ -161,7 +187,7 @@
               </div>
               <div>
                 <span>Enlace</span>
-                <strong>{{ card.isOnline ? 'Online' : 'Observacion' }}</strong>
+                <strong>{{ card.isOnline ? 'Online' : 'Observación' }}</strong>
                 <small>{{ relativeTime(card.device.lastTs) }}</small>
               </div>
             </div>
@@ -187,7 +213,7 @@
           </div>
         </article>
         <article class="metric-card glass-panel">
-          <span>Presion</span>
+          <span>Presión</span>
           <strong>{{ latestReading()?.pressure_kpa ?? 0 | number:'1.0-2' }}</strong>
           <small>kPa</small>
           <div class="metric-bars metric-bars--pressure">
@@ -246,7 +272,7 @@
           <article class="history-card glass-panel glass-panel--inner">
             <header class="history-card__header">
               <div>
-                <span class="eyebrow">Historico</span>
+                <span class="eyebrow">Histórico</span>
                 <h2>Ventana operativa</h2>
               </div>
               <div class="range-switch">
@@ -264,11 +290,11 @@
             </header>
             <p class="history-card__status">
               @if (historyLoading()) {
-                <span>Cargando historico del backend...</span>
+                <span>Cargando histórico del backend...</span>
               } @else if (historicalReadings().length) {
                 <span>{{ historicalReadings().length }} muestras recuperadas para esta ventana.</span>
               } @else {
-                <span>Usando el snapshot reciente mientras llegan mas datos historicos.</span>
+                <span>Usando el snapshot reciente mientras llegan más datos históricos.</span>
               }
             </p>
           </article>
@@ -287,10 +313,10 @@
               </div>
               <div class="command-item">
                 <span>Dispositivo online</span>
-                <strong>{{ scopedDeviceOnline() ? 'Si' : 'No' }}</strong>
+                <strong>{{ scopedDeviceOnline() ? 'Sí' : 'No' }}</strong>
               </div>
               <div class="command-item">
-                <span>Ultimo paquete</span>
+                <span>Último paquete</span>
                 <strong>{{ lastPacketLabel() }}</strong>
               </div>
               <div class="command-item">
@@ -308,7 +334,7 @@
         <article class="glass-panel glass-panel--inner timeline-panel">
           <header>
             <span class="eyebrow">Lecturas recientes</span>
-            <h2>Secuencia de telemetria</h2>
+            <h2>Secuencia de telemetría</h2>
           </header>
           <div class="pane-filters">
             @for (filter of readingFilters; track filter.id) {
@@ -352,7 +378,7 @@
         <article class="glass-panel glass-panel--inner alert-panel">
           <header>
             <span class="eyebrow">Alertas</span>
-            <h2>Eventos criticos</h2>
+            <h2>Eventos críticos</h2>
           </header>
           @if (actionMessage()) {
             <p class="action-message">{{ actionMessage() }}</p>
@@ -411,7 +437,7 @@
             <strong>{{ analyticsHighlights().averageFlow | number:'1.0-2' }} L/min</strong>
           </article>
           <article class="glass-panel glass-panel--inner">
-            <span>Riesgo maximo</span>
+            <span>Riesgo máximo</span>
             <strong>{{ analyticsHighlights().highestRisk }}%</strong>
           </article>
           <article class="glass-panel glass-panel--inner">
@@ -422,7 +448,7 @@
 
         <article class="glass-panel glass-panel--inner charts-panel">
           <header>
-            <span class="eyebrow">Analitica</span>
+            <span class="eyebrow">Analítica</span>
             <h2>Curvas recientes</h2>
           </header>
           @if (flowChartPoints().length || pressureChartPoints().length || riskChartPoints().length) {
@@ -435,15 +461,15 @@
                 [points]="flowChartPoints()"
               />
               <app-telemetry-chart
-                title="Presion"
-                subtitle="Pulso hidraulico del nodo"
+                title="Presión"
+                subtitle="Pulso hidráulico del nodo"
                 tone="amber"
                 unit="kPa"
                 [points]="pressureChartPoints()"
               />
               <app-telemetry-chart
                 title="Riesgo"
-                subtitle="Indice de fuga percibido"
+                subtitle="Índice de fuga percibido"
                 tone="rose"
                 unit="%"
                 [points]="riskChartPoints()"
@@ -452,8 +478,8 @@
           } @else {
             <div class="empty-panel">
               <div class="empty-panel__glyph"></div>
-              <strong>Sin muestras para analitica</strong>
-              <p>Cuando el backend entregue suficiente historico, aqui apareceran las curvas y tendencias.</p>
+              <strong>Sin muestras para analítica</strong>
+              <p>Cuando el backend entregue suficiente histórico, aquí aparecerán las curvas y tendencias.</p>
             </div>
           }
         </article>
@@ -461,4 +487,4 @@
     }
     </div>
   </section>
-</section>
+ v</section>

@@ -1,22 +1,45 @@
 :root {
-  /* Temas de color */
   color-scheme: dark;
-  --bg: #0b1220;
-  --panel: #111827;
+  --bg: #070d18;
+  --bg-elevated: #0b1220;
+  --panel: #101827;
+  --panel-2: #0f172a;
+  --panel-3: #111827;
+  --border: #1f2937;
+  --border-strong: #334155;
   --text: #e5e7eb;
+  --text-strong: #f8fafc;
   --muted: #94a3b8;
+  --muted-2: #64748b;
   --accent: #14b8a6;
-  --accent-soft: rgba(20, 184, 166, 0.2);
+  --accent-strong: #2dd4bf;
+  --accent-soft: rgba(20, 184, 166, 0.16);
+  --focus-ring: rgba(45, 212, 191, 0.28);
+  --shadow-panel: 0 18px 46px rgba(2, 6, 23, 0.36);
+  --shadow-soft: 0 10px 28px rgba(2, 6, 23, 0.26);
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --state-normal: #34d399;
+  --state-normal-soft: rgba(52, 211, 153, 0.15);
+  --state-alert: #f59e0b;
+  --state-alert-soft: rgba(245, 158, 11, 0.16);
+  --state-danger: #fb7185;
+  --state-danger-soft: rgba(251, 113, 133, 0.16);
+  --state-error: #a78bfa;
+  --state-error-soft: rgba(167, 139, 250, 0.16);
+  --state-offline: #94a3b8;
+  --state-offline-soft: rgba(148, 163, 184, 0.14);
   
-  /* Tipografía fluida con clamp() */
-  --fs-xs: clamp(0.65rem, 1.5vw, 0.875rem);
-  --fs-sm: clamp(0.8rem, 1.8vw, 0.975rem);
-  --fs-base: clamp(0.9rem, 2vw, 1rem);
-  --fs-lg: clamp(1rem, 2.2vw, 1.25rem);
-  --fs-xl: clamp(1.2rem, 2.5vw, 1.5rem);
-  --fs-2xl: clamp(1.4rem, 3vw, 1.875rem);
-  --fs-3xl: clamp(1.65rem, 3.5vw, 2.25rem);
-  --fs-4xl: clamp(1.85rem, 4vw, 2.5rem);
+  --fs-xs: 0.72rem;
+  --fs-sm: 0.86rem;
+  --fs-base: 0.95rem;
+  --fs-lg: 1.08rem;
+  --fs-xl: 1.28rem;
+  --fs-2xl: 1.55rem;
+  --fs-3xl: 1.9rem;
+  --fs-4xl: 2.3rem;
   
   /* Espaciado fluido */
   --sp-xs: clamp(0.35rem, 1vw, 0.5rem);
@@ -26,8 +49,7 @@
   --sp-xl: clamp(1.25rem, 3vw, 2rem);
   --sp-2xl: clamp(1.75rem, 4vw, 2.5rem);
   
-  /* Línea de base del font-size para escalado rem */
-  font-size: clamp(14px, 2vw, 16px);
+  font-size: 16px;
 }
 
 *,
@@ -48,7 +70,10 @@ body {
   padding: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  background: radial-gradient(circle at top left, rgba(45, 212, 191, 0.08), transparent 32%), linear-gradient(180deg, #0b1220 0%, #060b16 100%);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(20, 184, 166, 0.08), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(59, 130, 246, 0.06), transparent 28%),
+    linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
   color: var(--text);
   font-family: 'Space Grotesk', sans-serif;
   font-size: var(--fs-base);
@@ -64,6 +89,151 @@ select {
 
 a {
   color: inherit;
+}
+
+button,
+select,
+input,
+textarea {
+  color-scheme: dark;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.28);
+  color: var(--text-strong);
+}
+
+.glass-panel,
+.workspace-card,
+.detail-panel,
+.auth-card,
+.chart-card {
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-panel);
+}
+
+.eyebrow,
+.admin-page__tag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 1.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #5eead4;
+  font-size: var(--fs-xs);
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.status-pill,
+.device-card__state,
+.role-pill,
+.dashboard-tab__badge,
+.dashboard-side-button__badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.status-pill {
+  border: 1px solid var(--border);
+  background: var(--state-offline-soft);
+  color: #cbd5e1;
+}
+
+.status-pill[data-tone='NORMAL'],
+.status-pill[data-tone='ACTIVO'],
+.status-pill[data-tone='ONLINE'] {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: var(--state-normal-soft);
+  color: #86efac;
+}
+
+.status-pill[data-tone='ALERTA'],
+.status-pill[data-tone='MANTENIMIENTO'] {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: var(--state-alert-soft);
+  color: #fbbf24;
+}
+
+.status-pill[data-tone='FUGA'],
+.status-pill[data-tone='ERROR'],
+.status-pill[data-tone='INACTIVO'] {
+  border-color: rgba(251, 113, 133, 0.34);
+  background: var(--state-danger-soft);
+  color: #fda4af;
+}
+
+.primary-action,
+.ghost-action,
+.danger-action,
+.submit-button,
+.alert-item__ack {
+  min-height: 2.35rem;
+  border-radius: var(--radius-sm);
+  font-weight: 750;
+}
+
+.primary-action,
+.submit-button,
+.alert-item__ack {
+  background: #0d9488;
+  color: #f8fafc;
+  border: 1px solid rgba(45, 212, 191, 0.24);
+  box-shadow: none;
+}
+
+.ghost-action,
+.pane-filter,
+.range-switch__button,
+.dashboard-tab,
+.dashboard-side-button {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+}
+
+.primary-action:hover:not(:disabled),
+.submit-button:hover:not(:disabled),
+.alert-item__ack:hover:not(:disabled),
+.ghost-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.danger-action {
+  background: var(--state-danger-soft);
+  border-color: rgba(251, 113, 133, 0.32);
+  color: #fda4af;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-2);
 }
 
 @keyframes spin {

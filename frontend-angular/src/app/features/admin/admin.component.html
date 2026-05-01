@@ -19,7 +19,7 @@
       <article><span>Activas</span><strong>{{ stats().activeAlerts }}</strong></article>
       <article><span>Incidentes</span><strong>{{ stats().incidents }}</strong></article>
       <article><span>Comandos</span><strong>{{ stats().commands }}</strong></article>
-      <article><span>Auditoria</span><strong>{{ stats().audit }}</strong></article>
+      <article><span>Auditoría</span><strong>{{ stats().audit }}</strong></article>
     </div>
 
     @if (deviceCredential(); as credential) {
@@ -30,7 +30,7 @@
     }
 
     <section class="admin-workspace">
-      <aside class="admin-sidebar" aria-label="Rutas de administracion">
+      <aside class="admin-sidebar" aria-label="Rutas de administración">
         <div class="admin-sidebar__header">
           <span>Rutas</span>
           <strong>Admin</strong>
@@ -62,7 +62,7 @@
       </aside>
 
       <div class="admin-workspace__content">
-      <section class="scene-toolbar" aria-label="Filtros de administracion">
+      <section class="scene-toolbar" aria-label="Filtros de administración">
         <label class="scene-search">
           <span>Buscar</span>
           <input
@@ -125,9 +125,9 @@
                 <tbody>
                   @for (house of paginatedHouses(); track house.id) {
                     <tr>
-                      <td><strong>{{ house.name }}</strong><small>{{ house.address || 'Sin direccion' }}</small></td>
+                      <td><strong>{{ house.name }}</strong><small>{{ house.address || 'Sin dirección' }}</small></td>
                       <td>{{ house.code }}</td>
-                      <td><span class="status-pill">{{ house.status }}</span></td>
+                      <td><span class="status-pill" [attr.data-tone]="house.status">{{ house.status }}</span></td>
                       <td>{{ house.Users?.length || 0 }}</td>
                       <td>{{ house.Devices?.length || 0 }}</td>
                       <td class="table-actions">
@@ -158,8 +158,8 @@
                     <tr>
                       <td><strong>{{ user.nombre }} {{ user.apellido || '' }}</strong><small>{{ user.email }}</small></td>
                       <td>{{ user.username || 'Sin username' }}</td>
-                      <td><span class="status-pill">{{ user.role }}</span></td>
-                      <td><span class="status-pill">{{ user.estado || 'ACTIVO' }}</span></td>
+                      <td><span class="status-pill" [attr.data-tone]="user.role">{{ user.role }}</span></td>
+                      <td><span class="status-pill" [attr.data-tone]="user.estado || 'ACTIVO'">{{ user.estado || 'ACTIVO' }}</span></td>
                       <td>{{ user.House?.name || 'Sin casa' }}</td>
                       <td class="table-actions">
                         <button type="button" class="ghost-action" (click)="editUser(user)">Editar</button>
@@ -178,7 +178,7 @@
         @if (activeScene() === 'roles') {
           <article class="workspace-card">
             <header class="workspace-card__header">
-              <div><span class="eyebrow">roles</span><h2>Catalogo de roles</h2></div>
+              <div><span class="eyebrow">roles</span><h2>Catálogo de roles</h2></div>
               <button type="button" class="ghost-action" (click)="openCreateRoleModal()">Nuevo rol</button>
             </header>
             <div class="table-shell">
@@ -189,7 +189,7 @@
                     <tr>
                       <td><strong>{{ role.nombre }}</strong></td>
                       <td><span class="status-pill">{{ role.code }}</span></td>
-                      <td>{{ role.descripcion || 'Sin descripcion' }}</td>
+                      <td>{{ role.descripcion || 'Sin descripción' }}</td>
                       <td>{{ role.users?.length || 0 }}</td>
                       <td class="table-actions">
                         <button type="button" class="ghost-action" (click)="editRole(role)">Editar</button>
@@ -382,7 +382,7 @@
                       <td>{{ sensor.Device?.name || deviceName(sensor.device_id) }}</td>
                       <td>{{ sensor.ubicacion?.nombre || locationName(sensor.ubicacion_id) }}</td>
                       <td>{{ sensor.rango_min ?? 'n/d' }} - {{ sensor.rango_max ?? 'n/d' }}</td>
-                      <td><span class="status-pill">{{ sensor.activo ? 'ACTIVO' : 'INACTIVO' }}</span></td>
+                      <td><span class="status-pill" [attr.data-tone]="sensor.activo ? 'ACTIVO' : 'INACTIVO'">{{ sensor.activo ? 'ACTIVO' : 'INACTIVO' }}</span></td>
                       <td class="table-actions">
                         <button type="button" class="ghost-action" (click)="editSensor(sensor)">Editar</button>
                         <button type="button" class="danger-action" (click)="deleteSensor(sensor)">Eliminar</button>
@@ -508,7 +508,7 @@
                       <td><button type="button" class="row-link" (click)="selectValve(valve)"><strong>#{{ valve.id }}</strong><small>{{ valve.ultima_accion_at ? (valve.ultima_accion_at | date:'short') : 'Sin acciones' }}</small></button></td>
                       <td>{{ valve.Device?.name || deviceName(valve.device_id) }}</td>
                       <td>{{ valve.Device?.House?.name || 'Sin casa' }}</td>
-                      <td><span class="status-pill">{{ valve.estado }}</span></td>
+                      <td><span class="status-pill" [attr.data-tone]="valve.estado">{{ valve.estado }}</span></td>
                       <td>{{ valve.modo }}</td>
                       <td class="table-actions">
                         <button type="button" class="ghost-action" (click)="valveActionFromValve(valve, 'ABRIR')">Abrir</button>
@@ -566,7 +566,7 @@
                       <td>{{ config.umbral_flow_lmin }} L/min</td>
                       <td>{{ config.ventana_minutos }} min</td>
                       <td>{{ config.umbral_presion_min_kpa ?? 'n/d' }} - {{ config.umbral_presion_max_kpa ?? 'n/d' }} kPa</td>
-                      <td><span class="status-pill">{{ config.activo ? 'ACTIVA' : 'INACTIVA' }}</span> {{ config.auto_cierre_valvula ? 'Auto cierre' : 'Manual' }}</td>
+                      <td><span class="status-pill" [attr.data-tone]="config.activo ? 'ACTIVO' : 'INACTIVO'">{{ config.activo ? 'ACTIVA' : 'INACTIVA' }}</span> {{ config.auto_cierre_valvula ? 'Auto cierre' : 'Manual' }}</td>
                       <td class="table-actions"><button type="button" class="ghost-action" (click)="editConfig(config)">Editar</button></td>
                     </tr>
                   } @empty {
@@ -662,7 +662,7 @@
         @if (activeScene() === 'audit') {
           <article class="workspace-card">
             <header class="workspace-card__header">
-              <div><span class="eyebrow">auditoria_sistema</span><h2>Auditoria</h2></div>
+              <div><span class="eyebrow">auditoría_sistema</span><h2>Auditoría</h2></div>
             </header>
             <div class="table-shell">
               <table>
