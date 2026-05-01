@@ -90,7 +90,7 @@ export class DashboardService {
     return new Observable<DashboardPayload>((subscriber) => {
       const token = this.auth.getToken();
       if (!token) {
-        subscriber.error(new Error('No hay token de sesion para abrir el stream'));
+        subscriber.error(new Error('No hay token de sesión para abrir el stream'));
         return;
       }
 

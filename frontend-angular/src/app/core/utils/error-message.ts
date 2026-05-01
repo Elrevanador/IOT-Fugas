@@ -16,10 +16,10 @@ export function resolveErrorMessage(error: unknown, fallback = 'No fue posible c
     const message = resolvePayloadMessage(payload);
     if (message) return message;
 
-    if (error.status === 401) return 'Tu sesion expiro o no tienes autorizacion para esta accion.';
-    if (error.status === 403) return 'No tienes permisos para realizar esta accion.';
+    if (error.status === 401) return 'Tu sesión expiró o no tienes autorización para esta acción.';
+    if (error.status === 403) return 'No tienes permisos para realizar esta acción.';
     if (error.status === 404) return 'El recurso solicitado no existe.';
-    if (error.status === 409) return 'La accion entra en conflicto con datos existentes.';
+    if (error.status === 409) return 'La acción entra en conflicto con datos existentes.';
     if (error.status >= 500) return 'El servidor tuvo un problema. Revisa el backend e intenta de nuevo.';
   }
 

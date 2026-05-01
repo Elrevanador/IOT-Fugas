@@ -27,7 +27,7 @@ export class TopbarComponent {
 
   async logout(): Promise<void> {
     const confirmed = await this.confirm.confirm({
-      title: 'Cerrar sesion',
+      title: 'Cerrar sesión',
       message: 'Quieres salir de la consola operativa?',
       confirmText: 'Salir',
       cancelText: 'Cancelar',

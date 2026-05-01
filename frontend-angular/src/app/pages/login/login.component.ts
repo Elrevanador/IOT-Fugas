@@ -22,7 +22,7 @@ export class LoginComponent {
 
   readonly isSubmitting = signal(false);
   readonly showPassword = signal(false);
-  readonly feedback = signal('Ingresa con una cuenta operativa para ver telemetria y alertas.');
+  readonly feedback = signal('Ingresa con una cuenta operativa para ver telemetría y alertas.');
   readonly feedbackTone = signal<'info' | 'error' | 'success'>('info');
 
   readonly form = this.fb.nonNullable.group({
@@ -39,9 +39,9 @@ export class LoginComponent {
   async submit() {
     if (this.form.invalid || this.isSubmitting()) {
       this.form.markAllAsTouched();
-      this.feedback.set('Completa correo o username y contrasena antes de entrar.');
+      this.feedback.set('Completa correo o username y contraseña antes de entrar.');
       this.feedbackTone.set('error');
-      this.toast.warning('Completa correo o username y contrasena antes de entrar.');
+      this.toast.warning('Completa correo o username y contraseña antes de entrar.');
       return;
     }
 
@@ -51,13 +51,13 @@ export class LoginComponent {
 
     try {
       await this.auth.login(this.form.getRawValue());
-      this.feedback.set('Sesion iniciada. Entrando al monitor...');
+      this.feedback.set('Sesión iniciada. Entrando al monitor...');
       this.feedbackTone.set('success');
-      this.toast.success('Sesion iniciada correctamente.');
+      this.toast.success('Sesión iniciada correctamente.');
       const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard';
       await this.router.navigateByUrl(redirectTo);
     } catch (error) {
-      const message = resolveErrorMessage(error, 'No fue posible iniciar sesion. Intenta de nuevo.');
+      const message = resolveErrorMessage(error, 'No fue posible iniciar sesión. Intenta de nuevo.');
       this.feedback.set(message);
       this.feedbackTone.set('error');
       this.toast.error(message);

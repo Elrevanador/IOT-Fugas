@@ -126,8 +126,8 @@ export class RegisterComponent {
   protected confirmPasswordError() {
     const control = this.form.controls.confirmPassword;
     if (!this.shouldShowError(control) && (control.pristine || this.passwordsMatch())) return '';
-    if (control.hasError('required')) return 'Confirma tu contrasena.';
-    if (!this.passwordsMatch()) return 'Las contrasenas no coinciden.';
+    if (control.hasError('required')) return 'Confirma tu contraseña.';
+    if (!this.passwordsMatch()) return 'Las contraseñas no coinciden.';
     return '';
   }
 
@@ -159,7 +159,7 @@ export class RegisterComponent {
   private resolveEmailError() {
     const control = this.form.controls.email;
     if (control.hasError('required')) return 'Ingresa tu correo.';
-    if (control.hasError('email')) return 'Ingresa un correo valido.';
+    if (control.hasError('email')) return 'Ingresa un correo válido.';
     return 'Revisa el correo ingresado.';
   }
 
@@ -175,19 +175,19 @@ export class RegisterComponent {
     if (control.hasError('required')) return 'Ingresa un username.';
     if (control.hasError('minlength')) return 'El username debe tener al menos 3 caracteres.';
     if (control.hasError('maxlength')) return 'El username no puede superar 80 caracteres.';
-    if (control.hasError('pattern')) return 'Usa solo letras, numeros, punto, guion o guion bajo.';
+    if (control.hasError('pattern')) return 'Usa solo letras, números, punto, guion o guion bajo.';
     return 'Revisa el username ingresado.';
   }
 
   private resolvePasswordError() {
     const control = this.form.controls.password;
-    if (control.hasError('required')) return 'Ingresa una contrasena.';
+    if (control.hasError('required')) return 'Ingresa una contraseña.';
     const policy = control.getError('passwordPolicy');
-    if (policy?.requiredLength) return 'La contrasena debe tener al menos 8 caracteres.';
+    if (policy?.requiredLength) return 'La contraseña debe tener al menos 8 caracteres.';
     if (policy?.complexity) {
-      return 'Usa mayuscula, minuscula, numero y un simbolo: @$!%*?&.';
+      return 'Usa mayúscula, minúscula, número y un símbolo: @$!%*?&.';
     }
-    return 'Revisa la contrasena ingresada.';
+    return 'Revisa la contraseña ingresada.';
   }
 
   private passwordsMatch() {

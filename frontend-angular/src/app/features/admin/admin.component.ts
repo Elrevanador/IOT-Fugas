@@ -475,13 +475,13 @@ export class AdminComponent {
     { id: 'readings', label: 'Lecturas', detail: 'readings', icon: 'fa-solid fa-chart-simple' },
     { id: 'alerts', label: 'Alertas', detail: 'alerts', icon: 'fa-solid fa-triangle-exclamation' },
     { id: 'incidents', label: 'Incidentes', detail: 'incidente_fuga', icon: 'fa-solid fa-circle-exclamation' },
-    { id: 'valves', label: 'Valvulas', detail: 'electrovalvulas', icon: 'fa-solid fa-water' },
+    { id: 'valves', label: 'Válvulas', detail: 'electrovalvulas', icon: 'fa-solid fa-water' },
     { id: 'valveActions', label: 'Acciones', detail: 'acciones_valvula', icon: 'fa-solid fa-list-check' },
     { id: 'detection', label: 'Deteccion', detail: 'configuracion_deteccion', icon: 'fa-solid fa-sliders' },
     { id: 'commands', label: 'Comandos', detail: 'comandos_remotos', icon: 'fa-solid fa-terminal' },
     { id: 'responses', label: 'Respuestas', detail: 'respuestas_comando', icon: 'fa-solid fa-reply' },
     { id: 'states', label: 'Estados', detail: 'estado_sistema', icon: 'fa-solid fa-signal' },
-    { id: 'audit', label: 'Auditoria', detail: 'auditoria_sistema', icon: 'fa-solid fa-clipboard-check' }
+    { id: 'audit', label: 'Auditoría', detail: 'auditoria_sistema', icon: 'fa-solid fa-clipboard-check' }
   ] as const;
 
   readonly stats = computed(() => ({
@@ -1306,7 +1306,7 @@ export class AdminComponent {
   }
 
   protected async deleteHouse(house: House) {
-    const confirmed = await this.confirmDanger('Eliminar casa', `Eliminar la casa ${house.name}? Esta accion no se puede deshacer.`);
+    const confirmed = await this.confirmDanger('Eliminar casa', `¿Eliminar la casa ${house.name}? Esta acción no se puede deshacer.`);
     if (!confirmed) return;
     await this.runBusy(async () => {
       await firstValueFrom(this.api.delete(`/api/houses/${house.id}`));
@@ -1420,10 +1420,10 @@ export class AdminComponent {
   protected async valveAction(device: Device, action: string) {
     const body: { tipo: string; modo?: ValveMode } = { tipo: action };
     if (action === 'CAMBIAR_MODO') {
-      const mode = window.prompt('Modo de valvula: AUTO, MANUAL o BLOQUEADA', 'AUTO')?.trim().toUpperCase();
+      const mode = window.prompt('Modo de válvula: AUTO, MANUAL o BLOQUEADA', 'AUTO')?.trim().toUpperCase();
       if (!mode) return;
       if (mode !== 'AUTO' && mode !== 'MANUAL' && mode !== 'BLOQUEADA') {
-        this.message.set('Modo invalido. Usa AUTO, MANUAL o BLOQUEADA.');
+        this.message.set('Modo inválido. Usa AUTO, MANUAL o BLOQUEADA.');
         return;
       }
       body.modo = mode;
@@ -1439,7 +1439,7 @@ export class AdminComponent {
   protected async valveActionFromValve(valve: Valve, action: string) {
     const device = valve.Device || this.devices().find((item) => item.id === valve.device_id);
     if (!device) {
-      this.message.set('No encontre el dispositivo asociado a esta valvula.');
+      this.message.set('No encontré el dispositivo asociado a esta válvula.');
       return;
     }
     await this.valveAction(device, action);
@@ -1753,7 +1753,7 @@ export class AdminComponent {
 
     const errors = control.errors || {};
     if (errors['required']) return `${label} es obligatorio.`;
-    if (errors['email']) return 'Ingresa un email valido.';
+    if (errors['email']) return 'Ingresa un email válido.';
     if (errors['minlength']) return `${label} debe tener al menos ${errors['minlength'].requiredLength} caracteres.`;
     if (errors['maxlength']) return `${label} no puede superar ${errors['maxlength'].requiredLength} caracteres.`;
     if (errors['min']) {
@@ -1764,18 +1764,18 @@ export class AdminComponent {
     if (errors['max']) return `${label} debe ser menor o igual a ${errors['max'].max}.`;
     if (errors['pattern']) {
       if (controlName === 'password') {
-        return 'La clave debe incluir mayusculas, minusculas, numeros y simbolos.';
+        return 'La clave debe incluir mayúsculas, minúsculas, números y símbolos.';
       }
       if (controlName === 'username') {
-        return 'Username solo permite letras, numeros, punto, guion o guion bajo.';
+        return 'Username solo permite letras, números, punto, guion o guion bajo.';
       }
       if (controlName === 'code') {
-        return 'Codigo solo permite letras, numeros, punto, guion, guion bajo o dos puntos.';
+        return 'Código solo permite letras, números, punto, guion, guion bajo o dos puntos.';
       }
-      return `${label} tiene un formato invalido.`;
+      return `${label} tiene un formato inválido.`;
     }
 
-    return `${label} no es valido.`;
+    return `${label} no es válido.`;
   }
 
   private async load(showMessage = true) {
@@ -1939,7 +1939,7 @@ export class AdminComponent {
     try {
       return { ok: true, value: JSON.parse(value) as unknown };
     } catch {
-      this.message.set(`${label} debe ser JSON valido.`);
+      this.message.set(`${label} debe ser JSON válido.`);
       return { ok: false, value: null };
     }
   }

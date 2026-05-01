@@ -25,7 +25,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(nextReq).pipe(
     catchError((error: HttpErrorResponse) => {
       if (error.status === 401) {
-        toast.warning('Tu sesion expiro. Inicia sesion de nuevo para continuar.');
+        toast.warning('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
         void auth.logout();
       }
       return throwError(() => error);

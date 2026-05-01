@@ -288,7 +288,7 @@ export class DashboardComponent {
     { id: 'overview', label: 'Resumen', detail: 'Estado general y salud', icon: 'fa-solid fa-gauge-high' },
     { id: 'readings', label: 'Lecturas', detail: 'Timeline y paquetes', icon: 'fa-solid fa-list-ul' },
     { id: 'alerts', label: 'Alertas', detail: 'Eventos y respuesta', icon: 'fa-solid fa-triangle-exclamation' },
-    { id: 'analytics', label: 'Analitica', detail: 'Historico y curvas', icon: 'fa-solid fa-chart-line' }
+    { id: 'analytics', label: 'Analítica', detail: 'Histórico y curvas', icon: 'fa-solid fa-chart-line' }
   ];
   readonly readingFilters: Array<{ id: ReadingStateFilter; label: string }> = [
     { id: 'ALL', label: 'Todas' },
