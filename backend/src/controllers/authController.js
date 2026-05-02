@@ -23,6 +23,7 @@ const serializeAuthUser = (user, access, house = null) => ({
   email: user.email,
   role: user.role,
   estado: user.estado || "ACTIVO",
+  houseId: user.house_id || null,
   roles: access.roles,
   permissions: access.permissions,
   ...(house !== undefined ? { house } : {})

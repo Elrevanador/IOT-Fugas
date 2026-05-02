@@ -838,7 +838,11 @@
           <input type="password" formControlName="password" />
           @if (fieldError(userForm, 'password', 'Clave'); as error) { <small class="field-error">{{ error }}</small> }
         </label>
-        <label><span>Casa</span><select formControlName="houseId"><option [ngValue]="0">Sin asignar</option>@for (house of houses(); track house.id) {<option [ngValue]="house.id">{{ house.name }} | {{ house.code }}</option>}</select></label>
+        <label>
+          <span>Casa</span>
+          <select formControlName="houseId"><option [ngValue]="0">Selecciona una casa</option>@for (house of houses(); track house.id) {<option [ngValue]="house.id">{{ house.name }} | {{ house.code }}</option>}</select>
+          @if (fieldError(userForm, 'houseId', 'Casa'); as error) { <small class="field-error">{{ error }}</small> }
+        </label>
         <label>
           <span>Rol auth</span>
           <select formControlName="role"><option value="admin">admin</option><option value="operator">operator</option><option value="resident">resident</option></select>
@@ -1042,7 +1046,7 @@
         </label>
         <label>
           <span>Ubicacion</span>
-          <select formControlName="ubicacionId"><option [ngValue]="0">Sin ubicacion</option>@for (location of locations(); track location.id) {<option [ngValue]="location.id">{{ location.nombre }} | {{ houseName(location.house_id) }}</option>}</select>
+          <select formControlName="ubicacionId"><option [ngValue]="0">Selecciona ubicacion</option>@for (location of locations(); track location.id) {<option [ngValue]="location.id">{{ location.nombre }} | {{ houseName(location.house_id) }}</option>}</select>
           @if (fieldError(sensorForm, 'ubicacionId', 'Ubicacion'); as error) { <small class="field-error">{{ error }}</small> }
         </label>
         <label>

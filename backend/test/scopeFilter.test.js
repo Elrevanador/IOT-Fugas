@@ -46,6 +46,22 @@ describe("Scope Filter Middleware", () => {
     assert(!where.house_id, "no debe aplicar house_id cuando no hay scope");
   });
 
+  it("debe bloquear resultados cuando usuario no admin no tiene casa", () => {
+    const middleware = createScopeFilter();
+    const req = createMockReq({ id: 2, role: "resident", houseId: null });
+    const res = createMockRes();
+    let nextCalled = false;
+
+    middleware(req, res, () => { nextCalled = true; });
+
+    assert(nextCalled, "next() debe ser llamado");
+    assert.equal(req.scopeFilter.houseScopedId, -1, "houseScopedId debe ser -1");
+
+    const where = {};
+    req.scopeFilter.applyToWhere(where);
+    assert.equal(where.house_id, -1, "debe aplicar un scope sin resultados");
+  });
+
   it("debe usar query param cuando no hay scope de usuario", () => {
     const middleware = createScopeFilter();
     const req = createMockReq({ id: 1, role: "admin" });

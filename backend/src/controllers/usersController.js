@@ -30,6 +30,11 @@ const createUser = async (req, res, next) => {
     const role = normalizeRole(req.body.role || "resident");
     const estado = String(req.body.estado || "ACTIVO").trim().toUpperCase();
     const username = String(req.body.username || "").trim().toLowerCase();
+    const normalizedHouseId = Number(houseId);
+
+    if (!Number.isInteger(normalizedHouseId) || normalizedHouseId <= 0) {
+      return res.status(400).json({ ok: false, msg: "La casa es requerida para crear usuarios desde admin" });
+    }
 
     const normalizedEmail = String(email || "").trim().toLowerCase();
     const exists = await User.findOne({ where: { email: normalizedEmail } });
@@ -43,11 +48,9 @@ const createUser = async (req, res, next) => {
     }
 
     let house = null;
-    if (houseId !== undefined && houseId !== null) {
-      house = await House.findByPk(houseId);
-      if (!house) {
-        return res.status(404).json({ ok: false, msg: "Casa no encontrada" });
-      }
+    house = await House.findByPk(normalizedHouseId);
+    if (!house) {
+      return res.status(404).json({ ok: false, msg: "Casa no encontrada" });
     }
 
     const salt = await bcrypt.genSalt(12);
@@ -90,6 +93,11 @@ const updateUser = async (req, res, next) => {
     const role = normalizeRole(req.body.role || user.role);
     const estado = String(req.body.estado || user.estado || "ACTIVO").trim().toUpperCase();
     const username = String(req.body.username || "").trim().toLowerCase();
+    const normalizedHouseId = Number(houseId);
+
+    if (!Number.isInteger(normalizedHouseId) || normalizedHouseId <= 0) {
+      return res.status(400).json({ ok: false, msg: "La casa es requerida para editar usuarios desde admin" });
+    }
 
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (normalizedEmail !== user.email) {
@@ -107,11 +115,9 @@ const updateUser = async (req, res, next) => {
     }
 
     let house = null;
-    if (houseId !== undefined && houseId !== null) {
-      house = await House.findByPk(houseId);
-      if (!house) {
-        return res.status(404).json({ ok: false, msg: "Casa no encontrada" });
-      }
+    house = await House.findByPk(normalizedHouseId);
+    if (!house) {
+      return res.status(404).json({ ok: false, msg: "Casa no encontrada" });
     }
 
     const payload = {

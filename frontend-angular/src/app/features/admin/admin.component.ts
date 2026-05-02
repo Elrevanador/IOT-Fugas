@@ -365,7 +365,7 @@ export class AdminComponent {
     username: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(80), Validators.pattern(/^[a-zA-Z0-9._-]+$/)]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.pattern(this.passwordPolicy)]],
-    houseId: [0],
+    houseId: [0, [Validators.required, Validators.min(1)]],
     role: ['resident', [Validators.required]],
     estado: ['ACTIVO', [Validators.required]]
   });
@@ -374,7 +374,7 @@ export class AdminComponent {
     id: [0],
     code: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(40)]],
     nombre: ['', [Validators.required, Validators.minLength(2)]],
-    descripcion: ['']
+    descripcion: ['', [Validators.required, Validators.minLength(3)]]
   });
 
   readonly userRoleForm = this.fb.nonNullable.group({
@@ -386,9 +386,9 @@ export class AdminComponent {
     id: [0],
     code: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80), Validators.pattern(/^[a-zA-Z0-9._:-]+$/)]],
     nombre: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
-    backendPath: ['', [Validators.maxLength(160)]],
-    frontendPath: ['', [Validators.maxLength(160)]],
-    icono: ['', [Validators.maxLength(80)]],
+    backendPath: ['', [Validators.required, Validators.maxLength(160)]],
+    frontendPath: ['', [Validators.required, Validators.maxLength(160)]],
+    icono: ['', [Validators.required, Validators.maxLength(80)]],
     orden: [0, [Validators.required, Validators.min(0), Validators.max(10000)]],
     parentId: [0],
     estado: ['ACTIVO', [Validators.required]]
@@ -409,29 +409,29 @@ export class AdminComponent {
     houseId: [null as number | null, [Validators.required, Validators.min(1)]],
     location: ['', [Validators.required, Validators.minLength(3)]],
     status: ['ACTIVO', [Validators.required]],
-    deviceType: [''],
-    firmwareVersion: [''],
-    hardwareUid: ['']
+    deviceType: ['', [Validators.required, Validators.minLength(3)]],
+    firmwareVersion: ['', [Validators.required, Validators.minLength(3)]],
+    hardwareUid: ['', [Validators.required, Validators.minLength(3)]]
   });
 
   readonly locationForm = this.fb.nonNullable.group({
     id: [0],
     houseId: [0, [Validators.required, Validators.min(1)]],
     nombre: ['', [Validators.required, Validators.minLength(2)]],
-    descripcion: [''],
-    area: [''],
-    piso: ['']
+    descripcion: ['', [Validators.required, Validators.minLength(3)]],
+    area: ['', [Validators.required, Validators.minLength(2)]],
+    piso: ['', [Validators.required]]
   });
 
   readonly sensorForm = this.fb.nonNullable.group({
     id: [0],
     deviceId: [0, [Validators.required, Validators.min(1)]],
     tipo: ['caudal', [Validators.required]],
-    modelo: [''],
-    unidad: [''],
-    rangoMin: [''],
-    rangoMax: [''],
-    ubicacionId: [0],
+    modelo: ['', [Validators.required, Validators.minLength(2)]],
+    unidad: ['', [Validators.required, Validators.minLength(1)]],
+    rangoMin: ['', [Validators.required]],
+    rangoMax: ['', [Validators.required]],
+    ubicacionId: [0, [Validators.required, Validators.min(1)]],
     activo: [true]
   });
 
@@ -439,8 +439,8 @@ export class AdminComponent {
     deviceId: [0, [Validators.required, Validators.min(1)]],
     umbralFlow: [2, [Validators.required, Validators.min(0.01)]],
     ventanaMinutos: [30, [Validators.required, Validators.min(1), Validators.max(1440)]],
-    presionMin: [''],
-    presionMax: [''],
+    presionMin: ['', [Validators.required]],
+    presionMax: ['', [Validators.required]],
     autoCierre: [true],
     notificarEmail: [true],
     activo: [true]
@@ -450,15 +450,15 @@ export class AdminComponent {
     deviceId: [0, [Validators.required, Validators.min(1)]],
     tipo: ['SOLICITAR_ESTADO', [Validators.required]],
     prioridad: ['NORMAL', [Validators.required]],
-    payload: [''],
-    expiresAt: ['']
+    payload: ['', [Validators.required]],
+    expiresAt: ['', [Validators.required]]
   });
 
   readonly stateForm = this.fb.nonNullable.group({
     deviceId: [0, [Validators.required, Validators.min(1)]],
     estado: ['NORMAL', [Validators.required]],
-    motivo: [''],
-    metadata: ['']
+    motivo: ['', [Validators.required, Validators.minLength(3)]],
+    metadata: ['', [Validators.required]]
   });
 
   protected readonly isAdmin = computed(() => this.auth.isAdmin());

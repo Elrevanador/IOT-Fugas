@@ -14,6 +14,13 @@ export interface AuthUser {
   email: string;
   role: 'admin' | 'resident' | string;
   estado?: string;
+  houseId?: number | null;
+  house?: {
+    id: number;
+    name: string;
+    code: string;
+    status?: string;
+  } | null;
   roles?: string[];
   permissions?: AuthPermission[];
   createdAt?: string;

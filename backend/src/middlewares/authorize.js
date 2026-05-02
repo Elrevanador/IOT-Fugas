@@ -23,7 +23,7 @@ const isKnownUser = (user) => hasRole(user, USER_ROLES);
 
 const getUserHouseScope = (user) => {
   if (!isKnownUser(user) || isAdmin(user)) return null;
-  return user?.houseId ? Number(user.houseId) : null;
+  return user?.houseId ? Number(user.houseId) : -1;
 };
 
 module.exports = {
