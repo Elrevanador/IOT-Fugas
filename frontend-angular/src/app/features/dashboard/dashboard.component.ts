@@ -29,6 +29,9 @@ type DashboardDeviceView = {
   lastTs: string | null;
   latestReading: DashboardReading | null;
   isOnline: boolean;
+  ipAddress: string | null;
+  wifiSsid: string | null;
+  internetConnected: boolean;
 };
 type RegisteredDevice = {
   id: number;
@@ -38,6 +41,12 @@ type RegisteredDevice = {
   status?: string | null;
   last_seen_at?: string | null;
   lastSeenAt?: string | null;
+  ip_address?: string | null;
+  ipAddress?: string | null;
+  wifi_ssid?: string | null;
+  wifiSsid?: string | null;
+  internet_connected?: boolean;
+  internetConnected?: boolean;
   House?: {
     id: number;
     name: string;
@@ -145,7 +154,10 @@ export class DashboardComponent {
         pressure: reading?.pressure_kpa ?? 0,
         risk: reading?.risk ?? 0,
         state: reading?.state ?? device.lastState,
-        isOnline: device.isOnline
+        isOnline: device.isOnline,
+        ipAddress: device.ipAddress,
+        wifiSsid: device.wifiSsid,
+        internetConnected: device.internetConnected
       };
     });
   });
@@ -540,7 +552,10 @@ export class DashboardComponent {
       lastState: device.lastState || device.latestReading?.state || device.status || 'SIN_DATOS',
       lastTs: device.latestReading?.ts || device.lastSeenAt || null,
       latestReading: device.latestReading || null,
-      isOnline: Boolean(device.online)
+      isOnline: Boolean(device.online),
+      ipAddress: device.ipAddress || null,
+      wifiSsid: device.wifiSsid || null,
+      internetConnected: Boolean(device.internetConnected ?? device.online)
     };
   }
 
@@ -556,7 +571,10 @@ export class DashboardComponent {
       lastState: device.status || 'SIN_DATOS',
       lastTs: lastSeenAt,
       latestReading: null,
-      isOnline: this.isOnlineAt(lastSeenAt)
+      isOnline: Boolean(device.internetConnected ?? device.internet_connected) && this.isOnlineAt(lastSeenAt),
+      ipAddress: device.ipAddress ?? device.ip_address ?? null,
+      wifiSsid: device.wifiSsid ?? device.wifi_ssid ?? null,
+      internetConnected: Boolean(device.internetConnected ?? device.internet_connected)
     };
   }
 
@@ -569,7 +587,10 @@ export class DashboardComponent {
       lastState: reading.state,
       lastTs: reading.ts,
       latestReading: reading,
-      isOnline: this.isOnlineAt(reading.ts)
+      isOnline: this.isOnlineAt(reading.ts),
+      ipAddress: null,
+      wifiSsid: null,
+      internetConnected: this.isOnlineAt(reading.ts)
     };
   }
 
@@ -595,7 +616,10 @@ export class DashboardComponent {
       lastState: candidateHasNewerTelemetry || candidateHasBetterStatus ? candidate.lastState : existing.lastState,
       lastTs: candidateTs >= existingTs && candidate.lastTs ? candidate.lastTs : existing.lastTs || candidate.lastTs,
       latestReading: candidateHasNewerTelemetry ? candidate.latestReading : existing.latestReading || candidate.latestReading,
-      isOnline: existing.isOnline || candidate.isOnline
+      isOnline: existing.isOnline || candidate.isOnline,
+      ipAddress: candidate.ipAddress || existing.ipAddress,
+      wifiSsid: candidate.wifiSsid || existing.wifiSsid,
+      internetConnected: existing.internetConnected || candidate.internetConnected
     });
   }
 

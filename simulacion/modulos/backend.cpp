@@ -175,6 +175,9 @@ void enviarBackend(SystemState &state) {
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
     appendField("\"hardwareUid\":\"" + String(DEVICE_HARDWARE_UID) + "\"");
   }
+  appendField("\"ipAddress\":\"" + WiFi.localIP().toString() + "\"");
+  appendField("\"wifiSsid\":\"" + escapeJson(String(ssid)) + "\"");
+  appendField("\"internetConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false"));
 
   if (SENSOR_ID > 0) {
     appendField("\"sensorId\":" + String(SENSOR_ID));

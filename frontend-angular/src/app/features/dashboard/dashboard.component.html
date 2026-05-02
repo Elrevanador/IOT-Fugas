@@ -187,8 +187,8 @@
               </div>
               <div>
                 <span>Enlace</span>
-                <strong>{{ card.isOnline ? 'Online' : 'Observación' }}</strong>
-                <small>{{ relativeTime(card.device.lastTs) }}</small>
+                <strong>{{ card.isOnline ? 'Internet' : 'Sin conexión' }}</strong>
+                <small>{{ card.wifiSsid || 'WiFi no reportado' }} · {{ card.ipAddress || 'Sin IP' }}</small>
               </div>
             </div>
             <div class="device-card__risk-bar">
@@ -314,6 +314,14 @@
               <div class="command-item">
                 <span>Dispositivo online</span>
                 <strong>{{ scopedDeviceOnline() ? 'Sí' : 'No' }}</strong>
+              </div>
+              <div class="command-item">
+                <span>Red WiFi</span>
+                <strong>{{ selectedDevice()?.wifiSsid || highlightedDevice()?.wifiSsid || 'No reportada' }}</strong>
+              </div>
+              <div class="command-item">
+                <span>IP del dispositivo</span>
+                <strong>{{ selectedDevice()?.ipAddress || highlightedDevice()?.ipAddress || 'Sin IP' }}</strong>
               </div>
               <div class="command-item">
                 <span>Último paquete</span>

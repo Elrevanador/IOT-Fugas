@@ -34,44 +34,7 @@ const profileRateLimit = createRateLimiter({
 
 router.post(
   "/register",
-  registerRateLimit,
-  [
-    body("nombre")
-      .trim()
-      .isLength({ min: 2, max: 120 })
-      .withMessage("Nombre debe tener entre 2 y 120 caracteres")
-      .matches(/^[a-zA-ZÀ-ÿ\s]+$/)
-      .withMessage("Nombre solo puede contener letras y espacios"),
-    body("apellido")
-      .trim()
-      .isLength({ min: 2, max: 120 })
-      .withMessage("Apellido debe tener entre 2 y 120 caracteres")
-      .matches(/^[a-zA-ZÀ-ÿ\s]+$/)
-      .withMessage("Apellido solo puede contener letras y espacios"),
-    body("username")
-      .trim()
-      .isLength({ min: 3, max: 80 })
-      .withMessage("Username debe tener entre 3 y 80 caracteres")
-      .matches(/^[a-zA-Z0-9._-]+$/)
-      .withMessage("Username solo puede contener letras, numeros, punto, guion o guion bajo"),
-    body("email")
-      .trim()
-      .isEmail()
-      .withMessage("Email inválido")
-      .normalizeEmail()
-      .isLength({ max: 255 })
-      .withMessage("Email demasiado largo"),
-    body("password")
-      .isLength({ min: 8 })
-      .withMessage("Contraseña debe tener al menos 8 caracteres")
-      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
-      .withMessage("Contraseña debe incluir mayúsculas, minúsculas, números y caracteres especiales"),
-    body("confirmPassword")
-      .custom((value, { req }) => value === req.body.password)
-      .withMessage("La confirmacion de contraseña no coincide")
-  ],
-  validate,
-  register
+  (_req, res) => res.status(403).json({ ok: false, msg: "Registro público deshabilitado. Solicita acceso al administrador." })
 );
 
 router.post(

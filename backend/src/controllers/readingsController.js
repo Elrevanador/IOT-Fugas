@@ -40,6 +40,9 @@ const ensureDevice = async ({
   deviceType,
   firmwareVersion,
   hardwareUid,
+  ipAddress,
+  wifiSsid,
+  internetConnected,
   authenticatedDevice,
   transaction
 }) => {
@@ -77,6 +80,10 @@ const ensureDevice = async ({
     if (deviceType && device.device_type !== deviceType) metadataPatch.device_type = deviceType;
     if (firmwareVersion && device.firmware_version !== firmwareVersion) metadataPatch.firmware_version = firmwareVersion;
     if (hardwareUid && !device.hardware_uid) metadataPatch.hardware_uid = hardwareUid;
+    if (ipAddress && device.ip_address !== ipAddress) metadataPatch.ip_address = ipAddress;
+    if (wifiSsid && device.wifi_ssid !== wifiSsid) metadataPatch.wifi_ssid = wifiSsid;
+    metadataPatch.internet_connected = Boolean(internetConnected);
+    if (internetConnected) metadataPatch.last_connection_at = new Date();
     if (Object.keys(metadataPatch).length) {
       await device.update(metadataPatch, { transaction });
     }
@@ -95,6 +102,10 @@ const ensureDevice = async ({
       if (house && !device.house_id) metadataPatch.house_id = house.id;
       if (deviceType && device.device_type !== deviceType) metadataPatch.device_type = deviceType;
       if (firmwareVersion && device.firmware_version !== firmwareVersion) metadataPatch.firmware_version = firmwareVersion;
+      if (ipAddress && device.ip_address !== ipAddress) metadataPatch.ip_address = ipAddress;
+      if (wifiSsid && device.wifi_ssid !== wifiSsid) metadataPatch.wifi_ssid = wifiSsid;
+      metadataPatch.internet_connected = Boolean(internetConnected);
+      if (internetConnected) metadataPatch.last_connection_at = new Date();
       if (Object.keys(metadataPatch).length) {
         await device.update(metadataPatch, { transaction });
       }
@@ -110,7 +121,11 @@ const ensureDevice = async ({
       status: "ACTIVO",
       device_type: deviceType || null,
       firmware_version: firmwareVersion || null,
-      hardware_uid: hardwareUid || null
+      hardware_uid: hardwareUid || null,
+      ip_address: ipAddress || null,
+      wifi_ssid: wifiSsid || null,
+      internet_connected: Boolean(internetConnected),
+      last_connection_at: internetConnected ? new Date() : null
     },
     transaction
   });
@@ -120,6 +135,10 @@ const ensureDevice = async ({
   if (deviceType && !device.device_type) metadataPatch.device_type = deviceType;
   if (firmwareVersion && device.firmware_version !== firmwareVersion) metadataPatch.firmware_version = firmwareVersion;
   if (hardwareUid && !device.hardware_uid) metadataPatch.hardware_uid = hardwareUid;
+  if (ipAddress && device.ip_address !== ipAddress) metadataPatch.ip_address = ipAddress;
+  if (wifiSsid && device.wifi_ssid !== wifiSsid) metadataPatch.wifi_ssid = wifiSsid;
+  metadataPatch.internet_connected = Boolean(internetConnected);
+  if (internetConnected) metadataPatch.last_connection_at = new Date();
   if (Object.keys(metadataPatch).length) {
     await device.update(metadataPatch, { transaction });
   }
@@ -162,6 +181,9 @@ const createReading = async (req, res, next) => {
       deviceType,
       firmwareVersion,
       hardwareUid,
+      ipAddress,
+      wifiSsid,
+      internetConnected,
       sensorId,
       ts,
       flow_lmin,
@@ -212,6 +234,10 @@ const createReading = async (req, res, next) => {
     const normalizedDeviceType = deviceType ? String(deviceType).trim() : null;
     const normalizedFirmwareVersion = firmwareVersion ? String(firmwareVersion).trim() : null;
     const normalizedHardwareUid = hardwareUid ? String(hardwareUid).trim() : null;
+    const normalizedIpAddress = ipAddress ? String(ipAddress).trim().slice(0, 45) : null;
+    const normalizedWifiSsid = wifiSsid ? String(wifiSsid).trim().slice(0, 120) : null;
+    const normalizedInternetConnected =
+      internetConnected === undefined || internetConnected === null ? true : Boolean(internetConnected);
     const timestamp = normalizeTimestamp(ts);
 
     logger.info("Procesando nueva lectura de sensor", {
@@ -230,6 +256,9 @@ const createReading = async (req, res, next) => {
         deviceType: normalizedDeviceType,
         firmwareVersion: normalizedFirmwareVersion,
         hardwareUid: normalizedHardwareUid,
+        ipAddress: normalizedIpAddress,
+        wifiSsid: normalizedWifiSsid,
+        internetConnected: normalizedInternetConnected,
         authenticatedDevice: req.authenticatedDevice || null,
         transaction
       });
@@ -272,7 +301,11 @@ const createReading = async (req, res, next) => {
           last_seen_at: timestamp,
           device_type: normalizedDeviceType || device.device_type || null,
           firmware_version: normalizedFirmwareVersion || device.firmware_version || null,
-          hardware_uid: normalizedHardwareUid || device.hardware_uid || null
+          hardware_uid: normalizedHardwareUid || device.hardware_uid || null,
+          ip_address: normalizedIpAddress || device.ip_address || null,
+          wifi_ssid: normalizedWifiSsid || device.wifi_ssid || null,
+          internet_connected: normalizedInternetConnected,
+          last_connection_at: normalizedInternetConnected ? timestamp : device.last_connection_at || null
         },
         { transaction }
       );

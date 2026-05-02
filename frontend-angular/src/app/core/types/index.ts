@@ -127,6 +127,10 @@ export interface DashboardDeviceSummary {
   lastSeenAt: string | null;
   lastState: string;
   online: boolean;
+  ipAddress?: string | null;
+  wifiSsid?: string | null;
+  internetConnected?: boolean;
+  lastConnectionAt?: string | null;
   latestReading: DashboardReading | null;
 }
 

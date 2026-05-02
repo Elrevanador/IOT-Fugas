@@ -110,6 +110,7 @@ const mapDeviceReading = (reading, device) => {
 const mapDeviceSummary = (device, latestReading, nowMs) => {
   const mappedReading = mapDeviceReading(latestReading, device);
   const lastSeenAt = mappedReading?.ts || device.last_seen_at || null;
+  const online = Boolean(device.internet_connected) && isOnlineAt(lastSeenAt, nowMs);
   return {
     id: device.id,
     name: device.name || null,
@@ -118,7 +119,11 @@ const mapDeviceSummary = (device, latestReading, nowMs) => {
     status: device.status || null,
     lastSeenAt,
     lastState: mappedReading?.state || device.status || "SIN_DATOS",
-    online: isOnlineAt(lastSeenAt, nowMs),
+    online,
+    ipAddress: device.ip_address || null,
+    wifiSsid: device.wifi_ssid || null,
+    internetConnected: Boolean(device.internet_connected),
+    lastConnectionAt: device.last_connection_at || null,
     latestReading: mappedReading
   };
 };
@@ -165,7 +170,7 @@ const buildPublicDashboardPayload = async (user, query = {}) => {
         include: [
           {
             model: Device,
-            attributes: ["name", "house_id"],
+            attributes: ["name", "house_id", "ip_address", "wifi_ssid", "internet_connected", "last_connection_at"],
             include: [{ model: House, attributes: ["id", "name"], required: false }]
           }
         ],
@@ -178,7 +183,7 @@ const buildPublicDashboardPayload = async (user, query = {}) => {
         include: [
           {
             model: Device,
-            attributes: ["name", "house_id"],
+            attributes: ["name", "house_id", "ip_address", "wifi_ssid", "internet_connected", "last_connection_at"],
             include: [{ model: House, attributes: ["id", "name"], required: false }]
           }
         ],
@@ -192,7 +197,7 @@ const buildPublicDashboardPayload = async (user, query = {}) => {
         include: [
           {
             model: Device,
-            attributes: ["name", "house_id"],
+            attributes: ["name", "house_id", "ip_address", "wifi_ssid", "internet_connected", "last_connection_at"],
             include: [{ model: House, attributes: ["id", "name"], required: false }]
           }
         ],
@@ -203,7 +208,17 @@ const buildPublicDashboardPayload = async (user, query = {}) => {
 
       // Devices
       Device.findAll({
-        attributes: ["id", "name", "house_id", "status", "last_seen_at"],
+        attributes: [
+          "id",
+          "name",
+          "house_id",
+          "status",
+          "last_seen_at",
+          "ip_address",
+          "wifi_ssid",
+          "internet_connected",
+          "last_connection_at"
+        ],
         where: scopedHouseId ? { house_id: scopedHouseId } : undefined,
         include: [{ model: House, attributes: ["id", "name"], required: false }],
         order: [["id", "ASC"]],

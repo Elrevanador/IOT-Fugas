@@ -307,7 +307,7 @@
             </header>
             <div class="table-shell">
               <table>
-                <thead><tr><th>Dispositivo</th><th>Casa</th><th>Estado</th><th>Firmware</th><th>Clave</th><th></th></tr></thead>
+                <thead><tr><th>Dispositivo</th><th>Casa</th><th>Estado</th><th>Red</th><th>Firmware</th><th>Clave</th><th></th></tr></thead>
                 <tbody>
                   @for (device of paginatedDevices(); track device.id) {
                     <tr>
@@ -319,6 +319,7 @@
                       </td>
                       <td>{{ device.House?.name || 'Sin casa' }}</td>
                       <td><span class="status-pill" [attr.data-tone]="device.status">{{ device.status }}</span></td>
+                      <td><strong>{{ device.internet_connected ? 'Internet' : 'Sin conexión' }}</strong><small>{{ device.wifi_ssid || 'WiFi no reportado' }} · {{ device.ip_address || 'Sin IP' }}</small></td>
                       <td>{{ device.firmware_version || 'n/d' }}</td>
                       <td>{{ device.apiKeyHint || 'Global' }}</td>
                       <td class="table-actions">
@@ -328,7 +329,7 @@
                       </td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="6" class="empty-cell">No hay dispositivos.</td></tr>
+                    <tr><td colspan="7" class="empty-cell">No hay dispositivos.</td></tr>
                   }
                 </tbody>
               </table>
@@ -709,6 +710,9 @@
               <div class="detail-card"><span>Tipo</span><strong>{{ device.device_type || 'Sin clasificar' }}</strong></div>
               <div class="detail-card"><span>Firmware</span><strong>{{ device.firmware_version || 'No reportado' }}</strong></div>
               <div class="detail-card"><span>Hardware UID</span><strong>{{ device.hardware_uid || 'No definido' }}</strong></div>
+              <div class="detail-card"><span>Red WiFi</span><strong>{{ device.wifi_ssid || 'No reportada' }}</strong></div>
+              <div class="detail-card"><span>IP</span><strong>{{ device.ip_address || 'Sin IP' }}</strong></div>
+              <div class="detail-card"><span>Internet</span><strong>{{ device.internet_connected ? 'Conectado' : 'Sin conexión' }}</strong></div>
               <div class="detail-card"><span>Ultimo contacto</span><strong>{{ device.last_seen_at ? (device.last_seen_at | date:'short') : 'Sin lectura' }}</strong></div>
               <div class="detail-card detail-card--wide">
                 <span>Control de válvula</span>

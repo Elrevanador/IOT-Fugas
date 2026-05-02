@@ -98,6 +98,10 @@ interface Device {
   firmware_version: string | null;
   hardware_uid: string | null;
   last_seen_at: string | null;
+  ip_address: string | null;
+  wifi_ssid: string | null;
+  internet_connected: boolean;
+  last_connection_at: string | null;
   hasCustomApiKey: boolean;
   apiKeyHint: string | null;
   House?: House | null;

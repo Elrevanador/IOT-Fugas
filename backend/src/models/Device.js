@@ -45,6 +45,22 @@ module.exports = (sequelize) => {
         }
       },
       last_seen_at: { type: DataTypes.DATE, allowNull: true },
+      ip_address: {
+        type: DataTypes.STRING(45),
+        allowNull: true,
+        validate: {
+          len: [0, 45]
+        }
+      },
+      wifi_ssid: {
+        type: DataTypes.STRING(120),
+        allowNull: true,
+        validate: {
+          len: [0, 120]
+        }
+      },
+      internet_connected: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      last_connection_at: { type: DataTypes.DATE, allowNull: true },
       status: {
         type: DataTypes.STRING(32),
         allowNull: true,
@@ -82,6 +98,7 @@ module.exports = (sequelize) => {
         { fields: ["status"] },
         { fields: ["device_type"] },
         { fields: ["last_seen_at"] },
+        { fields: ["internet_connected"] },
         { fields: ["hardware_uid"], unique: true },
         { fields: ["name"], unique: true },
         { fields: ["is_active"] },

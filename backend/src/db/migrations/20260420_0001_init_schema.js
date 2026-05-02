@@ -93,6 +93,10 @@ module.exports = {
         name: { type: DataTypes.STRING(120), allowNull: false, unique: true },
         location: { type: DataTypes.STRING(180), allowNull: true },
         status: { type: DataTypes.STRING(32), allowNull: true },
+        ip_address: { type: DataTypes.STRING(45), allowNull: true },
+        wifi_ssid: { type: DataTypes.STRING(120), allowNull: true },
+        internet_connected: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+        last_connection_at: { type: DataTypes.DATE, allowNull: true },
         created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
         updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW }
       },
@@ -174,6 +178,13 @@ module.exports = {
     await ensureIndex(queryInterface, "houses", ["status"], { name: "houses_status_idx" }, transaction);
     await ensureIndex(queryInterface, "devices", ["house_id"], { name: "devices_house_id_idx" }, transaction);
     await ensureIndex(queryInterface, "devices", ["status"], { name: "devices_status_idx" }, transaction);
+    await ensureIndex(
+      queryInterface,
+      "devices",
+      ["internet_connected"],
+      { name: "devices_internet_connected_idx" },
+      transaction
+    );
     await ensureIndex(queryInterface, "users", ["house_id"], { name: "users_house_id_idx" }, transaction);
     await ensureIndex(queryInterface, "users", ["role"], { name: "users_role_idx" }, transaction);
     await ensureIndex(queryInterface, "readings", ["device_id"], { name: "readings_device_id_idx" }, transaction);
