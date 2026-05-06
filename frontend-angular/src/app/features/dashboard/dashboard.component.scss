@@ -926,6 +926,33 @@ h2 {
   color: var(--dash-muted);
 }
 
+.command-panel__wifi-action {
+  margin-top: 1rem;
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+  color: #5eead4;
+  background: linear-gradient(145deg, rgba(20, 184, 166, 0.2), rgba(15, 23, 42, 0.8));
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  justify-content: center;
+}
+
+.command-panel__wifi-action:hover {
+  border-color: #5eead4;
+  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.22);
+}
+
+.command-panel__wifi-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .action-message {
   margin: 0.9rem 0 0;
   color: #5eead4;
@@ -1017,6 +1044,12 @@ pre {
   gap: 1rem;
 }
 
+.device-card__actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.5rem;
+}
+
 .device-card__header h3 {
   margin: 0.4rem 0 0;
   font-size: 1.15rem;
@@ -1049,6 +1082,105 @@ pre {
 .device-card__state[data-state='NORMAL'] {
   background: var(--state-normal-soft);
   color: #86efac;
+}
+
+.device-card__wifi {
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  border-radius: 999px;
+  background: rgba(20, 184, 166, 0.12);
+  color: #5eead4;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.device-card__wifi:hover {
+  background: rgba(20, 184, 166, 0.22);
+}
+
+.wifi-modal-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.wifi-modal-form__hint {
+  margin: 0;
+  color: var(--dash-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.wifi-modal-form__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.wifi-modal-form__field span {
+  color: var(--dash-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.wifi-modal-form__field input {
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b1220;
+  color: var(--dash-text);
+  padding: 0.72rem 0.82rem;
+  font: inherit;
+}
+
+.wifi-modal-form__field input:focus {
+  outline: none;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+}
+
+.wifi-modal-form__field small {
+  color: var(--dash-muted);
+  font-size: 0.75rem;
+}
+
+.wifi-modal-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.4rem;
+}
+
+.wifi-modal-form__ghost,
+.wifi-modal-form__submit {
+  border-radius: 10px;
+  border: 1px solid transparent;
+  padding: 0.62rem 0.95rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wifi-modal-form__ghost {
+  border-color: #334155;
+  color: #cbd5e1;
+  background: #0b1220;
+}
+
+.wifi-modal-form__submit {
+  color: #042f2e;
+  background: linear-gradient(145deg, #5eead4, #99f6e4);
+}
+
+.wifi-modal-form__ghost:disabled,
+.wifi-modal-form__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .device-card__metrics {

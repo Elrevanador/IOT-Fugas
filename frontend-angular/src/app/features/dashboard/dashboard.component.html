@@ -167,7 +167,18 @@
                 <span class="eyebrow">{{ card.device.houseName || 'Sin casa' }}</span>
                 <h3>{{ card.device.name || 'Dispositivo #' + card.device.id }}</h3>
               </div>
-              <span class="device-card__state" [attr.data-state]="card.state">{{ card.state }}</span>
+              <div class="device-card__actions">
+                <span class="device-card__state" [attr.data-state]="card.state">{{ card.state }}</span>
+                <button
+                  type="button"
+                  class="device-card__wifi"
+                  (click)="$event.stopPropagation(); openWifiModal(card.device.id)"
+                  aria-label="Cambiar WiFi de este dispositivo"
+                >
+                  <i class="fa-solid fa-wifi" aria-hidden="true"></i>
+                  Cambiar WiFi
+                </button>
+              </div>
             </header>
             <div class="device-card__metrics">
               <div>
@@ -332,6 +343,15 @@
                 <strong>{{ activeAlerts().length }}</strong>
               </div>
             </div>
+            <button
+              type="button"
+              class="command-panel__wifi-action"
+              [disabled]="!wifiCommandDevice()"
+              (click)="openWifiModal()"
+            >
+              <i class="fa-solid fa-router" aria-hidden="true"></i>
+              Cambiar WiFi del dispositivo
+            </button>
           </article>
         </section>
       </section>
@@ -495,4 +515,51 @@
     }
     </div>
   </section>
- v</section>
+</section>
+
+<app-modal [isOpen]="wifiModalOpen()" title="Cambiar red WiFi" (close)="closeWifiModal()">
+  <form class="wifi-modal-form" (ngSubmit)="submitWifiChange()">
+    <p class="wifi-modal-form__hint">
+      @if (wifiCommandDevice(); as target) {
+        Actualiza la red de <strong>{{ target.name || 'Dispositivo #' + target.id }}</strong>. El cambio se envía como comando remoto.
+      } @else {
+        Selecciona un dispositivo para continuar.
+      }
+    </p>
+
+    <label class="wifi-modal-form__field">
+      <span>SSID</span>
+      <input
+        type="text"
+        name="wifiSsid"
+        maxlength="64"
+        required
+        [ngModel]="wifiSsidInput()"
+        (ngModelChange)="wifiSsidInput.set($event)"
+        placeholder="Ej: MiCasa_5G"
+      />
+    </label>
+
+    <label class="wifi-modal-form__field">
+      <span>Contraseña</span>
+      <input
+        type="password"
+        name="wifiPassword"
+        maxlength="64"
+        [ngModel]="wifiPasswordInput()"
+        (ngModelChange)="wifiPasswordInput.set($event)"
+        placeholder="Tu clave WiFi"
+      />
+      <small>Déjala vacía si tu red no tiene clave.</small>
+    </label>
+
+    <div class="wifi-modal-form__actions">
+      <button type="button" class="wifi-modal-form__ghost" (click)="closeWifiModal()" [disabled]="wifiModalSaving()">
+        Cancelar
+      </button>
+      <button type="submit" class="wifi-modal-form__submit" [disabled]="wifiModalSaving() || !wifiCommandDevice()">
+        {{ wifiModalSaving() ? 'Enviando...' : 'Guardar y enviar' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

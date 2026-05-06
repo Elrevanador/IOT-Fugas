@@ -5,6 +5,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 #include <Adafruit_BMP085.h>
 #include <LiquidCrystal_I2C.h>
 
@@ -12,6 +13,9 @@
 // Cambia estos dos valores si vas a cargarlo en un ESP32 fisico.
 const char* ssid     = "Wokwi-GUEST";
 const char* password = "";
+String wifiSsidConfig = ssid;
+String wifiPasswordConfig = password;
+static Preferences wifiPrefs;
 
 enum BackendMode {
   BACKEND_LOCAL = 0,
@@ -20,7 +24,7 @@ enum BackendMode {
 
 const BackendMode BACKEND_MODE = BACKEND_PUBLIC;
 const char* BACKEND_BASE_URL_LOCAL  = "http://host.wokwi.internal:3000";
-const char* BACKEND_BASE_URL_PUBLIC = "https://backend-production-bd4c6.up.railway.app";
+const char* BACKEND_BASE_URL_PUBLIC = "https://sistemas-de-deteccion-de-fugas.up.railway.app";
 
 const char* DEVICE_NAME = "ESP32-WOKWI-01";
 const char* DEVICE_TYPE = "ESP32-WOKWI";
@@ -32,12 +36,12 @@ const int HOUSE_ID = 0;
 const int SENSOR_ID = 0;
 
 // Debe ser igual a INGEST_API_KEY en el backend.
-const char* INGEST_API_KEY = "wokwi-dev-ingest-key";
+const char* INGEST_API_KEY = "CAMBIA_ESTA_CLAVE_POR_UNA_NUEVA";
 
 const unsigned long SENSOR_READ_INTERVAL_MS = 1000;
 const unsigned long BACKEND_SEND_INTERVAL_MS = 2000;
 const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
-const unsigned long BACKEND_TIMEOUT_MS = 500;
+const unsigned long BACKEND_TIMEOUT_MS = 3000;
 
 const int flowPin    = 27;
 const int ledVerde   = 2;
@@ -255,10 +259,32 @@ static String ipLocalTexto() {
   return WiFi.localIP().toString();
 }
 
+static void saveWifiConfig() {
+  wifiPrefs.begin("wifi-config", false);
+  wifiPrefs.putString("ssid", wifiSsidConfig);
+  wifiPrefs.putString("pass", wifiPasswordConfig);
+  wifiPrefs.end();
+}
+
+static void loadWifiConfig() {
+  wifiPrefs.begin("wifi-config", true);
+  String persistedSsid = wifiPrefs.getString("ssid", "");
+  String persistedPass = wifiPrefs.getString("pass", "");
+  wifiPrefs.end();
+  if (persistedSsid.length() > 0) {
+    wifiSsidConfig = persistedSsid;
+    wifiPasswordConfig = persistedPass;
+    Serial.print("WiFi cargado desde NVS: ");
+    Serial.println(wifiSsidConfig);
+  } else {
+    Serial.println("WiFi usando credenciales por defecto.");
+  }
+}
+
 static void conectarWiFi() {
   Serial.print("Conectando a WiFi");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password, 6);
+  WiFi.begin(wifiSsidConfig.c_str(), wifiPasswordConfig.c_str(), 6);
   int intentos = 0;
   while (WiFi.status() != WL_CONNECTED && intentos < 30) {
     delay(300);
@@ -288,7 +314,7 @@ bool asegurarWiFi() {
   Serial.println("WiFi caido. Reconectando...");
   WiFi.disconnect(true);
   delay(500);
-  WiFi.begin(ssid, password);
+  WiFi.begin(wifiSsidConfig.c_str(), wifiPasswordConfig.c_str());
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
     delay(300);
@@ -402,7 +428,7 @@ void enviarBackend(SystemState &state) {
   if (String(DEVICE_FIRMWARE_VERSION).length() > 0) appendField("\"firmwareVersion\":\"" + escapeJson(String(DEVICE_FIRMWARE_VERSION)) + "\"");
   if (String(DEVICE_HARDWARE_UID).length() > 0) appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
   appendField("\"ipAddress\":\"" + WiFi.localIP().toString() + "\"");
-  appendField("\"wifiSsid\":\"" + escapeJson(String(ssid)) + "\"");
+  appendField("\"wifiSsid\":\"" + escapeJson(wifiSsidConfig) + "\"");
   appendField("\"internetConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false"));
   if (SENSOR_ID > 0) appendField("\"sensorId\":" + String(SENSOR_ID));
   appendField("\"flow_lmin\":" + String(state.flujoLmin, 2));
@@ -453,7 +479,45 @@ void enviarBackend(SystemState &state) {
   http.end();
 }
 
-static void ejecutarComando(SystemState &state, const String &tipo, String &codigo, String &mensaje) {
+static bool applyWifiConfigFromPayload(const JsonObjectConst &payload, String &mensaje) {
+  if (payload.isNull()) {
+    mensaje = "ACTUALIZAR_CONFIG sin payload";
+    return false;
+  }
+  String newSsid = "";
+  String newPass = "";
+  if (payload["wifiSsid"].is<const char*>()) newSsid = payload["wifiSsid"].as<String>();
+  else if (payload["wifiSSID"].is<const char*>()) newSsid = payload["wifiSSID"].as<String>();
+  else if (payload["ssid"].is<const char*>()) newSsid = payload["ssid"].as<String>();
+
+  if (payload["wifiPassword"].is<const char*>()) newPass = payload["wifiPassword"].as<String>();
+  else if (payload["password"].is<const char*>()) newPass = payload["password"].as<String>();
+
+  newSsid.trim();
+  newPass.trim();
+  if (newSsid.length() == 0) {
+    mensaje = "ACTUALIZAR_CONFIG sin SSID valido";
+    return false;
+  }
+
+  wifiSsidConfig = newSsid;
+  wifiPasswordConfig = newPass;
+  saveWifiConfig();
+
+  WiFi.disconnect(true);
+  delay(300);
+  conectarWiFi();
+
+  if (wifiConectado()) {
+    mensaje = "WiFi actualizado a " + wifiSsidConfig;
+    return true;
+  }
+
+  mensaje = "WiFi guardado pero no conecto: " + wifiSsidConfig;
+  return false;
+}
+
+static void ejecutarComando(SystemState &state, const String &tipo, const JsonObjectConst &payload, String &codigo, String &mensaje) {
   codigo = "OK";
   if (tipo == "CERRAR_VALVULA") {
     state.valvulaAbierta = false;
@@ -464,7 +528,9 @@ static void ejecutarComando(SystemState &state, const String &tipo, String &codi
   } else if (tipo == "SOLICITAR_ESTADO") {
     mensaje = "Estado reportado desde simulacion";
   } else if (tipo == "ACTUALIZAR_CONFIG") {
-    mensaje = "Configuracion recibida por simulacion";
+    if (!applyWifiConfigFromPayload(payload, mensaje)) {
+      codigo = "ERROR";
+    }
   } else if (tipo == "REINICIAR") {
     mensaje = "Reinicio programado en simulacion";
   } else if (tipo == "OTRO") {
@@ -596,10 +662,11 @@ void consultarComandosBackend(SystemState &state) {
     unsigned long commandId = comando["id"].as<unsigned long>();
     String tipo = comando["tipo"].as<String>();
     if (commandId == 0 || tipo.length() == 0) continue;
+    JsonObjectConst payload = comando["payload"].as<JsonObjectConst>();
 
     String codigo;
     String mensaje;
-    ejecutarComando(state, tipo, codigo, mensaje);
+    ejecutarComando(state, tipo, payload, codigo, mensaje);
     state.comandosBackend++;
     state.ultimoComandoBackend = tipo;
 
@@ -839,6 +906,19 @@ static bool parseForcedState(const String &rawState, EstadoSistema &outState) {
   return false;
 }
 
+static bool parseWifiCommand(const String &cmd, String &outSsid, String &outPass) {
+  // Formato: WIFI <SSID>|<PASSWORD>
+  if (!cmd.startsWith("WIFI ")) return false;
+  String body = cmd.substring(5);
+  int sep = body.indexOf('|');
+  if (sep <= 0) return false;
+  outSsid = body.substring(0, sep);
+  outPass = body.substring(sep + 1);
+  outSsid.trim();
+  outPass.trim();
+  return outSsid.length() > 0;
+}
+
 bool commandHasForcedState() {
   return forcedStateEnabled;
 }
@@ -851,13 +931,15 @@ void handleCommands(SystemState &state) {
   if (Serial.available()) {
     pendingCommand = Serial.readStringUntil('\n');
     pendingCommand.trim();
-    pendingCommand.toUpperCase();
   }
   if (pendingCommand.length() == 0) return;
+  String rawCommand = pendingCommand;
+  String command = pendingCommand;
+  command.toUpperCase();
 
-  if (pendingCommand == "PING") {
+  if (command == "PING") {
     Serial.println("CMD:PONG");
-  } else if (pendingCommand == "STATUS") {
+  } else if (command == "STATUS") {
     Serial.print("CMD:STATUS ");
     Serial.print(estadoTexto(state.estadoSistema));
     Serial.print(" R=");
@@ -870,10 +952,36 @@ void handleCommands(SystemState &state) {
     Serial.print(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
     Serial.print(" CMD=");
     Serial.println(state.ultimoComandoBackend);
-  } else if (pendingCommand == "HELP") {
-    Serial.println("CMD:HELP PING | STATUS | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
-  } else if (pendingCommand.startsWith("FORCE ")) {
-    String arg = pendingCommand.substring(6);
+  } else if (command == "WIFI?") {
+    Serial.print("CMD:WIFI SSID=");
+    Serial.print(wifiSsidConfig);
+    Serial.print(" PASS_LEN=");
+    Serial.println(wifiPasswordConfig.length());
+  } else if (command.startsWith("WIFI ")) {
+    String newSsid;
+    String newPass;
+    if (parseWifiCommand(rawCommand, newSsid, newPass)) {
+      wifiSsidConfig = newSsid;
+      wifiPasswordConfig = newPass;
+      saveWifiConfig();
+      Serial.print("CMD:WIFI_UPDATE SSID=");
+      Serial.println(wifiSsidConfig);
+      Serial.println("Aplicando nueva red WiFi...");
+      WiFi.disconnect(true);
+      delay(300);
+      conectarWiFi();
+      if (wifiConectado()) {
+        Serial.println("CMD:WIFI_CONNECTED");
+      } else {
+        Serial.println("CMD:WIFI_CONNECT_FAILED");
+      }
+    } else {
+      Serial.println("CMD:WIFI_FORMAT_INVALID Usa: WIFI <SSID>|<PASSWORD>");
+    }
+  } else if (command == "HELP") {
+    Serial.println("CMD:HELP PING | STATUS | WIFI? | WIFI <SSID>|<PASSWORD> | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
+  } else if (command.startsWith("FORCE ")) {
+    String arg = command.substring(6);
     arg.trim();
     if (arg == "AUTO") {
       forcedStateEnabled = false;
@@ -930,6 +1038,7 @@ void setup() {
   delay(1500);
   Serial.println();
   Serial.println("Iniciando sistema...");
+  loadWifiConfig();
 
   initActuadores();
   initSensores(bmp, state);

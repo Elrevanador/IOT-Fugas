@@ -164,11 +164,11 @@ const listCommandResponses = async (req, res, next) => {
 
 const createCommand = async (req, res, next) => {
   try {
-    if (!isOperator(req.user)) {
+    const { deviceId, tipo, payload, prioridad, expiresAt } = req.body;
+    const canSendConfigCommand = tipo === "ACTUALIZAR_CONFIG";
+    if (!isOperator(req.user) && !canSendConfigCommand) {
       return res.status(403).json({ ok: false, msg: "No tienes permisos para enviar comandos" });
     }
-
-    const { deviceId, tipo, payload, prioridad, expiresAt } = req.body;
 
     // Validaciones de entrada críticas
     if (!deviceId || isNaN(Number(deviceId))) {

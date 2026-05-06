@@ -1,6 +1,7 @@
 import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, DestroyRef, ElementRef, HostListener, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/services/api.service';
@@ -14,6 +15,7 @@ import {
   HistoryReading
 } from '../../core/types';
 import { TelemetryChartComponent } from '../../shared/components/telemetry-chart/telemetry-chart.component';
+import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { resolveErrorMessage } from '../../core/utils/error-message';
 
 type TimeRange = '1h' | '6h' | '24h' | '7d';
@@ -56,10 +58,18 @@ type DeviceCatalogResponse = {
   ok: boolean;
   devices: RegisteredDevice[];
 };
+type CommandCreateResponse = {
+  ok: boolean;
+  comando?: {
+    id: number;
+    tipo: string;
+    estado: string;
+  };
+};
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, DecimalPipe, DatePipe, TelemetryChartComponent],
+  imports: [CommonModule, FormsModule, DecimalPipe, DatePipe, TelemetryChartComponent, ModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss'
 })
@@ -96,6 +106,11 @@ export class DashboardComponent {
   readonly selectedDeviceId = signal<number | null>(null);
   readonly historicalReadings = signal<HistoryReading[]>([]);
   readonly devicesUiCollapsed = signal(this.restoreDevicesUiCollapsed());
+  readonly wifiModalOpen = signal(false);
+  readonly wifiModalSaving = signal(false);
+  readonly wifiTargetDeviceId = signal<number | null>(null);
+  readonly wifiSsidInput = signal('');
+  readonly wifiPasswordInput = signal('');
 
   readonly uniqueDevices = computed(() => {
     const payload = this.payload();
@@ -225,6 +240,13 @@ export class DashboardComponent {
   readonly highlightedReading = computed(() => {
     const device = this.highlightedDevice();
     return device ? device.latestReading : this.latestReading();
+  });
+  readonly wifiCommandDevice = computed(() => {
+    const targetId = this.wifiTargetDeviceId();
+    if (targetId) {
+      return this.uniqueDevices().find((device) => device.id === targetId) || null;
+    }
+    return this.selectedDevice() || this.highlightedDevice() || this.uniqueDevices()[0] || null;
   });
 
   readonly activeAlerts = computed(() => this.deviceScopedAlerts().filter((alert: DashboardAlert) => !alert.acknowledged));
@@ -530,6 +552,81 @@ export class DashboardComponent {
     }
   }
 
+  protected openWifiModal(deviceId?: number): void {
+    const target =
+      (deviceId ? this.uniqueDevices().find((device) => device.id === deviceId) : null) ||
+      this.selectedDevice() ||
+      this.highlightedDevice() ||
+      this.uniqueDevices()[0] ||
+      null;
+    if (!target) {
+      this.toast.warning('Primero registra o selecciona un dispositivo para actualizar su red WiFi.');
+      return;
+    }
+    this.wifiTargetDeviceId.set(target.id);
+    this.wifiSsidInput.set(target.wifiSsid || '');
+    this.wifiPasswordInput.set('');
+    this.wifiModalOpen.set(true);
+  }
+
+  protected closeWifiModal(): void {
+    if (this.wifiModalSaving()) return;
+    this.wifiModalOpen.set(false);
+    this.wifiPasswordInput.set('');
+  }
+
+  protected async submitWifiChange(): Promise<void> {
+    const device = this.wifiCommandDevice();
+    if (!device) {
+      this.toast.error('No se encontró el dispositivo para enviar el cambio de WiFi.');
+      return;
+    }
+    const wifiSsid = this.wifiSsidInput().trim();
+    const wifiPassword = this.wifiPasswordInput();
+    if (!wifiSsid) {
+      this.toast.warning('El SSID es obligatorio.');
+      return;
+    }
+    if (wifiSsid.length > 64) {
+      this.toast.warning('El SSID debe tener máximo 64 caracteres.');
+      return;
+    }
+    if (wifiPassword.length > 64) {
+      this.toast.warning('La contraseña WiFi debe tener máximo 64 caracteres.');
+      return;
+    }
+
+    this.wifiModalSaving.set(true);
+    this.actionMessage.set(`Enviando cambio de WiFi a ${device.name || `Dispositivo #${device.id}`}...`);
+    try {
+      const response = await firstValueFrom(
+        this.api.post<CommandCreateResponse>('/api/commands', {
+          deviceId: device.id,
+          tipo: 'ACTUALIZAR_CONFIG',
+          prioridad: 'ALTA',
+          expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+          payload: {
+            wifiSsid,
+            wifiPassword
+          }
+        })
+      );
+      this.updateDeviceWifiLocally(device.id, wifiSsid);
+      this.actionMessage.set(
+        `Comando #${response.comando?.id || 'nuevo'} enviado. El dispositivo aplicará la red en el próximo ciclo de comandos.`
+      );
+      this.toast.success('Cambio de WiFi enviado al dispositivo.');
+      this.wifiModalOpen.set(false);
+      this.wifiPasswordInput.set('');
+    } catch (error) {
+      const message = resolveErrorMessage(error, 'No fue posible enviar el cambio de red WiFi.');
+      this.actionMessage.set(message);
+      this.toast.error(message);
+    } finally {
+      this.wifiModalSaving.set(false);
+    }
+  }
+
   protected tabBadge(tab: DashboardTab) {
     switch (tab) {
       case 'readings':
@@ -731,6 +828,19 @@ export class DashboardComponent {
     this.ensureSelectedDeviceIsVisible();
     this.notifyCriticalPayload(payload);
     queueMicrotask(() => this.updateDeviceTabsScrollState());
+  }
+
+  private updateDeviceWifiLocally(deviceId: number, wifiSsid: string) {
+    this.registeredDevices.update((devices) =>
+      devices.map((device) => {
+        if (device.id !== deviceId) return device;
+        return {
+          ...device,
+          wifiSsid,
+          wifi_ssid: wifiSsid
+        };
+      })
+    );
   }
 
   private chartReadings() {
