@@ -10,7 +10,7 @@
       "id": "bmp1",
       "top": 207.04,
       "left": 653.06,
-      "attrs": { "pressure": "82250", "temperature": "24" }
+      "attrs": { "pressure": "102000", "temperature": "24" }
     },
     {
       "type": "wokwi-lcd1602",
@@ -24,7 +24,7 @@
       "id": "clk1",
       "top": -19.2,
       "left": 336,
-      "attrs": { "frequency": "20" }
+      "attrs": { "frequency": "4" }
     },
     {
       "type": "wokwi-led",

@@ -4,7 +4,7 @@ const char* ssid     = "Wokwi-GUEST";
 const char* password = "";
 
 #ifndef BACKEND_MODE_VALUE
-#define BACKEND_MODE_VALUE BACKEND_LOCAL
+#define BACKEND_MODE_VALUE BACKEND_PUBLIC
 #endif
 
 #ifndef BACKEND_BASE_URL_LOCAL_VALUE
@@ -47,9 +47,8 @@ const char* password = "";
 #define INGEST_API_KEY_VALUE "wokwi-dev-ingest-key"
 #endif
 
-// En este repo dejamos LOCAL como destino por defecto para facilitar pruebas
-// con backend levantado en host.wokwi.internal. Para Railway, compila con
-// BACKEND_MODE_VALUE=BACKEND_PUBLIC o sobreescribe la macro por build.
+// El despliegue principal usa Railway. Para probar contra un backend local,
+// compila con BACKEND_MODE_VALUE=BACKEND_LOCAL.
 const BackendMode BACKEND_MODE = static_cast<BackendMode>(BACKEND_MODE_VALUE);
 const char* BACKEND_BASE_URL_LOCAL  = BACKEND_BASE_URL_LOCAL_VALUE;
 const char* BACKEND_BASE_URL_PUBLIC = BACKEND_BASE_URL_PUBLIC_VALUE;

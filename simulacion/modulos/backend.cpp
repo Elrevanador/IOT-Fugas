@@ -20,6 +20,32 @@ static unsigned long s_backoffMs = 0;
 static const unsigned long BACKOFF_MAX_MS = 30000;
 static const unsigned long BACKOFF_BASE_MS = 1000;
 
+static bool isUrlUnreserved(char c) {
+  return (c >= 'A' && c <= 'Z') ||
+         (c >= 'a' && c <= 'z') ||
+         (c >= '0' && c <= '9') ||
+         c == '-' || c == '_' || c == '.' || c == '~';
+}
+
+static String urlEncode(const String &value) {
+  const char hex[] = "0123456789ABCDEF";
+  String encoded = "";
+  encoded.reserve(value.length() + 8);
+
+  for (size_t i = 0; i < value.length(); i++) {
+    unsigned char c = (unsigned char)value.charAt(i);
+    if (isUrlUnreserved((char)c)) {
+      encoded += (char)c;
+    } else {
+      encoded += '%';
+      encoded += hex[(c >> 4) & 0x0F];
+      encoded += hex[c & 0x0F];
+    }
+  }
+
+  return encoded;
+}
+
 String backendBaseUrl() {
   return BACKEND_MODE == BACKEND_PUBLIC ? String(BACKEND_BASE_URL_PUBLIC) : String(BACKEND_BASE_URL_LOCAL);
 }
@@ -33,10 +59,10 @@ String backendPendingCommandsUrl() {
   if (DEVICE_ID > 0) {
     url += "deviceId=" + String(DEVICE_ID);
   } else {
-    url += "deviceName=" + String(DEVICE_NAME);
+    url += "deviceName=" + urlEncode(String(DEVICE_NAME));
   }
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
-    url += "&hardwareUid=" + String(DEVICE_HARDWARE_UID);
+    url += "&hardwareUid=" + urlEncode(String(DEVICE_HARDWARE_UID));
   }
   return url;
 }
@@ -162,18 +188,18 @@ void enviarBackend(SystemState &state) {
     appendField("\"houseId\":" + String(HOUSE_ID));
   }
 
-  appendField("\"deviceName\":\"" + String(DEVICE_NAME) + "\"");
+  appendField("\"deviceName\":\"" + escapeJson(String(DEVICE_NAME)) + "\"");
 
   if (String(DEVICE_TYPE).length() > 0) {
-    appendField("\"deviceType\":\"" + String(DEVICE_TYPE) + "\"");
+    appendField("\"deviceType\":\"" + escapeJson(String(DEVICE_TYPE)) + "\"");
   }
 
   if (String(DEVICE_FIRMWARE_VERSION).length() > 0) {
-    appendField("\"firmwareVersion\":\"" + String(DEVICE_FIRMWARE_VERSION) + "\"");
+    appendField("\"firmwareVersion\":\"" + escapeJson(String(DEVICE_FIRMWARE_VERSION)) + "\"");
   }
 
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
-    appendField("\"hardwareUid\":\"" + String(DEVICE_HARDWARE_UID) + "\"");
+    appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
   }
   appendField("\"ipAddress\":\"" + WiFi.localIP().toString() + "\"");
   appendField("\"wifiSsid\":\"" + escapeJson(String(ssid)) + "\"");

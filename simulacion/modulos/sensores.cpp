@@ -3,14 +3,18 @@
 #include "modulos/config.h"
 #include "modulos/sensores.h"
 
+static bool s_bmpDisponible = false;
+
 void initSensores(Adafruit_BMP085 &bmp, SystemState &state) {
   Wire.begin(21, 22);
   Serial.println("I2C OK");
 
   if (!bmp.begin()) {
+    s_bmpDisponible = false;
     state.sensorOK = false;
     Serial.println("Error BMP180");
   } else {
+    s_bmpDisponible = true;
     Serial.println("BMP180 OK");
   }
 
@@ -26,8 +30,6 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sample
     state.flujoRealDetectado = true;
   }
 
-  long presionPa = bmp.readPressure();
-
   float sampleSeconds = sampleIntervalMs / 1000.0f;
   if (sampleSeconds <= 0.0f) {
     sampleSeconds = 1.0f;
@@ -37,10 +39,16 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sample
   float nuevoFlujo = frequencyHz / 7.5;
   float nuevaPresion = 0.0;
 
-  if (presionPa > 0) {
-    nuevaPresion = presionPa / 1000.0;
-    state.sensorOK = true;
+  if (s_bmpDisponible) {
+    long presionPa = bmp.readPressure();
+    if (presionPa > 0) {
+      nuevaPresion = presionPa / 1000.0;
+      state.sensorOK = true;
+    } else {
+      state.sensorOK = false;
+    }
   } else {
+    nuevaPresion = 0.0;
     state.sensorOK = false;
   }
 
