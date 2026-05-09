@@ -11,14 +11,14 @@ enum EstadoSistema {
 };
 
 const float UMBRAL_ALERTA_FLUJO_IN = 1.0;
-const float UMBRAL_ALERTA_PRES_IN  = 101.5;
+const float UMBRAL_ALERTA_PRES_IN  = 250.0;
 const float UMBRAL_CRITICO_FLUJO = 2.2;
-const float UMBRAL_CRITICO_PRES  = 99.0;
+const float UMBRAL_CRITICO_PRES  = 180.0;
 const float UMBRAL_NORMAL_FLUJO_OUT = 0.85;
-const float UMBRAL_NORMAL_PRES_OUT  = 101.0;
-const float PRESION_RECUPERACION_NORMAL = 101.2;
+const float UMBRAL_NORMAL_PRES_OUT  = 280.0;
+const float PRESION_RECUPERACION_NORMAL = 290.0;
 const int LECTURAS_ALERTA_REQUERIDAS   = 1;
-const int LECTURAS_CRITICAS_REQUERIDAS = 2;
+const int LECTURAS_CRITICAS_REQUERIDAS = 1;
 
 String estadoTexto(EstadoSistema estado);
 int calcularRiesgoContinuo(float flujo, float presion, bool sensorOK);

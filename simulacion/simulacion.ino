@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Adafruit_BMP085.h>
 #include <LiquidCrystal_I2C.h>
 
 #include "modulos/config.h"
@@ -24,7 +23,6 @@
 #include "modulos/comandos.cpp"
 
 // ---------------- Objetos ----------------
-Adafruit_BMP085 bmp;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // ---------------- Estado ----------------
@@ -79,9 +77,10 @@ void setup() {
   delay(1500);
   Serial.println();
   Serial.println("Iniciando sistema...");
+  Serial.println("RFC2217 configurado en puerto 4001");
 
   initActuadores();
-  initSensores(bmp, state);
+  initSensores(state);
   initDisplay(lcd, state);
 
   attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, RISING);
@@ -95,7 +94,7 @@ void setup() {
   lastBlink   = millis();
 
   Serial.println("Sistema listo");
-  Serial.println("Comandos seriales: HELP, PING, STATUS, FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
+  Serial.println("Comandos seriales: HELP, PING, STATUS");
 }
 
 // ---------------- Loop ----------------
@@ -106,7 +105,7 @@ void loop() {
 
   if (now - lastMeasure >= SENSOR_READ_INTERVAL_MS) {
     unsigned long sampleIntervalMs = now - lastMeasure;
-    readSensores(bmp, state, sampleIntervalMs);
+    readSensores(state, sampleIntervalMs);
     state.estadoSistema = evaluarEstado(
       state.flujoLmin,
       state.presionKPa,
@@ -115,11 +114,6 @@ void loop() {
       state.contadorCritico,
       state.nivelRiesgo
     );
-
-    // Permite demostrar actuadores y cambios de estado desde monitor serial.
-    if (commandHasForcedState()) {
-      state.estadoSistema = commandForcedState();
-    }
 
     actualizarLCD(lcd, state, lastLCDUpdate);
 

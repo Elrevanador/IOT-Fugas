@@ -1,5 +1,14 @@
 const { Op } = require("sequelize");
-const { sequelize, Device, Reading, Alert, House, Sensor } = require("../models");
+const {
+  sequelize,
+  Device,
+  Reading,
+  Alert,
+  House,
+  Sensor,
+  Electrovalvula,
+  ConfiguracionDeteccion
+} = require("../models");
 const { broadcastDashboardUpdate } = require("../services/dashboardStream");
 const { getUserHouseScope } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
@@ -10,6 +19,36 @@ const logger = require("../utils/logger");
 const FUTURE_TOLERANCE_MS = 5_000;
 const MAX_READINGS_PER_REQUEST = 1000;
 const VALID_STATES = ["NORMAL", "ALERTA", "FUGA", "ERROR"];
+const DEFAULT_DEVICE_SENSORS = [
+  {
+    tipo: "caudal",
+    modelo: "YF-S201 (auto)",
+    unidad: "L/min",
+    rango_min: 0,
+    rango_max: 5
+  },
+  {
+    tipo: "presion",
+    modelo: "Transductor 100 PSI (auto)",
+    unidad: "kPa",
+    rango_min: 0,
+    rango_max: 690
+  },
+  {
+    tipo: "valvula",
+    modelo: "Electrovalvula 12V + rele (auto)",
+    unidad: "estado",
+    rango_min: null,
+    rango_max: null
+  },
+  {
+    tipo: "otro",
+    modelo: "LCD 16x2 I2C (auto)",
+    unidad: "estado",
+    rango_min: null,
+    rango_max: null
+  }
+];
 
 const normalizeTimestamp = (rawTs) => {
   const now = new Date();
@@ -146,6 +185,98 @@ const ensureDevice = async ({
   return device;
 };
 
+const ensureDefaultSensors = async (device, transaction) => {
+  const sensorsByType = {};
+  if (!Sensor?.findOne || !Sensor?.create) {
+    return sensorsByType;
+  }
+
+  for (const spec of DEFAULT_DEVICE_SENSORS) {
+    const where = {
+      device_id: device.id,
+      tipo: spec.tipo
+    };
+    if (spec.tipo === "otro") {
+      where.modelo = spec.modelo;
+    }
+
+    let sensor = await Sensor.findOne({
+      where,
+      order: [
+        ["activo", "DESC"],
+        ["id", "ASC"]
+      ],
+      transaction
+    });
+
+    if (!sensor) {
+      sensor = await Sensor.create(
+        {
+          device_id: device.id,
+          tipo: spec.tipo,
+          modelo: spec.modelo,
+          unidad: spec.unidad,
+          rango_min: spec.rango_min,
+          rango_max: spec.rango_max,
+          activo: true
+        },
+        { transaction }
+      );
+    }
+
+    sensorsByType[spec.tipo === "otro" ? spec.modelo : spec.tipo] = sensor;
+  }
+
+  return sensorsByType;
+};
+
+const normalizeValveState = (rawValue) => {
+  const value = String(rawValue || "").trim().toUpperCase();
+  if (value === "ABIERTA" || value === "OPEN") return "ABIERTA";
+  if (value === "CERRADA" || value === "CLOSED") return "CERRADA";
+  return null;
+};
+
+const ensureDefaultActuators = async (device, { valveState, transaction } = {}) => {
+  if (!Electrovalvula?.findOrCreate) return null;
+
+  const normalizedValveState = normalizeValveState(valveState);
+  const [valvula] = await Electrovalvula.findOrCreate({
+    where: { device_id: device.id },
+    defaults: {
+      device_id: device.id,
+      estado: normalizedValveState || "DESCONOCIDO",
+      modo: "AUTO"
+    },
+    transaction
+  });
+
+  if (normalizedValveState && valvula.estado !== normalizedValveState && valvula.update) {
+    await valvula.update({ estado: normalizedValveState }, { transaction });
+  }
+
+  return valvula;
+};
+
+const ensureDetectionConfig = async (device, transaction) => {
+  if (!ConfiguracionDeteccion?.findOrCreate) return null;
+
+  const [config] = await ConfiguracionDeteccion.findOrCreate({
+    where: { device_id: device.id },
+    defaults: {
+      device_id: device.id,
+      umbral_flow_lmin: 2.0,
+      ventana_minutos: 30,
+      auto_cierre_valvula: true,
+      notificar_email: true,
+      activo: true
+    },
+    transaction
+  });
+
+  return config;
+};
+
 /**
  * Crea una nueva lectura de sensor IoT
  *
@@ -184,6 +315,8 @@ const createReading = async (req, res, next) => {
       ipAddress,
       wifiSsid,
       internetConnected,
+      valveState,
+      valvula,
       sensorId,
       ts,
       flow_lmin,
@@ -264,6 +397,10 @@ const createReading = async (req, res, next) => {
       });
 
       const previousStatus = device.status || "NORMAL";
+      const defaultSensors = await ensureDefaultSensors(device, transaction);
+      await ensureDefaultActuators(device, { valveState: valveState || valvula, transaction });
+      await ensureDetectionConfig(device, transaction);
+      let normalizedSensorId = defaultSensors.caudal?.id || null;
 
       // Validar sensor si se especifica
       if (sensorId !== undefined && sensorId !== null && sensorId !== "") {
@@ -278,6 +415,7 @@ const createReading = async (req, res, next) => {
           error.status = 409;
           throw error;
         }
+        normalizedSensorId = Number(sensorId);
       }
 
       // Crear la lectura
@@ -289,7 +427,7 @@ const createReading = async (req, res, next) => {
           pressure_kpa,
           risk: normalizedRisk,
           state,
-          sensor_id: sensorId ? Number(sensorId) : null
+          sensor_id: normalizedSensorId
         },
         { transaction }
       );
@@ -424,6 +562,12 @@ const listReadings = async (req, res, next) => {
           where: Object.keys(deviceWhere).length ? deviceWhere : undefined,
           required: Object.keys(deviceWhere).length > 0,
           include: [{ model: House, attributes: ["id", "name", "code"], required: false }]
+        },
+        {
+          model: Sensor,
+          as: "sensor",
+          attributes: ["id", "tipo", "modelo", "unidad"],
+          required: false
         }
       ],
       order: [["ts", "DESC"]],

@@ -5,17 +5,45 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <LiquidCrystal_I2C.h>      // puedes cambiar a <LiquidCrystal_PCF8574.h> para quitar el aviso
 #include <Preferences.h>
-#include <Adafruit_BMP085.h>
-#include <LiquidCrystal_I2C.h>
+#include <mbedtls/md.h>            // para HMAC
+#include <esp_task_wdt.h>          // watchdog
 
 // ===================== CONFIGURACION =====================
-// Cambia estos dos valores si vas a cargarlo en un ESP32 fisico.
-const char* ssid     = "Wokwi-GUEST";
-const char* password = "";
-String wifiSsidConfig = ssid;
-String wifiPasswordConfig = password;
-static Preferences wifiPrefs;
+// En producción, las credenciales deben cargarse desde NVS (Preferences).
+// Para pruebas en Wokwi se pueden usar valores por defecto.
+
+// ----------- Modo depuración -----------
+// Comentar esta línea para producción (oculta datos sensibles en Serial)
+#define DEBUG_SERIAL
+
+// ===================== CLAVES DE SEGURIDAD =====================
+// Clave secreta para firmar los payloads enviados al backend (HMAC-SHA256)
+// DEBE ser la misma que el backend utiliza para verificar.
+const char* HMAC_SECRET_KEY = "c0ntraclave-hmac-muy-segura-2024!";
+
+// ===================== TLS =====================
+// Para producción, debes:
+//   1) Definir BACKEND_ROOT_CA_PEM con el certificado raíz de tu servidor.
+//   2) Cambiar BACKEND_ALLOW_INSECURE_TLS a 0.
+// Para desarrollo/Wokwi, puedes dejar ambos con sus valores por defecto.
+#ifndef BACKEND_ROOT_CA_PEM
+#define BACKEND_ROOT_CA_PEM ""
+#endif
+
+#ifndef BACKEND_ALLOW_INSECURE_TLS
+#define BACKEND_ALLOW_INSECURE_TLS 1   // 1 = permite TLS sin verificar (solo desarrollo)
+#endif
+
+// ===================== PARÁMETROS POR DEFECTO (si no hay NVS) =====================
+const char* DEFAULT_SSID     = "Wokwi-GUEST";
+const char* DEFAULT_PASSWORD = "";
+const char* DEFAULT_INGEST_API_KEY = "CAMBIA_ESTA_CLAVE_POR_UNA_NUEVA";
+const char* DEVICE_NAME      = "ESP32-WOKWI-01";
+const char* DEVICE_TYPE      = "ESP32-WOKWI";
+const char* DEVICE_FIRMWARE_VERSION = "sim-1.0.0";
+const char* DEVICE_HARDWARE_UID = "HW-WOKWI-ESP32-01";
 
 enum BackendMode {
   BACKEND_LOCAL = 0,
@@ -26,36 +54,29 @@ const BackendMode BACKEND_MODE = BACKEND_PUBLIC;
 const char* BACKEND_BASE_URL_LOCAL  = "http://host.wokwi.internal:3000";
 const char* BACKEND_BASE_URL_PUBLIC = "https://sistemas-de-deteccion-de-fugas.up.railway.app";
 
-const char* DEVICE_NAME = "ESP32-WOKWI-01";
-const char* DEVICE_TYPE = "ESP32-WOKWI";
-const char* DEVICE_FIRMWARE_VERSION = "sim-1.0.0";
-const char* DEVICE_HARDWARE_UID = "HW-WOKWI-ESP32-01";
-
 const int DEVICE_ID = 0;
 const int HOUSE_ID = 0;
 const int SENSOR_ID = 0;
 
-// Debe ser igual a INGEST_API_KEY en el backend.
-const char* INGEST_API_KEY = "CAMBIA_ESTA_CLAVE_POR_UNA_NUEVA";
-
-const unsigned long SENSOR_READ_INTERVAL_MS = 1000;
+const unsigned long SENSOR_READ_INTERVAL_MS = 500;
 const unsigned long BACKEND_SEND_INTERVAL_MS = 2000;
 const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
-const unsigned long BACKEND_TIMEOUT_MS = 3000;
+const unsigned long BACKEND_TIMEOUT_MS = 500;
 
 const int flowPin    = 27;
+const int pressurePin = 34;
 const int ledVerde   = 2;
 const int ledNaranja = 15;
 const int ledRojo    = 4;
 const int buzzerPin  = 16;
+const int relayPin   = 17;
+const int valveIndicatorPin = 5;
+const int buttonPin  = 13;
 
-#ifndef BACKEND_ALLOW_INSECURE_TLS
-#define BACKEND_ALLOW_INSECURE_TLS 1
-#endif
-
-#ifndef BACKEND_ROOT_CA_PEM
-#define BACKEND_ROOT_CA_PEM ""
-#endif
+const float PRESSURE_SENSOR_MAX_PSI = 100.0f;
+const float PRESSURE_SENSOR_MIN_V = 0.0f;
+const float PRESSURE_SENSOR_MAX_V = 3.3f;
+const float PRESSURE_DIVIDER_FACTOR = 1.0f;
 
 // ===================== ESTADO Y LOGICA =====================
 enum EstadoSistema {
@@ -66,14 +87,14 @@ enum EstadoSistema {
 };
 
 const float UMBRAL_ALERTA_FLUJO_IN = 1.0;
-const float UMBRAL_ALERTA_PRES_IN  = 101.5;
+const float UMBRAL_ALERTA_PRES_IN  = 250.0;
 const float UMBRAL_CRITICO_FLUJO = 2.2;
-const float UMBRAL_CRITICO_PRES  = 99.0;
+const float UMBRAL_CRITICO_PRES  = 180.0;
 const float UMBRAL_NORMAL_FLUJO_OUT = 0.85;
-const float UMBRAL_NORMAL_PRES_OUT  = 101.0;
-const float PRESION_RECUPERACION_NORMAL = 101.2;
+const float UMBRAL_NORMAL_PRES_OUT  = 280.0;
+const float PRESION_RECUPERACION_NORMAL = 290.0;
 const int LECTURAS_ALERTA_REQUERIDAS   = 1;
-const int LECTURAS_CRITICAS_REQUERIDAS = 2;
+const int LECTURAS_CRITICAS_REQUERIDAS = 1;
 
 struct SystemState {
   volatile uint32_t pulseCount = 0;
@@ -96,6 +117,11 @@ struct SystemState {
   EstadoSistema estadoSistema = ESTADO_NORMAL;
 };
 
+// Variables para credenciales cargadas desde NVS
+static String wifiSSID;
+static String wifiPass;
+static String ingestApiKey;
+
 static float limitarFloat(float valor, float minimo, float maximo) {
   if (valor < minimo) return minimo;
   if (valor > maximo) return maximo;
@@ -114,7 +140,7 @@ String estadoTexto(EstadoSistema estado) {
 
 int calcularRiesgoContinuo(float flujo, float presion, bool sensorOK) {
   float scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
-  float scorePres  = limitarFloat((104.0 - presion) / (104.0 - 95.0), 0.0, 1.0);
+  float scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
   float riesgo = (scoreFlujo * 0.55 + scorePres * 0.45) * 100.0;
   if (!sensorOK) return 5;
   return (int)limitarFloat(riesgo, 0.0, 100.0);
@@ -129,23 +155,26 @@ EstadoSistema evaluarEstado(float flujoLmin, float presionKPa, bool sensorOK,
     nivelRiesgo = 5;
     return ESTADO_ERROR;
   }
-  if (presionKPa >= PRESION_RECUPERACION_NORMAL + 0.8f &&
-      flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT + 0.25f) {
+  bool flujoAnomalo = flujoLmin >= UMBRAL_ALERTA_FLUJO_IN;
+  bool flujoCritico = flujoLmin >= UMBRAL_CRITICO_FLUJO;
+  bool presionBaja = presionKPa <= UMBRAL_ALERTA_PRES_IN;
+  bool presionCritica = presionKPa <= UMBRAL_CRITICO_PRES;
+
+  if (presionKPa >= PRESION_RECUPERACION_NORMAL &&
+      flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT) {
     contadorAlerta = 0;
     contadorCritico = 0;
     nivelRiesgo = min(nivelRiesgo, 15);
     return ESTADO_NORMAL;
   }
-  if (presionKPa >= PRESION_RECUPERACION_NORMAL) {
-    contadorAlerta = 0;
-    contadorCritico = 0;
-    nivelRiesgo = min(nivelRiesgo, 20);
-    return ESTADO_NORMAL;
-  }
-  bool condicionCritica = (flujoLmin >= UMBRAL_CRITICO_FLUJO && presionKPa <= UMBRAL_CRITICO_PRES);
+
+  bool condicionCritica =
+    (flujoCritico && presionBaja) ||
+    (flujoAnomalo && presionCritica);
   bool condicionAlerta =
-    (flujoLmin >= UMBRAL_ALERTA_FLUJO_IN && presionKPa <= UMBRAL_ALERTA_PRES_IN) ||
-    (nivelRiesgo >= 45);
+    flujoAnomalo ||
+    presionBaja ||
+    (nivelRiesgo >= 35);
   bool condicionNormal =
     (flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT &&
      presionKPa >= UMBRAL_NORMAL_PRES_OUT &&
@@ -177,8 +206,7 @@ EstadoSistema evaluarEstado(float flujoLmin, float presionKPa, bool sensorOK,
 }
 
 // ===================== OBJETOS Y TEMPORIZADORES =====================
-Adafruit_BMP085 bmp;
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+LiquidCrystal_I2C lcd(0x27, 16, 2);   // o LiquidCrystal_PCF8574 lcd(0x27);
 SystemState state;
 
 unsigned long lastMeasure = 0;
@@ -189,7 +217,7 @@ unsigned long lastLCDUpdate = 0;
 
 // ===================== WIFI / BACKEND =====================
 static unsigned long s_backoffMs = 0;
-static unsigned long s_commandBackoffMs = 0;   // backoff para consulta de comandos
+static unsigned long s_commandBackoffMs = 0;
 static const unsigned long BACKOFF_MAX_MS = 30000;
 static const unsigned long BACKOFF_BASE_MS = 1000;
 
@@ -259,32 +287,10 @@ static String ipLocalTexto() {
   return WiFi.localIP().toString();
 }
 
-static void saveWifiConfig() {
-  wifiPrefs.begin("wifi-config", false);
-  wifiPrefs.putString("ssid", wifiSsidConfig);
-  wifiPrefs.putString("pass", wifiPasswordConfig);
-  wifiPrefs.end();
-}
-
-static void loadWifiConfig() {
-  wifiPrefs.begin("wifi-config", true);
-  String persistedSsid = wifiPrefs.getString("ssid", "");
-  String persistedPass = wifiPrefs.getString("pass", "");
-  wifiPrefs.end();
-  if (persistedSsid.length() > 0) {
-    wifiSsidConfig = persistedSsid;
-    wifiPasswordConfig = persistedPass;
-    Serial.print("WiFi cargado desde NVS: ");
-    Serial.println(wifiSsidConfig);
-  } else {
-    Serial.println("WiFi usando credenciales por defecto.");
-  }
-}
-
 static void conectarWiFi() {
   Serial.print("Conectando a WiFi");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(wifiSsidConfig.c_str(), wifiPasswordConfig.c_str(), 6);
+  WiFi.begin(wifiSSID.c_str(), wifiPass.c_str(), 6);
   int intentos = 0;
   while (WiFi.status() != WL_CONNECTED && intentos < 30) {
     delay(300);
@@ -296,10 +302,12 @@ static void conectarWiFi() {
     Serial.println("WiFi conectado");
     Serial.print("IP: ");
     Serial.println(ipLocalTexto());
+#ifdef DEBUG_SERIAL
     Serial.print("Backend activo (");
     Serial.print(backendModeTexto());
     Serial.print("): ");
     Serial.println(backendReadingsUrl());
+#endif
   } else {
     Serial.println("No se pudo conectar a WiFi");
   }
@@ -314,7 +322,7 @@ bool asegurarWiFi() {
   Serial.println("WiFi caido. Reconectando...");
   WiFi.disconnect(true);
   delay(500);
-  WiFi.begin(wifiSsidConfig.c_str(), wifiPasswordConfig.c_str());
+  WiFi.begin(wifiSSID.c_str(), wifiPass.c_str());
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
     delay(300);
@@ -364,25 +372,45 @@ static String escapeJson(const String &value) {
   return escaped;
 }
 
+// Función para calcular HMAC-SHA256
+static String calcularHMAC(const String &data, const String &key) {
+  byte result[32];
+  mbedtls_md_context_t ctx;
+  mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+  mbedtls_md_init(&ctx);
+  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
+  mbedtls_md_hmac_starts(&ctx, (const unsigned char*)key.c_str(), key.length());
+  mbedtls_md_hmac_update(&ctx, (const unsigned char*)data.c_str(), data.length());
+  mbedtls_md_hmac_finish(&ctx, result);
+  mbedtls_md_free(&ctx);
+
+  char hex[65];
+  for (int i = 0; i < 32; i++) {
+    sprintf(hex + (i * 2), "%02x", result[i]);
+  }
+  return String(hex);
+}
+
 static bool beginBackendHttp(HTTPClient &http, WiFiClient &client,
                              WiFiClientSecure &secureClient, const String &url,
                              SystemState &state) {
   http.setTimeout(BACKEND_TIMEOUT_MS);
   if (backendUsaHttps(url)) {
-#if BACKEND_ALLOW_INSECURE_TLS
-    secureClient.setInsecure();
-#else
-    // Verificación usando sizeof en lugar de <cstring>
-    if (sizeof(BACKEND_ROOT_CA_PEM) - 1 > 0) {
+    // Si se definió un certificado (cadena no vacía) lo usamos
+    if (BACKEND_ROOT_CA_PEM[0] != '\0') {
       secureClient.setCACert(BACKEND_ROOT_CA_PEM);
     } else {
+#if BACKEND_ALLOW_INSECURE_TLS
+      secureClient.setInsecure();
+#else
       state.backendOnline = false;
       state.backendLastCode = -2;
       state.backendLastMsg = "TLS seguro requiere BACKEND_ROOT_CA_PEM";
       Serial.println("TLS seguro habilitado, pero falta BACKEND_ROOT_CA_PEM.");
       return false;
-    }
 #endif
+    }
     return http.begin(secureClient, url);
   }
   return http.begin(client, url);
@@ -401,9 +429,11 @@ void enviarBackend(SystemState &state) {
     static unsigned long lastBackoffAttempt = 0;
     unsigned long now = millis();
     if (now - lastBackoffAttempt < s_backoffMs) {
+#ifdef DEBUG_SERIAL
       Serial.print("Backoff activo: esperando ");
       Serial.print(s_backoffMs);
       Serial.println(" ms antes del siguiente intento.");
+#endif
       return;
     }
     lastBackoffAttempt = now;
@@ -428,7 +458,7 @@ void enviarBackend(SystemState &state) {
   if (String(DEVICE_FIRMWARE_VERSION).length() > 0) appendField("\"firmwareVersion\":\"" + escapeJson(String(DEVICE_FIRMWARE_VERSION)) + "\"");
   if (String(DEVICE_HARDWARE_UID).length() > 0) appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
   appendField("\"ipAddress\":\"" + WiFi.localIP().toString() + "\"");
-  appendField("\"wifiSsid\":\"" + escapeJson(wifiSsidConfig) + "\"");
+  appendField("\"wifiSsid\":\"" + escapeJson(wifiSSID) + "\"");
   appendField("\"internetConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false"));
   if (SENSOR_ID > 0) appendField("\"sensorId\":" + String(SENSOR_ID));
   appendField("\"flow_lmin\":" + String(state.flujoLmin, 2));
@@ -437,9 +467,16 @@ void enviarBackend(SystemState &state) {
   appendField("\"state\":\"" + estadoTexto(state.estadoSistema) + "\"");
   payload += "}";
 
+  String signature = calcularHMAC(payload, HMAC_SECRET_KEY);
+
+#ifdef DEBUG_SERIAL
   Serial.println(">>> Enviando lectura al backend...");
   Serial.println(url);
   Serial.println(payload);
+  Serial.println("Firma: " + signature);
+#else
+  Serial.println("Enviando lectura... (modo silencioso)");
+#endif
 
   if (!beginBackendHttp(http, client, secureClient, url, state)) {
     state.backendOnline = false;
@@ -450,7 +487,8 @@ void enviarBackend(SystemState &state) {
   }
 
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("x-device-key", INGEST_API_KEY);
+  http.addHeader("x-device-key", ingestApiKey);
+  http.addHeader("x-signature", signature);
 
   int httpCode = http.POST(payload);
   state.backendLastCode = httpCode;
@@ -461,8 +499,10 @@ void enviarBackend(SystemState &state) {
     String resp = http.getString();
     state.backendLastMsg = resp.substring(0, 120);
     state.backendOnline = httpCode >= 200 && httpCode < 300;
+#ifdef DEBUG_SERIAL
     Serial.print("Respuesta backend: ");
     Serial.println(resp);
+#endif
     if (state.backendOnline) {
       state.backendEnvios++;
       updateBackoff(true, s_backoffMs);
@@ -479,45 +519,7 @@ void enviarBackend(SystemState &state) {
   http.end();
 }
 
-static bool applyWifiConfigFromPayload(const JsonObjectConst &payload, String &mensaje) {
-  if (payload.isNull()) {
-    mensaje = "ACTUALIZAR_CONFIG sin payload";
-    return false;
-  }
-  String newSsid = "";
-  String newPass = "";
-  if (payload["wifiSsid"].is<const char*>()) newSsid = payload["wifiSsid"].as<String>();
-  else if (payload["wifiSSID"].is<const char*>()) newSsid = payload["wifiSSID"].as<String>();
-  else if (payload["ssid"].is<const char*>()) newSsid = payload["ssid"].as<String>();
-
-  if (payload["wifiPassword"].is<const char*>()) newPass = payload["wifiPassword"].as<String>();
-  else if (payload["password"].is<const char*>()) newPass = payload["password"].as<String>();
-
-  newSsid.trim();
-  newPass.trim();
-  if (newSsid.length() == 0) {
-    mensaje = "ACTUALIZAR_CONFIG sin SSID valido";
-    return false;
-  }
-
-  wifiSsidConfig = newSsid;
-  wifiPasswordConfig = newPass;
-  saveWifiConfig();
-
-  WiFi.disconnect(true);
-  delay(300);
-  conectarWiFi();
-
-  if (wifiConectado()) {
-    mensaje = "WiFi actualizado a " + wifiSsidConfig;
-    return true;
-  }
-
-  mensaje = "WiFi guardado pero no conecto: " + wifiSsidConfig;
-  return false;
-}
-
-static void ejecutarComando(SystemState &state, const String &tipo, const JsonObjectConst &payload, String &codigo, String &mensaje) {
+static void ejecutarComando(SystemState &state, const String &tipo, String &codigo, String &mensaje) {
   codigo = "OK";
   if (tipo == "CERRAR_VALVULA") {
     state.valvulaAbierta = false;
@@ -528,9 +530,7 @@ static void ejecutarComando(SystemState &state, const String &tipo, const JsonOb
   } else if (tipo == "SOLICITAR_ESTADO") {
     mensaje = "Estado reportado desde simulacion";
   } else if (tipo == "ACTUALIZAR_CONFIG") {
-    if (!applyWifiConfigFromPayload(payload, mensaje)) {
-      codigo = "ERROR";
-    }
+    mensaje = "Configuracion recibida por simulacion";
   } else if (tipo == "REINICIAR") {
     mensaje = "Reinicio programado en simulacion";
   } else if (tipo == "OTRO") {
@@ -576,8 +576,11 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
   appendField(responsePayload);
   payload += "}";
 
+  String signature = calcularHMAC(payload, HMAC_SECRET_KEY);
+
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("x-device-key", INGEST_API_KEY);
+  http.addHeader("x-device-key", ingestApiKey);
+  http.addHeader("x-signature", signature);
 
   int httpCode = http.POST(payload);
   Serial.print("Respuesta comando #");
@@ -585,7 +588,9 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
   Serial.print(" HTTP Code: ");
   Serial.println(httpCode);
   if (httpCode > 0) {
+#ifdef DEBUG_SERIAL
     Serial.println(http.getString());
+#endif
   } else {
     Serial.print("Error respondiendo comando: ");
     Serial.println(http.errorToString(httpCode));
@@ -597,14 +602,15 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
 void consultarComandosBackend(SystemState &state) {
   if (!asegurarWiFi()) return;
 
-  // Aplicamos backoff para comandos también
   if (s_commandBackoffMs > 0) {
     static unsigned long lastCommandBackoffAttempt = 0;
     unsigned long now = millis();
     if (now - lastCommandBackoffAttempt < s_commandBackoffMs) {
+#ifdef DEBUG_SERIAL
       Serial.print("Backoff comandos activo: esperando ");
       Serial.print(s_commandBackoffMs);
       Serial.println(" ms.");
+#endif
       return;
     }
     lastCommandBackoffAttempt = now;
@@ -621,7 +627,7 @@ void consultarComandosBackend(SystemState &state) {
     return;
   }
 
-  http.addHeader("x-device-key", INGEST_API_KEY);
+  http.addHeader("x-device-key", ingestApiKey);
 
   int httpCode = http.GET();
   Serial.print("Consulta comandos HTTP Code: ");
@@ -629,7 +635,9 @@ void consultarComandosBackend(SystemState &state) {
 
   if (httpCode < 200 || httpCode >= 300) {
     if (httpCode > 0) {
+#ifdef DEBUG_SERIAL
       Serial.println(http.getString());
+#endif
     } else {
       Serial.print("Error consultando comandos: ");
       Serial.println(http.errorToString(httpCode));
@@ -641,9 +649,8 @@ void consultarComandosBackend(SystemState &state) {
 
   String response = http.getString();
   http.end();
-  updateBackoff(true, s_commandBackoffMs);  // Éxito, reseteamos backoff de comandos
+  updateBackoff(true, s_commandBackoffMs);
 
-  // Corrección: usar StaticJsonDocument para evitar problemas de tipo
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, response);
   if (error) {
@@ -654,7 +661,9 @@ void consultarComandosBackend(SystemState &state) {
 
   JsonArray comandos = doc["comandos"].as<JsonArray>();
   if (comandos.isNull() || comandos.size() == 0) {
+#ifdef DEBUG_SERIAL
     Serial.println("Sin comandos remotos pendientes.");
+#endif
     return;
   }
 
@@ -662,11 +671,10 @@ void consultarComandosBackend(SystemState &state) {
     unsigned long commandId = comando["id"].as<unsigned long>();
     String tipo = comando["tipo"].as<String>();
     if (commandId == 0 || tipo.length() == 0) continue;
-    JsonObjectConst payload = comando["payload"].as<JsonObjectConst>();
 
     String codigo;
     String mensaje;
-    ejecutarComando(state, tipo, payload, codigo, mensaje);
+    ejecutarComando(state, tipo, codigo, mensaje);
     state.comandosBackend++;
     state.ultimoComandoBackend = tipo;
 
@@ -680,29 +688,22 @@ void consultarComandosBackend(SystemState &state) {
     bool responded = responderComandoBackend(state, commandId, codigo, mensaje);
     if (responded && tipo == "REINICIAR" && codigo == "OK") {
       Serial.println("Reiniciando ESP32 por comando remoto...");
-      delay(500);  // Pequeña pausa para asegurar envío de respuesta
+      delay(500);
       ESP.restart();
     }
   }
 }
 
 // ===================== SENSORES =====================
-static bool s_bmpDisponible = false;
-
-void initSensores(Adafruit_BMP085 &bmp, SystemState &state) {
-  Wire.begin(21, 22);  // Ajusta estos pines según tu placa ESP32 (21=SDA,22=SCL por defecto)
-  Serial.println("I2C OK");
-  if (!bmp.begin()) {
-    s_bmpDisponible = false;
-    state.sensorOK = false;
-    Serial.println("Error BMP180");
-  } else {
-    s_bmpDisponible = true;
-    Serial.println("BMP180 OK");
-  }
+void initSensores(SystemState &state) {
+  pinMode(pressurePin, INPUT);
+  analogReadResolution(12);
+  analogSetPinAttenuation(pressurePin, ADC_11db);
+  state.sensorOK = true;
+  Serial.println("Transductor 100 PSI OK");
 }
 
-void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sampleIntervalMs) {
+void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   noInterrupts();
   uint32_t pulses = state.pulseCount;
   state.pulseCount = 0;
@@ -715,25 +716,21 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sample
 
   float frequencyHz = pulses / sampleSeconds;
   float nuevoFlujo = frequencyHz / 7.5;
-  float nuevaPresion = 0.0;
+  int rawPressure = analogRead(pressurePin);
+  float adcVoltage = (rawPressure / 4095.0f) * 3.3f;
+  float sensorVoltage = adcVoltage * PRESSURE_DIVIDER_FACTOR;
+  int pressurePercent = (int)((rawPressure * 100L) / 4095L);
+  float pressureRatio = (sensorVoltage - PRESSURE_SENSOR_MIN_V) /
+                        (PRESSURE_SENSOR_MAX_V - PRESSURE_SENSOR_MIN_V);
+  float pressurePsi = limitarFloat(pressureRatio, 0.0f, 1.0f) * PRESSURE_SENSOR_MAX_PSI;
+  float nuevaPresion = pressurePsi * 6.89476f;
 
-  if (s_bmpDisponible) {
-    long presionPa = bmp.readPressure();
-    if (presionPa > 0) {
-      nuevaPresion = presionPa / 1000.0;
-      state.sensorOK = true;
-    } else {
-      state.sensorOK = false;
-    }
-  } else {
-    nuevaPresion = 0.0;
-    state.sensorOK = false;
-  }
+  state.sensorOK = sensorVoltage >= 0.25f && sensorVoltage <= 4.8f;
 
   if (nuevoFlujo < 0.0) nuevoFlujo = 0.0;
   if (nuevoFlujo > 5.0) nuevoFlujo = 5.0;
   if (nuevaPresion < 0.0) nuevaPresion = 0.0;
-  if (nuevaPresion > 115.0) nuevaPresion = 115.0;
+  if (nuevaPresion > 690.0) nuevaPresion = 690.0;
 
   if (state.primeraLectura) {
     state.flujoLmin = nuevoFlujo;
@@ -742,54 +739,92 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sample
   } else {
     float deltaFlujo = nuevoFlujo - state.flujoLmin;
     float deltaPresion = nuevaPresion - state.presionKPa;
-    float pesoNuevoFlujo = nuevoFlujo < state.flujoLmin ? 0.97f : 0.80f;
-    float pesoNuevoPresion = nuevaPresion > state.presionKPa ? 0.97f : 0.80f;
-    if (deltaPresion >= 1.5f) pesoNuevoPresion = 1.0f;
-    if (deltaFlujo <= -0.8f) pesoNuevoFlujo = 1.0f;
+    float pesoNuevoFlujo = 0.95f;
+    float pesoNuevoPresion = 0.95f;
+    if (abs(deltaPresion) >= 20.0f) pesoNuevoPresion = 1.0f;
+    if (abs(deltaFlujo) >= 0.5f) pesoNuevoFlujo = 1.0f;
     state.flujoLmin = state.flujoLmin * (1.0f - pesoNuevoFlujo) + nuevoFlujo * pesoNuevoFlujo;
     state.presionKPa = state.presionKPa * (1.0f - pesoNuevoPresion) + nuevaPresion * pesoNuevoPresion;
   }
 
+#ifdef DEBUG_SERIAL
   Serial.println("----- LECTURA -----");
   Serial.print("Pulsos: ");               Serial.println(pulses);
+  Serial.print("ADC presion: ");          Serial.println(rawPressure);
+  Serial.print("Pot presion (%): ");      Serial.println(pressurePercent);
+  Serial.print("V transductor: ");        Serial.println(sensorVoltage, 2);
   Serial.print("Flujo real detectado: "); Serial.println(state.flujoRealDetectado ? "SI" : "NO");
   Serial.print("Flujo (L/min): ");        Serial.println(state.flujoLmin, 2);
   Serial.print("Presion (kPa): ");        Serial.println(state.presionKPa, 2);
   Serial.print("Sensor OK: ");            Serial.println(state.sensorOK ? "SI" : "NO");
+#endif
 }
 
-// ===================== ACTUADORES =====================
-static const int buzzerChannel = 0; // canal fijo para el buzzer
-
 static void apagarBuzzer() {
-  ledcWrite(buzzerChannel, 0);
+  ledcWrite(buzzerPin, 0);
 }
 
 static void encenderBuzzerContinuo() {
-  ledcWrite(buzzerChannel, 128);
+  ledcWrite(buzzerPin, 128);
 }
 
 void initActuadores() {
   pinMode(flowPin, INPUT_PULLUP);
+  pinMode(buttonPin, INPUT_PULLUP);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledNaranja, OUTPUT);
   pinMode(ledRojo, OUTPUT);
+  pinMode(relayPin, OUTPUT);
+  pinMode(valveIndicatorPin, OUTPUT);
 
   digitalWrite(ledVerde, LOW);
   digitalWrite(ledNaranja, LOW);
   digitalWrite(ledRojo, LOW);
+  digitalWrite(relayPin, LOW);
+  digitalWrite(valveIndicatorPin, LOW);
 
   const int buzzerFreq = 1500;
   const int buzzerResolution = 8;
 
-  // Configuración del buzzer mediante la API estándar
-  ledcSetup(buzzerChannel, buzzerFreq, buzzerResolution);
-  ledcAttachPin(buzzerPin, buzzerChannel);
-  ledcWrite(buzzerChannel, 0);
-  Serial.println("Buzzer OK");
+  if (!ledcAttach(buzzerPin, buzzerFreq, buzzerResolution)) {
+    Serial.println("Error al configurar buzzer");
+  } else {
+    Serial.println("Buzzer OK");
+  }
+  ledcWrite(buzzerPin, 0);
+}
+
+static void leerPulsadorValvula(SystemState &state) {
+  static bool lastButtonState = HIGH;
+  static unsigned long lastDebounce = 0;
+
+  bool reading = digitalRead(buttonPin);
+  if (reading != lastButtonState) {
+    lastDebounce = millis();
+    lastButtonState = reading;
+  }
+
+  if (reading == LOW && millis() - lastDebounce > 60) {
+    state.valvulaAbierta = !state.valvulaAbierta;
+    Serial.print("Pulsador: valvula ");
+    Serial.println(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
+    while (digitalRead(buttonPin) == LOW) {
+      delay(5);
+    }
+    lastButtonState = HIGH;
+  }
 }
 
 void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
+  leerPulsadorValvula(state);
+
+  if (state.estadoSistema == ESTADO_FUGA) {
+    state.valvulaAbierta = false;
+  }
+
+  digitalWrite(relayPin, state.valvulaAbierta ? HIGH : LOW);
+  digitalWrite(valveIndicatorPin, state.valvulaAbierta ? HIGH : LOW);
+
   switch (state.estadoSistema) {
     case ESTADO_NORMAL:
       apagarBuzzer();
@@ -840,7 +875,7 @@ void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state) {
   if (!state.sensorOK) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Error BMP180");
+    lcd.print("Error presion");
   }
   Serial.println("LCD OK");
 }
@@ -848,13 +883,21 @@ void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state) {
 void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned long &lastLCDUpdate) {
   static int ultimoEstado = -1;
   static int ultimoRiesgo = -1;
+  static int ultimoFlujo10 = -1;
+  static int ultimaPresion = -1;
+  int flujo10 = (int)(state.flujoLmin * 10.0f);
+  int presion = (int)(state.presionKPa + 0.5f);
   if ((int)state.estadoSistema == ultimoEstado &&
       state.nivelRiesgo == ultimoRiesgo &&
-      millis() - lastLCDUpdate < 1500) {
+      flujo10 == ultimoFlujo10 &&
+      presion == ultimaPresion &&
+      millis() - lastLCDUpdate < 500) {
     return;
   }
   ultimoEstado = (int)state.estadoSistema;
   ultimoRiesgo = state.nivelRiesgo;
+  ultimoFlujo10 = flujo10;
+  ultimaPresion = presion;
   lastLCDUpdate = millis();
   lcd.clear();
 
@@ -888,7 +931,7 @@ void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned lo
       lcd.setCursor(0, 0);
       lcd.print("ERROR SENSOR");
       lcd.setCursor(0, 1);
-      lcd.print("Verifique BMP180");
+      lcd.print("Verif transduc");
       break;
   }
 }
@@ -906,19 +949,6 @@ static bool parseForcedState(const String &rawState, EstadoSistema &outState) {
   return false;
 }
 
-static bool parseWifiCommand(const String &cmd, String &outSsid, String &outPass) {
-  // Formato: WIFI <SSID>|<PASSWORD>
-  if (!cmd.startsWith("WIFI ")) return false;
-  String body = cmd.substring(5);
-  int sep = body.indexOf('|');
-  if (sep <= 0) return false;
-  outSsid = body.substring(0, sep);
-  outPass = body.substring(sep + 1);
-  outSsid.trim();
-  outPass.trim();
-  return outSsid.length() > 0;
-}
-
 bool commandHasForcedState() {
   return forcedStateEnabled;
 }
@@ -931,15 +961,13 @@ void handleCommands(SystemState &state) {
   if (Serial.available()) {
     pendingCommand = Serial.readStringUntil('\n');
     pendingCommand.trim();
+    pendingCommand.toUpperCase();
   }
   if (pendingCommand.length() == 0) return;
-  String rawCommand = pendingCommand;
-  String command = pendingCommand;
-  command.toUpperCase();
 
-  if (command == "PING") {
+  if (pendingCommand == "PING") {
     Serial.println("CMD:PONG");
-  } else if (command == "STATUS") {
+  } else if (pendingCommand == "STATUS") {
     Serial.print("CMD:STATUS ");
     Serial.print(estadoTexto(state.estadoSistema));
     Serial.print(" R=");
@@ -952,36 +980,10 @@ void handleCommands(SystemState &state) {
     Serial.print(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
     Serial.print(" CMD=");
     Serial.println(state.ultimoComandoBackend);
-  } else if (command == "WIFI?") {
-    Serial.print("CMD:WIFI SSID=");
-    Serial.print(wifiSsidConfig);
-    Serial.print(" PASS_LEN=");
-    Serial.println(wifiPasswordConfig.length());
-  } else if (command.startsWith("WIFI ")) {
-    String newSsid;
-    String newPass;
-    if (parseWifiCommand(rawCommand, newSsid, newPass)) {
-      wifiSsidConfig = newSsid;
-      wifiPasswordConfig = newPass;
-      saveWifiConfig();
-      Serial.print("CMD:WIFI_UPDATE SSID=");
-      Serial.println(wifiSsidConfig);
-      Serial.println("Aplicando nueva red WiFi...");
-      WiFi.disconnect(true);
-      delay(300);
-      conectarWiFi();
-      if (wifiConectado()) {
-        Serial.println("CMD:WIFI_CONNECTED");
-      } else {
-        Serial.println("CMD:WIFI_CONNECT_FAILED");
-      }
-    } else {
-      Serial.println("CMD:WIFI_FORMAT_INVALID Usa: WIFI <SSID>|<PASSWORD>");
-    }
-  } else if (command == "HELP") {
-    Serial.println("CMD:HELP PING | STATUS | WIFI? | WIFI <SSID>|<PASSWORD> | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
-  } else if (command.startsWith("FORCE ")) {
-    String arg = command.substring(6);
+  } else if (pendingCommand == "HELP") {
+    Serial.println("CMD:HELP PING | STATUS | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
+  } else if (pendingCommand.startsWith("FORCE ")) {
+    String arg = pendingCommand.substring(6);
     arg.trim();
     if (arg == "AUTO") {
       forcedStateEnabled = false;
@@ -1003,7 +1005,8 @@ void handleCommands(SystemState &state) {
   pendingCommand = "";
 }
 
-// ===================== SERIAL JSON =====================
+// ===================== SERIAL JSON (solo depuración) =====================
+#ifdef DEBUG_SERIAL
 static void printJsonEstado(const SystemState &s) {
   Serial.print("{\"device\":\"");
   Serial.print(DEVICE_NAME);
@@ -1027,6 +1030,9 @@ static void printJsonEstado(const SystemState &s) {
   Serial.print(s.comandosBackend);
   Serial.println("}");
 }
+#else
+static void printJsonEstado(const SystemState &s) {}
+#endif
 
 // ===================== INTERRUPCION / SETUP / LOOP =====================
 void IRAM_ATTR onPulse() {
@@ -1038,10 +1044,29 @@ void setup() {
   delay(1500);
   Serial.println();
   Serial.println("Iniciando sistema...");
-  loadWifiConfig();
+  Serial.println("RFC2217 configurado en puerto 4001");
+
+  Preferences pref;
+  pref.begin("creds", true);
+  wifiSSID = pref.getString("ssid", DEFAULT_SSID);
+  wifiPass = pref.getString("pass", DEFAULT_PASSWORD);
+  ingestApiKey = DEFAULT_INGEST_API_KEY;
+  pref.end();
+
+#ifdef DEBUG_SERIAL
+  Serial.println("Credenciales cargadas desde NVS o defaults.");
+#endif
+
+  const esp_task_wdt_config_t wdtConfig = {
+    .timeout_ms = 10000,
+    .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
+    .trigger_panic = true
+  };
+  esp_task_wdt_init(&wdtConfig);
+  esp_task_wdt_add(NULL);
 
   initActuadores();
-  initSensores(bmp, state);
+  initSensores(state);
   initDisplay(lcd, state);
 
   attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, RISING);
@@ -1060,12 +1085,13 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+  esp_task_wdt_reset();
 
   handleCommands(state);
 
   if (now - lastMeasure >= SENSOR_READ_INTERVAL_MS) {
     unsigned long sampleIntervalMs = now - lastMeasure;
-    readSensores(bmp, state, sampleIntervalMs);
+    readSensores(state, sampleIntervalMs);
     state.estadoSistema = evaluarEstado(
       state.flujoLmin,
       state.presionKPa,
@@ -1081,12 +1107,14 @@ void loop() {
 
     actualizarLCD(lcd, state, lastLCDUpdate);
 
+#ifdef DEBUG_SERIAL
     Serial.print("Estado: ");       Serial.println(estadoTexto(state.estadoSistema));
     Serial.print("Nivel riesgo: "); Serial.println(state.nivelRiesgo);
     Serial.print("Cnt alerta: ");   Serial.println(state.contadorAlerta);
     Serial.print("Cnt critico: ");  Serial.println(state.contadorCritico);
     printJsonEstado(state);
     Serial.println();
+#endif
 
     lastMeasure = now;
   }

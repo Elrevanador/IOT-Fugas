@@ -1149,6 +1149,80 @@ pre {
   font-size: 0.75rem;
 }
 
+.wifi-scan-panel {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.wifi-scan-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.wifi-scan-panel__header span {
+  color: var(--dash-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.wifi-scan-panel small {
+  color: var(--dash-muted);
+}
+
+.wifi-network-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 13rem;
+  overflow: auto;
+}
+
+.wifi-network-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 9px;
+  background: #0b1220;
+  color: var(--dash-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.wifi-network-item:hover {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.12);
+}
+
+.wifi-network-item span {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.wifi-network-item strong,
+.wifi-network-item small {
+  overflow-wrap: anywhere;
+}
+
+.wifi-network-item em {
+  flex: 0 0 auto;
+  color: #99f6e4;
+  font-style: normal;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .wifi-modal-form__actions {
   display: flex;
   justify-content: flex-end;

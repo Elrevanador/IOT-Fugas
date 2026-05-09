@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiBaseUrl: ''
+  apiBaseUrl: 'https://sistemas-de-deteccion-de-fugas.up.railway.app'
 };

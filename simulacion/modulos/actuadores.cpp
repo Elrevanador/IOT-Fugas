@@ -12,13 +12,18 @@ static void encenderBuzzerContinuo() {
 
 void initActuadores() {
   pinMode(flowPin, INPUT_PULLUP);
+  pinMode(buttonPin, INPUT_PULLUP);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledNaranja, OUTPUT);
   pinMode(ledRojo, OUTPUT);
+  pinMode(relayPin, OUTPUT);
+  pinMode(valveIndicatorPin, OUTPUT);
 
   digitalWrite(ledVerde, LOW);
   digitalWrite(ledNaranja, LOW);
   digitalWrite(ledRojo, LOW);
+  digitalWrite(relayPin, LOW);
+  digitalWrite(valveIndicatorPin, LOW);
 
   const int buzzerFreq = 1500;
   const int buzzerResolution = 8;
@@ -31,7 +36,37 @@ void initActuadores() {
   ledcWrite(buzzerPin, 0);
 }
 
+static void leerPulsadorValvula(SystemState &state) {
+  static bool lastReading = HIGH;
+  static bool stableButtonState = HIGH;
+  static unsigned long lastDebounce = 0;
+
+  bool reading = digitalRead(buttonPin);
+  if (reading != lastReading) {
+    lastDebounce = millis();
+    lastReading = reading;
+  }
+
+  if (millis() - lastDebounce > 60 && reading != stableButtonState) {
+    stableButtonState = reading;
+    if (stableButtonState == LOW) {
+      state.valvulaAbierta = !state.valvulaAbierta;
+      Serial.print("Pulsador: valvula ");
+      Serial.println(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
+    }
+  }
+}
+
 void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
+  leerPulsadorValvula(state);
+
+  if (state.estadoSistema == ESTADO_FUGA) {
+    state.valvulaAbierta = false;
+  }
+
+  digitalWrite(relayPin, state.valvulaAbierta ? HIGH : LOW);
+  digitalWrite(valveIndicatorPin, state.valvulaAbierta ? HIGH : LOW);
+
   switch (state.estadoSistema) {
     case ESTADO_NORMAL:
       apagarBuzzer();

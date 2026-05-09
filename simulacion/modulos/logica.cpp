@@ -19,7 +19,7 @@ String estadoTexto(EstadoSistema estado) {
 
 int calcularRiesgoContinuo(float flujo, float presion, bool sensorOK) {
   float scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
-  float scorePres  = limitarFloat((104.0 - presion) / (104.0 - 95.0), 0.0, 1.0);
+  float scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
 
   float riesgo = (scoreFlujo * 0.55 + scorePres * 0.45) * 100.0;
 
@@ -44,29 +44,28 @@ EstadoSistema evaluarEstado(
     return ESTADO_ERROR;
   }
 
-  // Recuperacion rapida: si la presion ya regreso claramente y el flujo no luce
-  // anomalo, soltamos la alerta sin esperar a que los contadores se descarguen.
-  if (presionKPa >= PRESION_RECUPERACION_NORMAL + 0.8f &&
-      flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT + 0.25f) {
+  bool flujoAnomalo = flujoLmin >= UMBRAL_ALERTA_FLUJO_IN;
+  bool flujoCritico = flujoLmin >= UMBRAL_CRITICO_FLUJO;
+  bool presionBaja = presionKPa <= UMBRAL_ALERTA_PRES_IN;
+  bool presionCritica = presionKPa <= UMBRAL_CRITICO_PRES;
+
+  // Recuperacion rapida: solo volvemos a NORMAL cuando presion y flujo estan sanos.
+  if (presionKPa >= PRESION_RECUPERACION_NORMAL &&
+      flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT) {
     contadorAlerta = 0;
     contadorCritico = 0;
     nivelRiesgo = min(nivelRiesgo, 15);
     return ESTADO_NORMAL;
   }
 
-  if (presionKPa >= PRESION_RECUPERACION_NORMAL) {
-    contadorAlerta = 0;
-    contadorCritico = 0;
-    nivelRiesgo = min(nivelRiesgo, 20);
-    return ESTADO_NORMAL;
-  }
-
   bool condicionCritica =
-    (flujoLmin >= UMBRAL_CRITICO_FLUJO && presionKPa <= UMBRAL_CRITICO_PRES);
+    (flujoCritico && presionBaja) ||
+    (flujoAnomalo && presionCritica);
 
   bool condicionAlerta =
-    (flujoLmin >= UMBRAL_ALERTA_FLUJO_IN && presionKPa <= UMBRAL_ALERTA_PRES_IN) ||
-    (nivelRiesgo >= 45);
+    flujoAnomalo ||
+    presionBaja ||
+    (nivelRiesgo >= 35);
 
   bool condicionNormal =
     (flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT &&

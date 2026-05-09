@@ -66,6 +66,24 @@ type CommandCreateResponse = {
     estado: string;
   };
 };
+type WifiNetwork = {
+  ssid: string;
+  rssi: number;
+  channel?: number;
+  secure?: boolean;
+  security?: string;
+};
+type CommandResponseItem = {
+  id: number;
+  comando_id: number;
+  codigo_resultado: string;
+  mensaje?: string | null;
+  payload?: {
+    networks?: WifiNetwork[];
+    count?: number;
+    currentSsid?: string;
+  } | null;
+};
 
 @Component({
   selector: 'app-dashboard',
@@ -108,6 +126,9 @@ export class DashboardComponent {
   readonly devicesUiCollapsed = signal(this.restoreDevicesUiCollapsed());
   readonly wifiModalOpen = signal(false);
   readonly wifiModalSaving = signal(false);
+  readonly wifiScanLoading = signal(false);
+  readonly wifiScanMessage = signal('');
+  readonly wifiNetworks = signal<WifiNetwork[]>([]);
   readonly wifiTargetDeviceId = signal<number | null>(null);
   readonly wifiSsidInput = signal('');
   readonly wifiPasswordInput = signal('');
@@ -566,13 +587,65 @@ export class DashboardComponent {
     this.wifiTargetDeviceId.set(target.id);
     this.wifiSsidInput.set(target.wifiSsid || '');
     this.wifiPasswordInput.set('');
+    this.wifiNetworks.set([]);
+    this.wifiScanMessage.set('');
     this.wifiModalOpen.set(true);
   }
 
   protected closeWifiModal(): void {
-    if (this.wifiModalSaving()) return;
+    if (this.wifiModalSaving() || this.wifiScanLoading()) return;
     this.wifiModalOpen.set(false);
     this.wifiPasswordInput.set('');
+    this.wifiScanMessage.set('');
+  }
+
+  protected async scanWifiNetworks(): Promise<void> {
+    const device = this.wifiCommandDevice();
+    if (!device) {
+      this.toast.warning('Selecciona un dispositivo para buscar redes.');
+      return;
+    }
+
+    this.wifiScanLoading.set(true);
+    this.wifiScanMessage.set('Solicitando escaneo al dispositivo...');
+    this.wifiNetworks.set([]);
+
+    try {
+      const command = await firstValueFrom(
+        this.api.post<CommandCreateResponse>('/api/commands', {
+          deviceId: device.id,
+          tipo: 'ESCANEAR_WIFI',
+          prioridad: 'ALTA',
+          expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+          payload: {}
+        })
+      );
+      const commandId = command.comando?.id;
+      if (!commandId) {
+        throw new Error('El backend no devolvió el ID del comando.');
+      }
+
+      this.wifiScanMessage.set(`Escaneo #${commandId} en espera del dispositivo...`);
+      const response = await this.waitForWifiScanResponse(commandId);
+      const networks = (response.payload?.networks || [])
+        .filter((network) => network.ssid)
+        .sort((a, b) => Number(b.rssi || -999) - Number(a.rssi || -999));
+
+      this.wifiNetworks.set(networks);
+      this.wifiScanMessage.set(
+        networks.length ? `${networks.length} redes encontradas.` : 'El dispositivo no reportó redes cercanas.'
+      );
+    } catch (error) {
+      const message = resolveErrorMessage(error, 'No fue posible escanear redes WiFi.');
+      this.wifiScanMessage.set(message);
+      this.toast.error(message);
+    } finally {
+      this.wifiScanLoading.set(false);
+    }
+  }
+
+  protected selectWifiNetwork(network: WifiNetwork): void {
+    this.wifiSsidInput.set(network.ssid);
   }
 
   protected async submitWifiChange(): Promise<void> {
@@ -625,6 +698,25 @@ export class DashboardComponent {
     } finally {
       this.wifiModalSaving.set(false);
     }
+  }
+
+  private async waitForWifiScanResponse(commandId: number): Promise<CommandResponseItem> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      if (attempt > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1800));
+      }
+
+      const response = await firstValueFrom(
+        this.api.get<{ ok: boolean; respuestas: CommandResponseItem[] }>('/api/commands/responses', {
+          commandId,
+          limit: 1
+        })
+      );
+      const item = response.respuestas?.[0];
+      if (item) return item;
+    }
+
+    throw new Error('El dispositivo aún no respondió el escaneo WiFi.');
   }
 
   protected tabBadge(tab: DashboardTab) {

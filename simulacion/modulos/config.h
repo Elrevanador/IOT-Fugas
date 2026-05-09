@@ -28,9 +28,19 @@ extern const unsigned long BACKEND_TIMEOUT_MS;
 
 // ---------------- Pines ----------------
 extern const int flowPin;
+extern const int flowControlPin;
+extern const int pressurePin;
 extern const int ledVerde;
 extern const int ledNaranja;
 extern const int ledRojo;
 extern const int buzzerPin;
+extern const int relayPin;
+extern const int valveIndicatorPin;
+extern const int buttonPin;
+
+extern const float PRESSURE_SENSOR_MAX_PSI;
+extern const float PRESSURE_SENSOR_MIN_V;
+extern const float PRESSURE_SENSOR_MAX_V;
+extern const float PRESSURE_DIVIDER_FACTOR;
 
 #endif

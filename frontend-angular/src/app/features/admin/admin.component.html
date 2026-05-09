@@ -410,7 +410,13 @@
                   @for (reading of paginatedReadings(); track reading.id) {
                     <tr>
                       <td>{{ reading.ts | date:'short' }}</td>
-                      <td><strong>{{ reading.Device?.name || deviceName(reading.device_id) }}</strong><small>Sensor {{ reading.sensor_id || 'n/d' }}</small></td>
+                      <td>
+                        <strong>{{ reading.Device?.name || deviceName(reading.device_id) }}</strong>
+                        <small>
+                          {{ reading.sensor?.tipo || 'Sensor' }}
+                          {{ reading.sensor?.modelo || (reading.sensor_id ? '#' + reading.sensor_id : 'n/d') }}
+                        </small>
+                      </td>
                       <td>{{ reading.flow_lmin }} L/min</td>
                       <td>{{ reading.pressure_kpa }} kPa</td>
                       <td>{{ reading.risk }}%</td>
@@ -1121,7 +1127,7 @@
         </label>
         <label>
           <span>Tipo</span>
-          <select formControlName="tipo"><option value="CERRAR_VALVULA">CERRAR_VALVULA</option><option value="ABRIR_VALVULA">ABRIR_VALVULA</option><option value="ACTUALIZAR_CONFIG">ACTUALIZAR_CONFIG</option><option value="REINICIAR">REINICIAR</option><option value="SOLICITAR_ESTADO">SOLICITAR_ESTADO</option><option value="OTRO">OTRO</option></select>
+          <select formControlName="tipo"><option value="CERRAR_VALVULA">CERRAR_VALVULA</option><option value="ABRIR_VALVULA">ABRIR_VALVULA</option><option value="ACTUALIZAR_CONFIG">ACTUALIZAR_CONFIG</option><option value="ESCANEAR_WIFI">ESCANEAR_WIFI</option><option value="REINICIAR">REINICIAR</option><option value="SOLICITAR_ESTADO">SOLICITAR_ESTADO</option><option value="OTRO">OTRO</option></select>
           @if (fieldError(commandForm, 'tipo', 'Tipo'); as error) { <small class="field-error">{{ error }}</small> }
         </label>
         <label>

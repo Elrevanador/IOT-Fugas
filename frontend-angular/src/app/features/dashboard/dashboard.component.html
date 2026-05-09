@@ -540,6 +540,31 @@
       />
     </label>
 
+    <div class="wifi-scan-panel">
+      <div class="wifi-scan-panel__header">
+        <span>Redes cercanas</span>
+        <button type="button" class="wifi-modal-form__ghost" (click)="scanWifiNetworks()" [disabled]="wifiScanLoading() || !wifiCommandDevice()">
+          {{ wifiScanLoading() ? 'Buscando...' : 'Buscar redes' }}
+        </button>
+      </div>
+      @if (wifiScanMessage()) {
+        <small>{{ wifiScanMessage() }}</small>
+      }
+      @if (wifiNetworks().length) {
+        <div class="wifi-network-list">
+          @for (network of wifiNetworks(); track network.ssid + '-' + network.channel) {
+            <button type="button" class="wifi-network-item" (click)="selectWifiNetwork(network)">
+              <span>
+                <strong>{{ network.ssid }}</strong>
+                <small>{{ network.security || (network.secure ? 'Segura' : 'Abierta') }} · Canal {{ network.channel || 'n/d' }}</small>
+              </span>
+              <em>{{ network.rssi }} dBm</em>
+            </button>
+          }
+        </div>
+      }
+    </div>
+
     <label class="wifi-modal-form__field">
       <span>Contraseña</span>
       <input

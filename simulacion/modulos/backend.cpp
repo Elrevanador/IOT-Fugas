@@ -1,3 +1,4 @@
+#include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -213,6 +214,7 @@ void enviarBackend(SystemState &state) {
   appendField("\"pressure_kpa\":" + String(state.presionKPa, 2));
   appendField("\"risk\":" + String(state.nivelRiesgo));
   appendField("\"state\":\"" + estadoTexto(state.estadoSistema) + "\"");
+  appendField("\"valveState\":\"" + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"");
   payload += "}";
 
   Serial.println(">>> Enviando lectura al backend...");
@@ -275,8 +277,51 @@ void enviarBackend(SystemState &state) {
   http.end();
 }
 
-static void ejecutarComando(SystemState &state, const String &tipo, String &codigo, String &mensaje) {
+static String seguridadWifiTexto(wifi_auth_mode_t encryptionType) {
+  switch (encryptionType) {
+    case WIFI_AUTH_OPEN: return "OPEN";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-ENT";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3";
+    default: return "UNKNOWN";
+  }
+}
+
+static String construirPayloadEscaneoWifi() {
+  int total = WiFi.scanNetworks(false, true);
+  String payload = "\"payload\":{\"networks\":[";
+
+  if (total > 0) {
+    int limit = min(total, 12);
+    for (int i = 0; i < limit; i++) {
+      if (i > 0) {
+        payload += ",";
+      }
+      wifi_auth_mode_t encryptionType = WiFi.encryptionType(i);
+      payload += "{";
+      payload += "\"ssid\":\"" + escapeJson(WiFi.SSID(i)) + "\"";
+      payload += ",\"rssi\":" + String(WiFi.RSSI(i));
+      payload += ",\"channel\":" + String(WiFi.channel(i));
+      payload += ",\"secure\":" + String(encryptionType == WIFI_AUTH_OPEN ? "false" : "true");
+      payload += ",\"security\":\"" + seguridadWifiTexto(encryptionType) + "\"";
+      payload += "}";
+    }
+  }
+
+  payload += "],\"count\":" + String(max(total, 0));
+  payload += ",\"currentSsid\":\"" + escapeJson(String(ssid)) + "\"";
+  payload += "}";
+  WiFi.scanDelete();
+  return payload;
+}
+
+static void ejecutarComando(SystemState &state, const String &tipo, String &codigo, String &mensaje, String &payloadJson) {
   codigo = "OK";
+  payloadJson = "";
 
   if (tipo == "CERRAR_VALVULA") {
     state.valvulaAbierta = false;
@@ -288,6 +333,9 @@ static void ejecutarComando(SystemState &state, const String &tipo, String &codi
     mensaje = "Estado reportado desde simulacion";
   } else if (tipo == "ACTUALIZAR_CONFIG") {
     mensaje = "Configuracion recibida por simulacion";
+  } else if (tipo == "ESCANEAR_WIFI") {
+    mensaje = "Escaneo WiFi completado en simulacion";
+    payloadJson = construirPayloadEscaneoWifi();
   } else if (tipo == "REINICIAR") {
     mensaje = "Reinicio programado en simulacion";
   } else if (tipo == "OTRO") {
@@ -298,7 +346,7 @@ static void ejecutarComando(SystemState &state, const String &tipo, String &codi
   }
 }
 
-static bool responderComandoBackend(SystemState &state, unsigned long commandId, const String &codigo, const String &mensaje) {
+static bool responderComandoBackend(SystemState &state, unsigned long commandId, const String &codigo, const String &mensaje, const String &payloadJson) {
   WiFiClient client;
   WiFiClientSecure secureClient;
   HTTPClient http;
@@ -329,13 +377,17 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
   }
   appendField("\"codigoResultado\":\"" + escapeJson(codigo) + "\"");
   appendField("\"mensaje\":\"" + escapeJson(mensaje) + "\"");
-  String responsePayload = "\"payload\":{";
-  responsePayload += "\"state\":\"" + String(estadoTexto(state.estadoSistema)) + "\"";
-  responsePayload += ",\"risk\":" + String(state.nivelRiesgo);
-  responsePayload += ",\"valvula\":\"" + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"";
-  responsePayload += ",\"backendEnvios\":" + String(state.backendEnvios);
-  responsePayload += "}";
-  appendField(responsePayload);
+  if (payloadJson.length() > 0) {
+    appendField(payloadJson);
+  } else {
+    String responsePayload = "\"payload\":{";
+    responsePayload += "\"state\":\"" + String(estadoTexto(state.estadoSistema)) + "\"";
+    responsePayload += ",\"risk\":" + String(state.nivelRiesgo);
+    responsePayload += ",\"valvula\":\"" + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"";
+    responsePayload += ",\"backendEnvios\":" + String(state.backendEnvios);
+    responsePayload += "}";
+    appendField(responsePayload);
+  }
   payload += "}";
 
   http.addHeader("Content-Type", "application/json");
@@ -416,7 +468,8 @@ void consultarComandosBackend(SystemState &state) {
 
     String codigo;
     String mensaje;
-    ejecutarComando(state, tipo, codigo, mensaje);
+    String payloadJson;
+    ejecutarComando(state, tipo, codigo, mensaje, payloadJson);
     state.comandosBackend++;
     state.ultimoComandoBackend = tipo;
 
@@ -427,7 +480,7 @@ void consultarComandosBackend(SystemState &state) {
     Serial.print(" -> ");
     Serial.println(mensaje);
 
-    bool responded = responderComandoBackend(state, commandId, codigo, mensaje);
+    bool responded = responderComandoBackend(state, commandId, codigo, mensaje, payloadJson);
     if (responded && tipo == "REINICIAR" && codigo == "OK") {
       Serial.println("Reiniciando ESP32 por comando remoto...");
       delay(250);

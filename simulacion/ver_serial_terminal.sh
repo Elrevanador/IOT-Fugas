@@ -2,7 +2,7 @@
 set -euo pipefail
 
 HOST="${1:-127.0.0.1}"
-PORT="${2:-4000}"
+PORT="${2:-4001}"
 BAUD="${3:-115200}"
 
 if ! command -v nc >/dev/null 2>&1; then

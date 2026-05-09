@@ -4,7 +4,5 @@
 #include "modulos/estado.h"
 
 void handleCommands(SystemState &state);
-bool commandHasForcedState();
-EstadoSistema commandForcedState();
 
 #endif

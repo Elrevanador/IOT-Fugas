@@ -12,7 +12,7 @@ void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state) {
   if (!state.sensorOK) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Error BMP180");
+    lcd.print("Error presion");
   }
 
   Serial.println("LCD OK");
@@ -21,15 +21,23 @@ void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state) {
 void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned long &lastLCDUpdate) {
   static int ultimoEstado = -1;
   static int ultimoRiesgo = -1;
+  static int ultimoFlujo10 = -1;
+  static int ultimaPresion = -1;
+  int flujo10 = (int)(state.flujoLmin * 10.0f);
+  int presion = (int)(state.presionKPa + 0.5f);
 
   if ((int)state.estadoSistema == ultimoEstado &&
       state.nivelRiesgo == ultimoRiesgo &&
-      millis() - lastLCDUpdate < 1500) {
+      flujo10 == ultimoFlujo10 &&
+      presion == ultimaPresion &&
+      millis() - lastLCDUpdate < 500) {
     return;
   }
 
   ultimoEstado = (int)state.estadoSistema;
   ultimoRiesgo = state.nivelRiesgo;
+  ultimoFlujo10 = flujo10;
+  ultimaPresion = presion;
   lastLCDUpdate = millis();
 
   lcd.clear();
@@ -67,7 +75,7 @@ void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned lo
       lcd.setCursor(0, 0);
       lcd.print("ERROR SENSOR");
       lcd.setCursor(0, 1);
-      lcd.print("Verifique BMP180");
+      lcd.print("Verif transduc");
       break;
   }
 }

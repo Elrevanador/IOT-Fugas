@@ -1,26 +1,56 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include "modulos/config.h"
 #include "modulos/sensores.h"
 
-static bool s_bmpDisponible = false;
-
-void initSensores(Adafruit_BMP085 &bmp, SystemState &state) {
-  Wire.begin(21, 22);
-  Serial.println("I2C OK");
-
-  if (!bmp.begin()) {
-    s_bmpDisponible = false;
-    state.sensorOK = false;
-    Serial.println("Error BMP180");
-  } else {
-    s_bmpDisponible = true;
-    Serial.println("BMP180 OK");
-  }
-
+static float limitarPresion(float valor, float minimo, float maximo) {
+  if (valor < minimo) return minimo;
+  if (valor > maximo) return maximo;
+  return valor;
 }
 
-void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sampleIntervalMs) {
+static void aplicarLecturaSuavizada(SystemState &state, float nuevoFlujo, float nuevaPresion) {
+  if (nuevoFlujo < 0.0f) nuevoFlujo = 0.0f;
+  if (nuevoFlujo > 5.0f) nuevoFlujo = 5.0f;
+  if (nuevaPresion < 0.0f) nuevaPresion = 0.0f;
+  if (nuevaPresion > 690.0f) nuevaPresion = 690.0f;
+
+  if (state.primeraLectura) {
+    state.flujoLmin = nuevoFlujo;
+    state.presionKPa = nuevaPresion;
+    state.primeraLectura = false;
+    return;
+  }
+
+  float deltaFlujo = nuevoFlujo - state.flujoLmin;
+  float deltaPresion = nuevaPresion - state.presionKPa;
+
+  float pesoNuevoFlujo = 0.95f;
+  float pesoNuevoPresion = 0.95f;
+
+  // En demo, los controles manuales deben reflejarse casi de inmediato.
+  if (abs(deltaPresion) >= 20.0f) {
+    pesoNuevoPresion = 1.0f;
+  }
+  if (abs(deltaFlujo) >= 0.5f) {
+    pesoNuevoFlujo = 1.0f;
+  }
+
+  state.flujoLmin = state.flujoLmin * (1.0f - pesoNuevoFlujo) + nuevoFlujo * pesoNuevoFlujo;
+  state.presionKPa = state.presionKPa * (1.0f - pesoNuevoPresion) + nuevaPresion * pesoNuevoPresion;
+}
+
+void initSensores(SystemState &state) {
+  pinMode(flowControlPin, INPUT);
+  pinMode(pressurePin, INPUT);
+  analogReadResolution(12);
+  analogSetPinAttenuation(flowControlPin, ADC_11db);
+  analogSetPinAttenuation(pressurePin, ADC_11db);
+  state.sensorOK = true;
+  Serial.println("Transductor 100 PSI OK");
+  Serial.println("Control analogico de caudal OK");
+}
+
+void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   noInterrupts();
   uint32_t pulses = state.pulseCount;
   state.pulseCount = 0;
@@ -36,55 +66,32 @@ void readSensores(Adafruit_BMP085 &bmp, SystemState &state, unsigned long sample
   }
 
   float frequencyHz = pulses / sampleSeconds;
-  float nuevoFlujo = frequencyHz / 7.5;
-  float nuevaPresion = 0.0;
+  float flujoPorPulsos = frequencyHz / 7.5;
+  int rawFlowControl = analogRead(flowControlPin);
+  int flowControlPercent = (int)((rawFlowControl * 100L) / 4095L);
+  float flujoPorControl = (rawFlowControl / 4095.0f) * 5.0f;
+  float nuevoFlujo = max(flujoPorPulsos, flujoPorControl);
+  int rawPressure = analogRead(pressurePin);
+  float adcVoltage = (rawPressure / 4095.0f) * 3.3f;
+  float sensorVoltage = adcVoltage * PRESSURE_DIVIDER_FACTOR;
+  int pressurePercent = (int)((rawPressure * 100L) / 4095L);
+  float pressureRatio = (sensorVoltage - PRESSURE_SENSOR_MIN_V) /
+                        (PRESSURE_SENSOR_MAX_V - PRESSURE_SENSOR_MIN_V);
+  float pressurePsi = limitarPresion(pressureRatio, 0.0f, 1.0f) * PRESSURE_SENSOR_MAX_PSI;
+  float nuevaPresion = pressurePsi * 6.89476f;
 
-  if (s_bmpDisponible) {
-    long presionPa = bmp.readPressure();
-    if (presionPa > 0) {
-      nuevaPresion = presionPa / 1000.0;
-      state.sensorOK = true;
-    } else {
-      state.sensorOK = false;
-    }
-  } else {
-    nuevaPresion = 0.0;
-    state.sensorOK = false;
-  }
+  state.sensorOK = sensorVoltage >= 0.25f && sensorVoltage <= 4.8f;
 
-  if (nuevoFlujo < 0.0) nuevoFlujo = 0.0;
-  if (nuevoFlujo > 5.0) nuevoFlujo = 5.0;
-  if (nuevaPresion < 0.0) nuevaPresion = 0.0;
-  if (nuevaPresion > 115.0) nuevaPresion = 115.0;
-
-  if (state.primeraLectura) {
-    state.flujoLmin = nuevoFlujo;
-    state.presionKPa = nuevaPresion;
-    state.primeraLectura = false;
-  } else {
-    // Hacemos el suavizado asimetrico:
-    // cuando el sistema parece recuperarse, priorizamos mucho mas la lectura nueva
-    // para que cambios manuales de presion/flujo se reflejen casi de inmediato.
-    float deltaFlujo = nuevoFlujo - state.flujoLmin;
-    float deltaPresion = nuevaPresion - state.presionKPa;
-
-    float pesoNuevoFlujo = nuevoFlujo < state.flujoLmin ? 0.97f : 0.80f;
-    float pesoNuevoPresion = nuevaPresion > state.presionKPa ? 0.97f : 0.80f;
-
-    // Si hay una recuperacion marcada, aplicamos casi un "snap" al valor nuevo.
-    if (deltaPresion >= 1.5f) {
-      pesoNuevoPresion = 1.0f;
-    }
-    if (deltaFlujo <= -0.8f) {
-      pesoNuevoFlujo = 1.0f;
-    }
-
-    state.flujoLmin = state.flujoLmin * (1.0f - pesoNuevoFlujo) + nuevoFlujo * pesoNuevoFlujo;
-    state.presionKPa = state.presionKPa * (1.0f - pesoNuevoPresion) + nuevaPresion * pesoNuevoPresion;
-  }
+  aplicarLecturaSuavizada(state, nuevoFlujo, nuevaPresion);
 
   Serial.println("----- LECTURA -----");
   Serial.print("Pulsos: ");               Serial.println(pulses);
+  Serial.print("Pot caudal (%): ");       Serial.println(flowControlPercent);
+  Serial.print("Flujo pulsos (L/min): "); Serial.println(flujoPorPulsos, 2);
+  Serial.print("Flujo control (L/min): "); Serial.println(flujoPorControl, 2);
+  Serial.print("ADC presion: ");          Serial.println(rawPressure);
+  Serial.print("Pot presion (%): ");      Serial.println(pressurePercent);
+  Serial.print("V transductor: ");        Serial.println(sensorVoltage, 2);
   Serial.print("Flujo real detectado: "); Serial.println(state.flujoRealDetectado ? "SI" : "NO");
   Serial.print("Flujo (L/min): ");        Serial.println(state.flujoLmin, 2);
   Serial.print("Presion (kPa): ");        Serial.println(state.presionKPa, 2);

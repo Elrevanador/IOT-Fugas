@@ -6,11 +6,11 @@
     { "type": "wokwi-breadboard-half", "id": "bb1", "top": -22.2, "left": 406, "attrs": {} },
     { "type": "wokwi-esp32-devkit-v1", "id": "esp1", "top": 91.1, "left": 292.6, "attrs": {} },
     {
-      "type": "board-bmp180",
-      "id": "bmp1",
+      "type": "wokwi-potentiometer",
+      "id": "pressure1",
       "top": 207.04,
       "left": 653.06,
-      "attrs": { "pressure": "102000", "temperature": "24" }
+      "attrs": { "value": "512" }
     },
     {
       "type": "wokwi-lcd1602",
@@ -21,10 +21,38 @@
     },
     {
       "type": "wokwi-clock-generator",
-      "id": "clk1",
+      "id": "flow1",
       "top": -19.2,
       "left": 336,
       "attrs": { "frequency": "4" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "flowControl1",
+      "top": 277,
+      "left": 250,
+      "attrs": { "value": "0", "label": "Caudal demo" }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay1",
+      "top": 96,
+      "left": 684,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 207,
+      "left": 250,
+      "attrs": { "color": "blue", "bounce": "0" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "valve1",
+      "top": 120,
+      "left": 860,
+      "attrs": { "color": "cyan", "label": "Electrovalvula 12V" }
     },
     {
       "type": "wokwi-led",
@@ -42,14 +70,14 @@
     },
     {
       "type": "wokwi-led",
-      "id": "ledO",
+      "id": "ledY",
       "top": -13.2,
       "left": 541.4,
-      "attrs": { "color": "orange" }
+      "attrs": { "color": "yellow" }
     },
     {
       "type": "wokwi-resistor",
-      "id": "rO",
+      "id": "rY",
       "top": 42.35,
       "left": 508.8,
       "attrs": { "value": "220" }
@@ -74,32 +102,66 @@
       "top": 60,
       "left": 549,
       "attrs": { "volume": "0.7", "mode": "smooth" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rValve",
+      "top": 154,
+      "left": 816,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r10k",
+      "top": 203,
+      "left": 594,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r20k",
+      "top": 272,
+      "left": 594,
+      "attrs": { "value": "20000" }
     }
   ],
   "connections": [
     [ "esp1:TX0", "$serialMonitor:RX", "", [] ],
     [ "esp1:RX0", "$serialMonitor:TX", "", [] ],
 
-    [ "bmp1:VCC", "esp1:3V3", "red", [ "v0" ] ],
-    [ "bmp1:GND", "esp1:GND.1", "black", [ "v0" ] ],
-    [ "bmp1:SDA", "esp1:D21", "green", [ "v0" ] ],
-    [ "bmp1:SCL", "esp1:D22", "blue", [ "v0" ] ],
-
     [ "lcd1:VCC", "esp1:VIN", "red", [ "v0" ] ],
     [ "lcd1:GND", "esp1:GND.1", "black", [ "v0" ] ],
     [ "lcd1:SDA", "esp1:D21", "green", [ "v0" ] ],
     [ "lcd1:SCL", "esp1:D22", "blue", [ "v0" ] ],
 
-    [ "clk1:CLK", "esp1:D27", "orange", [ "v0" ] ],
-    [ "clk1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+    [ "flow1:CLK", "esp1:D27", "orange", [ "v0" ] ],
+    [ "flow1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+
+    [ "flowControl1:VCC", "esp1:3V3", "red", [ "v0" ] ],
+    [ "flowControl1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+    [ "flowControl1:SIG", "esp1:D35", "orange", [ "v0" ] ],
+
+    [ "pressure1:VCC", "esp1:3V3", "red", [ "v0" ] ],
+    [ "pressure1:GND", "esp1:GND.1", "black", [ "v0" ] ],
+    [ "pressure1:SIG", "esp1:D34", "purple", [ "v0" ] ],
+
+    [ "btn1:1.l", "esp1:D13", "blue", [ "v0" ] ],
+    [ "btn1:2.l", "esp1:GND.1", "black", [ "v0" ] ],
+
+    [ "esp1:D17", "relay1:IN", "green", [ "v0" ] ],
+    [ "relay1:VCC", "esp1:VIN", "red", [ "v0" ] ],
+    [ "relay1:GND", "esp1:GND.2", "black", [ "v0" ] ],
+    [ "esp1:D5", "rValve:1", "cyan", [ "v0" ] ],
+    [ "rValve:2", "valve1:A", "cyan", [ "v0" ] ],
+    [ "valve1:C", "esp1:GND.2", "black", [ "v0" ] ],
 
     [ "esp1:D2", "rG:1", "green", [ "v0" ] ],
     [ "rG:2", "ledG:A", "green", [ "v0" ] ],
     [ "ledG:C", "esp1:GND.1", "black", [ "v0" ] ],
 
-    [ "esp1:D15", "rO:1", "orange", [ "v0" ] ],
-    [ "rO:2", "ledO:A", "orange", [ "v0" ] ],
-    [ "ledO:C", "esp1:GND.1", "black", [ "v0" ] ],
+    [ "esp1:D15", "rY:1", "gold", [ "v0" ] ],
+    [ "rY:2", "ledY:A", "gold", [ "v0" ] ],
+    [ "ledY:C", "esp1:GND.1", "black", [ "v0" ] ],
 
     [ "esp1:D4", "rR:1", "red", [ "v0" ] ],
     [ "rR:2", "ledR:A", "red", [ "v0" ] ],

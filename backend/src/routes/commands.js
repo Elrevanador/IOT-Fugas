@@ -12,7 +12,7 @@ const ingestAuth = require("../middlewares/ingestAuth");
 const validate = require("../middlewares/validate");
 
 const router = express.Router();
-const tipos = ["CERRAR_VALVULA", "ABRIR_VALVULA", "ACTUALIZAR_CONFIG", "REINICIAR", "SOLICITAR_ESTADO", "OTRO"];
+const tipos = ["CERRAR_VALVULA", "ABRIR_VALVULA", "ACTUALIZAR_CONFIG", "ESCANEAR_WIFI", "REINICIAR", "SOLICITAR_ESTADO", "OTRO"];
 const estados = ["PENDIENTE", "ENVIADO", "EJECUTADO", "ERROR", "EXPIRADO"];
 const prioridades = ["BAJA", "NORMAL", "ALTA", "CRITICA"];
 const jsonPayload = (value) => value === undefined || value === null || typeof value === "object";

@@ -141,6 +141,7 @@ interface Reading {
   risk: number;
   state: string;
   Device?: Device | null;
+  sensor?: Pick<SensorItem, 'id' | 'tipo' | 'modelo' | 'unidad'> | null;
 }
 
 interface AlertItem {
