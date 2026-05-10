@@ -166,8 +166,8 @@ const listCommandResponses = async (req, res, next) => {
 const createCommand = async (req, res, next) => {
   try {
     const { deviceId, tipo, payload, prioridad, expiresAt } = req.body;
-    const canSendConfigCommand = tipo === "ACTUALIZAR_CONFIG";
-    if (!isOperator(req.user) && !canSendConfigCommand) {
+    const canSendDeviceSelfServiceCommand = tipo === "ACTUALIZAR_CONFIG" || tipo === "ESCANEAR_WIFI";
+    if (!isOperator(req.user) && !canSendDeviceSelfServiceCommand) {
       return res.status(403).json({ ok: false, msg: "No tienes permisos para enviar comandos" });
     }
 

@@ -372,6 +372,7 @@ module.exports = {
             "CERRAR_VALVULA",
             "ABRIR_VALVULA",
             "ACTUALIZAR_CONFIG",
+            "ESCANEAR_WIFI",
             "REINICIAR",
             "SOLICITAR_ESTADO",
             "OTRO"

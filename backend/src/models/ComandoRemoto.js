@@ -24,6 +24,7 @@ module.exports = (sequelize) => {
           "CERRAR_VALVULA",
           "ABRIR_VALVULA",
           "ACTUALIZAR_CONFIG",
+          "ESCANEAR_WIFI",
           "REINICIAR",
           "SOLICITAR_ESTADO",
           "OTRO"
@@ -114,7 +115,11 @@ module.exports = (sequelize) => {
   function validateCommandPayload(tipo, payload) {
     const validations = {
       'ACTUALIZAR_CONFIG': (p) => {
-        if (!p.config || typeof p.config !== 'object') {
+        const hasConfig = p.config && typeof p.config === 'object';
+        const hasWifiPatch =
+          typeof p.wifiSsid === 'string' ||
+          typeof p.wifiPassword === 'string';
+        if (!hasConfig && !hasWifiPatch) {
           throw new Error('Configuración inválida');
         }
       },
