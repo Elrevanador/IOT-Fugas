@@ -352,6 +352,16 @@
               <i class="fa-solid fa-router" aria-hidden="true"></i>
               Cambiar WiFi del dispositivo
             </button>
+            <div class="command-panel__actions">
+              <button type="button" class="command-panel__quick-action" [disabled]="!wifiCommandDevice()" (click)="sendValveAction('ABRIR')">
+                <i class="fa-solid fa-toggle-on" aria-hidden="true"></i>
+                Abrir válvula
+              </button>
+              <button type="button" class="command-panel__quick-action command-panel__quick-action--danger" [disabled]="!wifiCommandDevice()" (click)="sendValveAction('CERRAR')">
+                <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                Cerrar válvula
+              </button>
+            </div>
           </article>
         </section>
       </section>
@@ -446,6 +456,65 @@
                 <div class="empty-panel__glyph"></div>
                 <strong>Sin alertas para esta vista</strong>
                 <p>Todo se ve estable o el filtro actual ya no tiene eventos pendientes.</p>
+              </div>
+            }
+          </div>
+        </article>
+      </section>
+    }
+
+    @if (activeTab() === 'commands') {
+      <section class="dashboard-pane">
+        <article class="glass-panel glass-panel--inner command-history-panel">
+          <header class="command-history-panel__header">
+            <div>
+              <span class="eyebrow">Comandos remotos</span>
+              <h2>Órdenes y respuestas del dispositivo</h2>
+            </div>
+            <button type="button" class="command-panel__quick-action" (click)="refreshCommands()" [disabled]="commandsLoading()">
+              <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+              {{ commandsLoading() ? 'Actualizando...' : 'Actualizar' }}
+            </button>
+          </header>
+
+          @if (actionMessage()) {
+            <p class="action-message">{{ actionMessage() }}</p>
+          }
+
+          <div class="command-history-list">
+            @for (command of deviceScopedCommands(); track command.id) {
+              <article class="command-history-item" [attr.data-state]="command.estado">
+                <div class="command-history-item__main">
+                  <span class="command-history-item__type">{{ command.tipo }}</span>
+                  <strong>{{ command.Device?.name || selectedDevice()?.name || 'Dispositivo #' + command.device_id }}</strong>
+                  <small>
+                    Creado {{ command.created_at | date:'shortTime' }}
+                    @if (command.sent_at) {
+                      · Enviado {{ command.sent_at | date:'shortTime' }}
+                    }
+                  </small>
+                </div>
+                <div class="command-history-item__status">
+                  <span>{{ command.estado }}</span>
+                  <small>{{ command.prioridad }}</small>
+                </div>
+                @if (command.respuesta; as respuesta) {
+                  <div class="command-history-item__response">
+                    <strong>{{ respuesta.codigo_resultado }}</strong>
+                    <span>{{ respuesta.mensaje || 'Respuesta recibida' }}</span>
+                  </div>
+                } @else {
+                  <div class="command-history-item__response command-history-item__response--pending">
+                    <strong>Sin respuesta</strong>
+                    <span>El ESP32 aún no ha confirmado este comando.</span>
+                  </div>
+                }
+              </article>
+            } @empty {
+              <div class="empty-panel">
+                <div class="empty-panel__glyph"></div>
+                <strong>Sin comandos recientes</strong>
+                <p>Cuando envíes WiFi, escaneo o válvula, el estado aparecerá aquí.</p>
               </div>
             }
           </div>

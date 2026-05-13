@@ -19,7 +19,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { resolveErrorMessage } from '../../core/utils/error-message';
 
 type TimeRange = '1h' | '6h' | '24h' | '7d';
-type DashboardTab = 'overview' | 'readings' | 'alerts' | 'analytics';
+type DashboardTab = 'overview' | 'readings' | 'alerts' | 'commands' | 'analytics';
 type ReadingStateFilter = 'ALL' | 'NORMAL' | 'ALERTA' | 'FUGA' | 'ERROR';
 type AlertFilter = 'ALL' | 'PENDING' | 'ACK' | 'ALERTA' | 'FUGA' | 'ERROR';
 type DashboardDeviceView = {
@@ -84,6 +84,35 @@ type CommandResponseItem = {
     currentSsid?: string;
   } | null;
 };
+type CommandItem = {
+  id: number;
+  device_id: number;
+  tipo: string;
+  estado: 'PENDIENTE' | 'ENVIADO' | 'EJECUTADO' | 'ERROR' | 'EXPIRADO' | string;
+  prioridad: string;
+  created_at: string;
+  sent_at?: string | null;
+  expires_at?: string | null;
+  payload?: Record<string, unknown> | null;
+  Device?: {
+    id: number;
+    name: string | null;
+    house_id?: number | null;
+    House?: {
+      id: number;
+      name: string;
+    } | null;
+  } | null;
+  respuesta?: CommandResponseItem | null;
+};
+type ValveActionResponse = {
+  ok: boolean;
+  comando?: {
+    id: number;
+    tipo: string;
+    estado: string;
+  } | null;
+};
 
 @Component({
   selector: 'app-dashboard',
@@ -123,6 +152,9 @@ export class DashboardComponent {
   readonly selectedRange = signal<TimeRange>(this.restoreRange());
   readonly selectedDeviceId = signal<number | null>(null);
   readonly historicalReadings = signal<HistoryReading[]>([]);
+  readonly commandsLoading = signal(false);
+  readonly commandHistory = signal<CommandItem[]>([]);
+  readonly commandResponses = signal<CommandResponseItem[]>([]);
   readonly devicesUiCollapsed = signal(this.restoreDevicesUiCollapsed());
   readonly wifiModalOpen = signal(false);
   readonly wifiModalSaving = signal(false);
@@ -271,6 +303,15 @@ export class DashboardComponent {
   });
 
   readonly activeAlerts = computed(() => this.deviceScopedAlerts().filter((alert: DashboardAlert) => !alert.acknowledged));
+  readonly deviceScopedCommands = computed(() => {
+    const selectedId = this.selectedDeviceId();
+    const commands = this.commandHistory();
+    if (!selectedId) return commands;
+    return commands.filter((command) => Number(command.device_id) === selectedId);
+  });
+  readonly pendingCommands = computed(() =>
+    this.deviceScopedCommands().filter((command) => command.estado === 'PENDIENTE' || command.estado === 'ENVIADO')
+  );
   readonly averageRisk = computed(() => {
     const readings = this.deviceScopedReadings();
     if (!readings.length) return 0;
@@ -343,6 +384,7 @@ export class DashboardComponent {
     { id: 'overview', label: 'Resumen', detail: 'Estado general y salud', icon: 'fa-solid fa-gauge-high' },
     { id: 'readings', label: 'Lecturas', detail: 'Timeline y paquetes', icon: 'fa-solid fa-list-ul' },
     { id: 'alerts', label: 'Alertas', detail: 'Eventos y respuesta', icon: 'fa-solid fa-triangle-exclamation' },
+    { id: 'commands', label: 'Comandos', detail: 'Órdenes y respuestas', icon: 'fa-solid fa-terminal' },
     { id: 'analytics', label: 'Analítica', detail: 'Histórico y curvas', icon: 'fa-solid fa-chart-line' }
   ];
   readonly readingFilters: Array<{ id: ReadingStateFilter; label: string }> = [
@@ -393,6 +435,7 @@ export class DashboardComponent {
   constructor() {
     this.destroyRef.onDestroy(() => this.clearReconnectTimer());
     this.loadRegisteredDevices();
+    void this.loadCommandHistory(false);
     this.loadSnapshot();
     queueMicrotask(() => this.updateTabsScrollState());
   }
@@ -531,6 +574,7 @@ export class DashboardComponent {
   protected selectDevice(deviceId: number | null) {
     this.selectedDeviceId.set(deviceId);
     void this.loadHistory();
+    void this.loadCommandHistory(false);
     queueMicrotask(() => this.updateDeviceTabsScrollState());
   }
 
@@ -626,6 +670,7 @@ export class DashboardComponent {
       }
 
       this.wifiScanMessage.set(`Escaneo #${commandId} en espera del dispositivo...`);
+      await this.loadCommandHistory(false);
       const response = await this.waitForWifiScanResponse(commandId);
       const networks = (response.payload?.networks || [])
         .filter((network) => network.ssid)
@@ -635,6 +680,7 @@ export class DashboardComponent {
       this.wifiScanMessage.set(
         networks.length ? `${networks.length} redes encontradas.` : 'El dispositivo no reportó redes cercanas.'
       );
+      await this.loadCommandHistory(false);
     } catch (error) {
       const message = resolveErrorMessage(error, 'No fue posible escanear redes WiFi.');
       this.wifiScanMessage.set(message);
@@ -685,6 +731,7 @@ export class DashboardComponent {
         })
       );
       this.updateDeviceWifiLocally(device.id, wifiSsid);
+      await this.loadCommandHistory(false);
       this.actionMessage.set(
         `Comando #${response.comando?.id || 'nuevo'} enviado. El dispositivo aplicará la red en el próximo ciclo de comandos.`
       );
@@ -697,6 +744,39 @@ export class DashboardComponent {
       this.toast.error(message);
     } finally {
       this.wifiModalSaving.set(false);
+    }
+  }
+
+  protected async refreshCommands(): Promise<void> {
+    await this.loadCommandHistory(true);
+  }
+
+  protected async sendValveAction(tipo: 'ABRIR' | 'CERRAR'): Promise<void> {
+    const device = this.selectedDevice() || this.highlightedDevice() || this.uniqueDevices()[0] || null;
+    if (!device) {
+      this.toast.warning('Selecciona un dispositivo para operar la válvula.');
+      return;
+    }
+
+    this.actionMessage.set(`${tipo === 'ABRIR' ? 'Abriendo' : 'Cerrando'} válvula de ${device.name || `Dispositivo #${device.id}`}...`);
+    try {
+      const response = await firstValueFrom(
+        this.api.post<ValveActionResponse>(`/api/valves/device/${device.id}/actions`, {
+          tipo,
+          detalle: 'Acción enviada desde dashboard'
+        })
+      );
+      this.actionMessage.set(
+        response.comando?.id
+          ? `Comando #${response.comando.id} encolado para ${tipo === 'ABRIR' ? 'abrir' : 'cerrar'} válvula.`
+          : `Acción de válvula registrada.`
+      );
+      this.toast.success('Orden de válvula enviada.');
+      await this.loadCommandHistory(false);
+    } catch (error) {
+      const message = resolveErrorMessage(error, 'No fue posible enviar la orden de válvula.');
+      this.actionMessage.set(message);
+      this.toast.error(message);
     }
   }
 
@@ -725,6 +805,8 @@ export class DashboardComponent {
         return this.deviceScopedReadings().length || 0;
       case 'alerts':
         return this.activeAlerts().length;
+      case 'commands':
+        return this.pendingCommands().length || null;
       case 'analytics':
         return this.historicalReadings().length;
       default:
@@ -895,6 +977,33 @@ export class DashboardComponent {
       this.toast.warning(resolveErrorMessage(error, 'No fue posible cargar el historico. Se usara el snapshot reciente.'));
     } finally {
       this.historyLoading.set(false);
+    }
+  }
+
+  private async loadCommandHistory(showToast: boolean): Promise<void> {
+    this.commandsLoading.set(true);
+    try {
+      const params: Record<string, number> = { limit: 80 };
+      const selectedId = this.selectedDeviceId();
+      if (selectedId) params['deviceId'] = selectedId;
+
+      const [commands, responses] = await Promise.all([
+        firstValueFrom(this.api.get<{ ok: boolean; comandos: CommandItem[] }>('/api/commands', params)),
+        firstValueFrom(this.api.get<{ ok: boolean; respuestas: CommandResponseItem[] }>('/api/commands/responses', {
+          limit: 80,
+          ...(selectedId ? { deviceId: selectedId } : {})
+        }))
+      ]);
+
+      this.commandHistory.set(commands.comandos || []);
+      this.commandResponses.set(responses.respuestas || []);
+      if (showToast) this.toast.success('Comandos actualizados.');
+    } catch (error) {
+      if (showToast) {
+        this.toast.warning(resolveErrorMessage(error, 'No fue posible cargar los comandos.'));
+      }
+    } finally {
+      this.commandsLoading.set(false);
     }
   }
 
@@ -1078,7 +1187,7 @@ export class DashboardComponent {
 
   private restoreTab(): DashboardTab {
     const saved = localStorage.getItem(this.dashboardTabKey);
-    if (saved === 'overview' || saved === 'readings' || saved === 'alerts' || saved === 'analytics') {
+    if (saved === 'overview' || saved === 'readings' || saved === 'alerts' || saved === 'commands' || saved === 'analytics') {
       return saved;
     }
     return 'overview';
