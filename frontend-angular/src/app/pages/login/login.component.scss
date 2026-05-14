@@ -109,6 +109,10 @@ input:focus {
   box-shadow: 0 0 0 2px rgba(20,184,166,0.2);
 }
 
+.field-error {
+  color: #fca5a5;
+}
+
 /* PASSWORD */
 .password-field__control {
   display: grid;
@@ -148,11 +152,56 @@ input:focus {
   transform: translateY(-1px);
 }
 
+.submit-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-inline-link {
+  justify-self: end;
+  color: #5eead4;
+  font-size: 0.84rem;
+  text-decoration: none;
+}
+
+.auth-inline-link:hover,
+.dev-reset-link a:hover {
+  color: #99f6e4;
+}
+
 /* FEEDBACK */
 .feedback {
   text-align: center;
   font-size: 0.9rem;
   color: #cbd5e1;
+}
+
+.feedback[data-tone='error'] {
+  color: #fca5a5;
+}
+
+.feedback[data-tone='success'] {
+  color: #86efac;
+}
+
+.feedback[data-tone='info'] {
+  color: #cbd5e1;
+}
+
+.dev-reset-link {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.24);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.dev-reset-link a {
+  color: #5eead4;
 }
 
 /* TRUST */

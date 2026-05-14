@@ -71,6 +71,28 @@ export interface RegisterResponse {
   user?: AuthUser;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  ok: boolean;
+  msg: string;
+  resetUrl?: string;
+  resetToken?: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  ok: boolean;
+  msg: string;
+}
+
 export interface MeResponse {
   ok: boolean;
   user: AuthUser;

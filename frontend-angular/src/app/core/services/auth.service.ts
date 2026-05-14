@@ -2,7 +2,18 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
-import { AuthUser, LoginPayload, LoginResponse, MeResponse, RegisterPayload, RegisterResponse } from '../types';
+import {
+  AuthUser,
+  ForgotPasswordPayload,
+  ForgotPasswordResponse,
+  LoginPayload,
+  LoginResponse,
+  MeResponse,
+  RegisterPayload,
+  RegisterResponse,
+  ResetPasswordPayload,
+  ResetPasswordResponse
+} from '../types';
 
 @Injectable({
   providedIn: 'root'
@@ -79,6 +90,14 @@ export class AuthService {
       console.error('[AuthService] Register failed:', error);
       throw error;
     }
+  }
+
+  async forgotPassword(payload: ForgotPasswordPayload) {
+    return firstValueFrom(this.api.post<ForgotPasswordResponse>('/api/auth/forgot-password', payload));
+  }
+
+  async resetPassword(payload: ResetPasswordPayload) {
+    return firstValueFrom(this.api.post<ResetPasswordResponse>('/api/auth/reset-password', payload));
   }
 
   async ensureFreshProfile() {

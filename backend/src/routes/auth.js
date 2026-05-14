@@ -1,6 +1,6 @@
 const express = require("express");
 const { body } = require("express-validator");
-const { register, login, me, changePassword } = require("../controllers/authController");
+const { register, login, forgotPassword, resetPassword, me, changePassword } = require("../controllers/authController");
 const auth = require("../middlewares/auth");
 const validate = require("../middlewares/validate");
 const createRateLimiter = require("../middlewares/rateLimit");
@@ -10,6 +10,7 @@ const authWindowMs = Number.parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || ""
 const loginMax = Number.parseInt(process.env.AUTH_LOGIN_RATE_LIMIT_MAX || "", 10) || 10;
 const registerMax = Number.parseInt(process.env.AUTH_REGISTER_RATE_LIMIT_MAX || "", 10) || 5;
 const profileMax = Number.parseInt(process.env.AUTH_PROFILE_RATE_LIMIT_MAX || "", 10) || 30;
+const passwordResetMax = Number.parseInt(process.env.AUTH_PASSWORD_RESET_RATE_LIMIT_MAX || "", 10) || 5;
 
 const loginRateLimit = createRateLimiter({
   key: "auth:login",
@@ -30,6 +31,13 @@ const profileRateLimit = createRateLimiter({
   windowMs: authWindowMs,
   maxRequests: profileMax,
   message: "Demasiadas consultas al perfil, intenta de nuevo más tarde"
+});
+
+const passwordResetRateLimit = createRateLimiter({
+  key: "auth:password-reset",
+  windowMs: authWindowMs,
+  maxRequests: passwordResetMax,
+  message: "Demasiadas solicitudes de recuperacion, intenta de nuevo más tarde"
 });
 
 router.post(
@@ -86,6 +94,42 @@ router.post(
 );
 
 router.get("/me", auth, profileRateLimit, me);
+
+router.post(
+  "/forgot-password",
+  passwordResetRateLimit,
+  [
+    body("email")
+      .trim()
+      .isEmail()
+      .withMessage("Email invalido")
+      .isLength({ max: 254 })
+      .withMessage("Email demasiado largo")
+  ],
+  validate,
+  forgotPassword
+);
+
+router.post(
+  "/reset-password",
+  passwordResetRateLimit,
+  [
+    body("token")
+      .trim()
+      .isLength({ min: 64, max: 128 })
+      .withMessage("Token invalido"),
+    body("password")
+      .isLength({ min: 8, max: 128 })
+      .withMessage("Contraseña debe tener al menos 8 caracteres")
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+      .withMessage("Contraseña debe incluir mayúsculas, minúsculas, números y caracteres especiales"),
+    body("confirmPassword")
+      .custom((value, { req }) => value === req.body.password)
+      .withMessage("Las contraseñas no coinciden")
+  ],
+  validate,
+  resetPassword
+);
 
 router.post(
   "/change-password",

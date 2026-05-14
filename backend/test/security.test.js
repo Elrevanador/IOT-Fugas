@@ -2,6 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const bcrypt = require("bcryptjs");
+const crypto = require("node:crypto");
 const http = require("node:http");
 const jwt = require("jsonwebtoken");
 
@@ -437,4 +439,150 @@ test("login aplica rate limit por IP", async () => {
       process.env.AUTH_LOGIN_RATE_LIMIT_MAX = previousMax;
     }
   }
+});
+
+test("recuperacion de contraseña genera token temporal hasheado", async () => {
+  const previousExposeResetToken = process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN;
+  process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN = "true";
+  let createdToken = null;
+
+  try {
+    await withFreshApp(
+      {
+        "src/models/index.js": {
+          sequelize: {
+            transaction: async (callback) => callback({ id: "tx" })
+          },
+          User: {
+            findOne: async () => ({
+              id: 12,
+              email: "duvan@example.com",
+              estado: "ACTIVO"
+            })
+          },
+          PasswordResetToken: {
+            update: async () => [0],
+            create: async (payload) => {
+              createdToken = payload;
+              return { id: 88, ...payload };
+            }
+          },
+          House: {}
+        },
+        "src/config/env.js": {
+          getJwtSecret: () => TEST_JWT_SECRET,
+          getTrustProxySetting: () => false
+        },
+        "src/services/audit.js": {
+          recordAudit: async () => undefined
+        }
+      },
+      async (app) => {
+        const server = await createTestServer(app);
+        try {
+          const response = await createJsonRequest({
+            port: server.port,
+            method: "POST",
+            path: "/api/auth/forgot-password",
+            body: { email: "duvan@example.com" }
+          });
+
+          assert.equal(response.statusCode, 200);
+          assert.equal(response.body.ok, true);
+          assert.match(response.body.resetToken, /^[a-f0-9]{64}$/);
+          assert.ok(response.body.resetUrl.includes("/reset-password?token="));
+          assert.ok(createdToken);
+          assert.notEqual(createdToken.token_hash, response.body.resetToken);
+          assert.match(createdToken.token_hash, /^[a-f0-9]{64}$/);
+        } finally {
+          await server.close();
+        }
+      }
+    );
+  } finally {
+    if (previousExposeResetToken === undefined) {
+      delete process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN;
+    } else {
+      process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN = previousExposeResetToken;
+    }
+  }
+});
+
+test("reset de contraseña consume token y limpia bloqueo de login", async () => {
+  const token = "a".repeat(64);
+  const tokenHash = crypto.createHash("sha256").update(token, "utf8").digest("hex");
+  const previousPasswordHash = await bcrypt.hash("OldPass123!", 4);
+  let tokenUsed = false;
+  let invalidatedSiblingTokens = false;
+  let userUpdate = null;
+
+  await withFreshApp(
+    {
+      "src/models/index.js": {
+        sequelize: {
+          transaction: async (callback) => callback({ id: "tx" })
+        },
+        User: {
+          findByPk: async () => ({
+            id: 15,
+            email: "duvan@example.com",
+            estado: "ACTIVO",
+            password_hash: previousPasswordHash,
+            update: async (payload) => {
+              userUpdate = payload;
+            }
+          })
+        },
+        PasswordResetToken: {
+          findOne: async ({ where }) => {
+            assert.equal(where.token_hash, tokenHash);
+            return {
+              id: 22,
+              user_id: 15,
+              update: async (payload) => {
+                tokenUsed = Boolean(payload.used_at);
+              }
+            };
+          },
+          update: async () => {
+            invalidatedSiblingTokens = true;
+            return [1];
+          }
+        },
+        House: {}
+      },
+      "src/config/env.js": {
+        getJwtSecret: () => TEST_JWT_SECRET,
+        getTrustProxySetting: () => false
+      },
+      "src/services/audit.js": {
+        recordAudit: async () => undefined
+      }
+    },
+    async (app) => {
+      const server = await createTestServer(app);
+      try {
+        const response = await createJsonRequest({
+          port: server.port,
+          method: "POST",
+          path: "/api/auth/reset-password",
+          body: {
+            token,
+            password: "NewPass123!",
+            confirmPassword: "NewPass123!"
+          }
+        });
+
+        assert.equal(response.statusCode, 200);
+        assert.equal(response.body.ok, true);
+        assert.equal(tokenUsed, true);
+        assert.equal(invalidatedSiblingTokens, true);
+        assert.equal(userUpdate.failed_login_attempts, 0);
+        assert.equal(userUpdate.locked_until, null);
+        assert.equal(await bcrypt.compare("NewPass123!", userUpdate.password_hash), true);
+      } finally {
+        await server.close();
+      }
+    }
+  );
 });

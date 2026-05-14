@@ -1,19 +1,57 @@
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { House, User } = require("../models");
+const { Op } = require("sequelize");
+const { sequelize, House, User, PasswordResetToken } = require("../models");
 const { getJwtSecret } = require("../config/env");
 const { normalizeRole } = require("../middlewares/authorize");
 const { buildUserAccessProfile } = require("../services/accessControl");
 const { recordAudit } = require("../services/audit");
+const { sendPasswordResetEmail } = require("../services/passwordResetDelivery");
 const logger = require("../utils/logger");
 
 // Configuración de seguridad
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_TIME_MINUTES = 30;
+const PASSWORD_RESET_TOKEN_BYTES = 32;
+const PASSWORD_RESET_TTL_MINUTES = Number.parseInt(process.env.PASSWORD_RESET_TTL_MINUTES || "", 10) || 15;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
+const PASSWORD_RESET_PUBLIC_MESSAGE =
+  "Si la cuenta existe, enviaremos instrucciones para recuperar la contraseña.";
 
 const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
+const hashResetToken = (token) => crypto.createHash("sha256").update(String(token || ""), "utf8").digest("hex");
+
+const getRequestIp = (req) => {
+  const ip =
+    req.ip ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    req.connection?.socket?.remoteAddress ||
+    null;
+  return ip ? String(ip).slice(0, 45) : null;
+};
+
+const getUserAgent = (req) => {
+  const userAgent = req.get ? req.get("user-agent") : req.headers?.["user-agent"];
+  return userAgent ? String(userAgent).slice(0, 500) : null;
+};
+
+const shouldExposeResetToken = () =>
+  process.env.NODE_ENV !== "production" || process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN === "true";
+
+const buildPasswordResetUrl = (req, token) => {
+  const configuredBase =
+    process.env.PASSWORD_RESET_BASE_URL ||
+    process.env.FRONTEND_URL ||
+    (req.get ? req.get("origin") : "") ||
+    `${req.protocol || "https"}://${req.get ? req.get("host") : ""}`;
+
+  const url = new URL("/reset-password", configuredBase);
+  url.searchParams.set("token", token);
+  return url.toString();
+};
 
 const serializeAuthUser = (user, access, house = null) => ({
   id: user.id,
@@ -237,6 +275,171 @@ const login = async (req, res, next) => {
   }
 };
 
+const forgotPassword = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || "").toLowerCase().trim();
+    const response = { ok: true, msg: PASSWORD_RESET_PUBLIC_MESSAGE };
+
+    const user = await User.findOne({ where: { email } });
+    if (!user || user.estado === "INACTIVO" || user.estado === "BLOQUEADO") {
+      logger.warn("Solicitud de recuperacion para cuenta no elegible", { email, ip: getRequestIp(req) });
+      return res.json(response);
+    }
+
+    const rawToken = crypto.randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString("hex");
+    const tokenHash = hashResetToken(rawToken);
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000);
+    const resetUrl = buildPasswordResetUrl(req, rawToken);
+
+    await sequelize.transaction(async (transaction) => {
+      await PasswordResetToken.update(
+        { used_at: new Date() },
+        {
+          where: {
+            user_id: user.id,
+            used_at: { [Op.is]: null }
+          },
+          transaction
+        }
+      );
+
+      await PasswordResetToken.create(
+        {
+          user_id: user.id,
+          token_hash: tokenHash,
+          expires_at: expiresAt,
+          requested_ip: getRequestIp(req),
+          requested_user_agent: getUserAgent(req)
+        },
+        { transaction }
+      );
+
+      await recordAudit({
+        user: { id: user.id, email: user.email },
+        entidad: "User",
+        entidadId: user.id,
+        accion: "solicitud_recuperacion_contraseña",
+        detalle: { expiresAt },
+        req,
+        transaction
+      });
+    });
+
+    const delivery = await sendPasswordResetEmail({
+      user,
+      resetUrl,
+      minutes: PASSWORD_RESET_TTL_MINUTES
+    });
+
+    logger.info("Token de recuperacion generado", {
+      userId: user.id,
+      email: user.email,
+      expiresAt,
+      delivery,
+      resetUrl: shouldExposeResetToken() ? resetUrl : undefined
+    });
+
+    if (shouldExposeResetToken()) {
+      response.resetUrl = resetUrl;
+      response.resetToken = rawToken;
+    }
+
+    return res.json(response);
+  } catch (error) {
+    logger.error("Error en solicitud de recuperacion de contraseña", {
+      error: error.message,
+      email: req.body.email
+    });
+    return next(error);
+  }
+};
+
+const resetPassword = async (req, res, next) => {
+  try {
+    const token = String(req.body.token || "").trim();
+    const { password } = req.body;
+
+    if (!PASSWORD_REGEX.test(password)) {
+      return res.status(400).json({
+        ok: false,
+        msg: "La contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas, números y caracteres especiales"
+      });
+    }
+
+    const tokenHash = hashResetToken(token);
+    const now = new Date();
+
+    const result = await sequelize.transaction(async (transaction) => {
+      const resetToken = await PasswordResetToken.findOne({
+        where: {
+          token_hash: tokenHash,
+          used_at: { [Op.is]: null },
+          expires_at: { [Op.gt]: now }
+        },
+        transaction
+      });
+
+      if (!resetToken) {
+        return { status: 400, body: { ok: false, msg: "El enlace de recuperación es inválido o expiró" } };
+      }
+
+      const user = await User.findByPk(resetToken.user_id, { transaction });
+      if (!user || user.estado === "INACTIVO" || user.estado === "BLOQUEADO") {
+        return { status: 400, body: { ok: false, msg: "El enlace de recuperación es inválido o expiró" } };
+      }
+
+      const isSamePassword = await bcrypt.compare(password, user.password_hash);
+      if (isSamePassword) {
+        return { status: 400, body: { ok: false, msg: "La nueva contraseña no puede ser igual a la anterior" } };
+      }
+
+      const salt = await bcrypt.genSalt(12);
+      const passwordHash = await bcrypt.hash(password, salt);
+
+      await user.update(
+        {
+          password_hash: passwordHash,
+          failed_login_attempts: 0,
+          locked_until: null,
+          password_changed_at: now
+        },
+        { transaction }
+      );
+
+      await resetToken.update({ used_at: now }, { transaction });
+      await PasswordResetToken.update(
+        { used_at: now },
+        {
+          where: {
+            user_id: user.id,
+            id: { [Op.ne]: resetToken.id },
+            used_at: { [Op.is]: null }
+          },
+          transaction
+        }
+      );
+
+      await recordAudit({
+        user: { id: user.id, email: user.email },
+        entidad: "User",
+        entidadId: user.id,
+        accion: "recuperacion_contraseña",
+        detalle: { success: true },
+        req,
+        transaction
+      });
+
+      logger.info("Contraseña recuperada exitosamente", { userId: user.id, email: user.email });
+      return { status: 200, body: { ok: true, msg: "Contraseña actualizada correctamente" } };
+    });
+
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    logger.error("Error en recuperacion de contraseña", { error: error.message });
+    return next(error);
+  }
+};
+
 const me = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id, {
@@ -348,4 +551,4 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, me, changePassword };
+module.exports = { register, login, forgotPassword, resetPassword, me, changePassword };

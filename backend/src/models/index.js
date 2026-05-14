@@ -18,6 +18,7 @@ const ConfiguracionDeteccionModel = require("./ConfiguracionDeteccion");
 const ComandoRemotoModel = require("./ComandoRemoto");
 const RespuestaComandoModel = require("./RespuestaComando");
 const AuditoriaSistemaModel = require("./AuditoriaSistema");
+const PasswordResetTokenModel = require("./PasswordResetToken");
 
 // ---------- Instancias ----------
 const House = HouseModel(sequelize);
@@ -39,6 +40,7 @@ const ConfiguracionDeteccion = ConfiguracionDeteccionModel(sequelize);
 const ComandoRemoto = ComandoRemotoModel(sequelize);
 const RespuestaComando = RespuestaComandoModel(sequelize);
 const AuditoriaSistema = AuditoriaSistemaModel(sequelize);
+const PasswordResetToken = PasswordResetTokenModel(sequelize);
 
 // ---------- Asociaciones existentes ----------
 House.hasMany(Device, { foreignKey: "house_id" });
@@ -133,6 +135,10 @@ RespuestaComando.belongsTo(ComandoRemoto, { foreignKey: "comando_id" });
 User.hasMany(AuditoriaSistema, { foreignKey: "user_id", as: "auditorias" });
 AuditoriaSistema.belongsTo(User, { foreignKey: "user_id" });
 
+// ---------- Recuperacion de contrasena ----------
+User.hasMany(PasswordResetToken, { foreignKey: "user_id", as: "passwordResetTokens" });
+PasswordResetToken.belongsTo(User, { foreignKey: "user_id" });
+
 module.exports = {
   sequelize,
   House,
@@ -153,5 +159,6 @@ module.exports = {
   ConfiguracionDeteccion,
   ComandoRemoto,
   RespuestaComando,
-  AuditoriaSistema
+  AuditoriaSistema,
+  PasswordResetToken
 };
