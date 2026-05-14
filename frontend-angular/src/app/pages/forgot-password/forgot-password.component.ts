@@ -19,7 +19,7 @@ export class ForgotPasswordComponent {
   private readonly toast = inject(ToastService);
 
   readonly isSubmitting = signal(false);
-  readonly feedback = signal('Ingresa el correo de tu cuenta y enviaremos instrucciones de recuperación.');
+  readonly feedback = signal('Ingresa el correo de tu cuenta para solicitar un enlace de recuperación.');
   readonly feedbackTone = signal<'info' | 'error' | 'success'>('info');
   readonly devResetUrl = signal('');
 
@@ -42,9 +42,9 @@ export class ForgotPasswordComponent {
 
     try {
       const response = await this.auth.forgotPassword(this.form.getRawValue());
-      this.feedback.set(response.msg || 'Si la cuenta existe, enviaremos instrucciones de recuperación.');
+      this.feedback.set(response.msg || 'Solicitud recibida. Si la cuenta existe, enviaremos instrucciones.');
       this.feedbackTone.set('success');
-      this.toast.success('Solicitud recibida.');
+      this.toast.success('Solicitud recibida. Revisa el correo si la cuenta existe.');
 
       if (response.resetUrl) {
         this.devResetUrl.set(response.resetUrl);
