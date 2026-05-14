@@ -7,7 +7,7 @@ const tableExists = async (queryInterface, tableName) => {
     await queryInterface.describeTable(tableName);
     return true;
   } catch (error) {
-    if (/no.*exist|unknown table/i.test(String(error && error.message))) return false;
+    if (/no.*exist|unknown table|no description found/i.test(String(error && error.message))) return false;
     throw error;
   }
 };
