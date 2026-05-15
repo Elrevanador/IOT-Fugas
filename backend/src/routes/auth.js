@@ -7,7 +7,8 @@ const {
   verifyResetCode,
   resetPassword,
   me,
-  changePassword
+  changePassword,
+  checkEmail
 } = require("../controllers/authController");
 const auth = require("../middlewares/auth");
 const validate = require("../middlewares/validate");
@@ -102,6 +103,21 @@ router.post(
 );
 
 router.get("/me", auth, profileRateLimit, me);
+
+router.post(
+  "/check-email",
+  registerRateLimit,
+  [
+    body("email")
+      .trim()
+      .isEmail()
+      .withMessage("Email invalido")
+      .isLength({ max: 254 })
+      .withMessage("Email demasiado largo")
+  ],
+  validate,
+  checkEmail
+);
 
 router.post(
   "/forgot-password",

@@ -630,4 +630,25 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, forgotPassword, verifyResetCode, resetPassword, me, changePassword };
+const checkEmail = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || "").toLowerCase().trim();
+
+    const user = await User.findOne({ where: { email } });
+    const exists = user && (user.estado === "ACTIVO" || user.estado === "PENDIENTE");
+
+    return res.json({
+      ok: true,
+      exists,
+      msg: exists ? "El correo está registrado" : "El correo no está registrado"
+    });
+  } catch (error) {
+    logger.error("Error verificando email", {
+      error: error.message,
+      email: req.body.email
+    });
+    return next(error);
+  }
+};
+
+module.exports = { register, login, forgotPassword, verifyResetCode, resetPassword, me, changePassword, checkEmail };

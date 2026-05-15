@@ -56,21 +56,31 @@ export class ForgotPasswordComponent {
     }
 
     this.isSubmitting.set(true);
-    this.feedback.set('Protegiendo la solicitud y generando el código temporal...');
+    this.feedback.set('Verificando correo...');
     this.feedbackTone.set('info');
     this.devResetUrl.set('');
     this.devResetCode.set('');
 
     try {
-      const response = await this.auth.forgotPassword(this.form.getRawValue());
+      const email = this.form.getRawValue().email;
+      const checkResponse = await this.auth.checkEmail(email);
+
+      if (!checkResponse.exists) {
+        this.feedback.set('El correo no está registrado en el sistema.');
+        this.feedbackTone.set('error');
+        this.toast.error('Correo no registrado');
+        return;
+      }
+
+      const response = await this.auth.forgotPassword({ email });
       this.codeSent.set(true);
       this.codeVerified.set(false);
       this.verifiedCode.set('');
       this.resetCodeDigits();
       this.resetForm.reset({ password: '', confirmPassword: '' });
-      this.feedback.set(response.msg || 'Solicitud recibida. Si la cuenta existe, enviaremos un código.');
+      this.feedback.set(response.msg || 'Se envió un código a tu correo.');
       this.feedbackTone.set('success');
-      this.toast.success('Solicitud recibida. Revisa el correo si la cuenta existe.');
+      this.toast.success('Se envió un código a tu correo.');
 
       if (response.resetUrl) {
         this.devResetUrl.set(response.resetUrl);
@@ -213,6 +223,47 @@ export class ForgotPasswordComponent {
     this.verifiedCode.set('');
     this.feedback.set('Revisa el código e intenta validarlo nuevamente.');
     this.feedbackTone.set('info');
+  }
+
+  async resendCode() {
+    if (this.form.invalid || this.isSubmitting()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    this.isSubmitting.set(true);
+    this.feedback.set('Reenviando código seguro...');
+    this.feedbackTone.set('info');
+
+    try {
+      const email = this.form.getRawValue().email;
+      const checkResponse = await this.auth.checkEmail(email);
+
+      if (!checkResponse.exists) {
+        this.feedback.set('El correo no está registrado en el sistema.');
+        this.feedbackTone.set('error');
+        this.toast.error('Correo no registrado');
+        return;
+      }
+
+      const response = await this.auth.forgotPassword(this.form.getRawValue());
+      this.resetCodeDigits();
+      this.feedback.set(response.msg || 'Código reenviado. Revisa tu correo.');
+      this.feedbackTone.set('success');
+      this.toast.success('Código reenviado a tu correo.');
+
+      if (response.resetCode) {
+        this.devResetCode.set(response.resetCode);
+        this.codeDigits.set(response.resetCode.split('').slice(0, 6));
+      }
+    } catch (error) {
+      const message = resolveErrorMessage(error, 'No fue posible reenviar el código.');
+      this.feedback.set(message);
+      this.feedbackTone.set('error');
+      this.toast.error(message);
+    } finally {
+      this.isSubmitting.set(false);
+    }
   }
 
   private resetCodeDigits() {

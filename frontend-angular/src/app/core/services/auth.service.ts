@@ -94,6 +94,10 @@ export class AuthService {
     }
   }
 
+  async checkEmail(email: string) {
+    return firstValueFrom(this.api.post<{ ok: boolean; exists: boolean; msg: string }>('/api/auth/check-email', { email }));
+  }
+
   async forgotPassword(payload: ForgotPasswordPayload) {
     return firstValueFrom(this.api.post<ForgotPasswordResponse>('/api/auth/forgot-password', payload));
   }
