@@ -1,6 +1,14 @@
 const express = require("express");
 const { body } = require("express-validator");
-const { register, login, forgotPassword, resetPassword, me, changePassword } = require("../controllers/authController");
+const {
+  register,
+  login,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword,
+  me,
+  changePassword
+} = require("../controllers/authController");
 const auth = require("../middlewares/auth");
 const validate = require("../middlewares/validate");
 const createRateLimiter = require("../middlewares/rateLimit");
@@ -108,6 +116,27 @@ router.post(
   ],
   validate,
   forgotPassword
+);
+
+router.post(
+  "/verify-reset-code",
+  passwordResetRateLimit,
+  [
+    body("email")
+      .trim()
+      .isEmail()
+      .withMessage("Email invalido")
+      .isLength({ max: 254 })
+      .withMessage("Email demasiado largo"),
+    body("code")
+      .trim()
+      .isLength({ min: 6, max: 6 })
+      .withMessage("Código invalido")
+      .isNumeric()
+      .withMessage("Código invalido")
+  ],
+  validate,
+  verifyResetCode
 );
 
 router.post(

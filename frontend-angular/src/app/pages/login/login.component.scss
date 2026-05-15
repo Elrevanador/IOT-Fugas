@@ -204,6 +204,55 @@ input:focus {
   color: #5eead4;
 }
 
+.code-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.code-field > span {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.code-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.code-box {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.verified-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(45, 212, 191, 0.26);
+  border-radius: var(--radius-sm);
+  background: rgba(20, 184, 166, 0.1);
+  color: #86efac;
+  font-size: 0.9rem;
+}
+
+.verified-code button {
+  border: 0;
+  background: transparent;
+  color: #5eead4;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* TRUST */
 .auth-trust {
   display: grid;

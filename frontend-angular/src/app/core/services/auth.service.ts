@@ -12,7 +12,9 @@ import {
   RegisterPayload,
   RegisterResponse,
   ResetPasswordPayload,
-  ResetPasswordResponse
+  ResetPasswordResponse,
+  VerifyResetCodePayload,
+  VerifyResetCodeResponse
 } from '../types';
 
 @Injectable({
@@ -94,6 +96,10 @@ export class AuthService {
 
   async forgotPassword(payload: ForgotPasswordPayload) {
     return firstValueFrom(this.api.post<ForgotPasswordResponse>('/api/auth/forgot-password', payload));
+  }
+
+  async verifyResetCode(payload: VerifyResetCodePayload) {
+    return firstValueFrom(this.api.post<VerifyResetCodeResponse>('/api/auth/verify-reset-code', payload));
   }
 
   async resetPassword(payload: ResetPasswordPayload) {

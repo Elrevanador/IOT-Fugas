@@ -95,6 +95,16 @@ export interface ResetPasswordResponse {
   msg: string;
 }
 
+export interface VerifyResetCodePayload {
+  email: string;
+  code: string;
+}
+
+export interface VerifyResetCodeResponse {
+  ok: boolean;
+  msg: string;
+}
+
 export interface MeResponse {
   ok: boolean;
   user: AuthUser;

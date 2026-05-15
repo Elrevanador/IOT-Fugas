@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
@@ -22,8 +22,13 @@ export class ForgotPasswordComponent {
   private readonly router = inject(Router);
 
   readonly isSubmitting = signal(false);
+  readonly isVerifying = signal(false);
   readonly isResetting = signal(false);
   readonly codeSent = signal(false);
+  readonly codeVerified = signal(false);
+  readonly verifiedCode = signal('');
+  readonly codeDigits = signal(['', '', '', '', '', '']);
+  readonly codeSlots = [0, 1, 2, 3, 4, 5];
   readonly showPassword = signal(false);
   readonly showConfirmPassword = signal(false);
   readonly feedback = signal('Ingresa el correo de tu cuenta para solicitar un código de recuperación.');
@@ -35,8 +40,9 @@ export class ForgotPasswordComponent {
     email: [this.route.snapshot.queryParamMap.get('email') || '', [Validators.required, Validators.email, Validators.maxLength(254)]]
   });
 
+  readonly codeValue = computed(() => this.codeDigits().join(''));
+
   readonly resetForm = this.fb.nonNullable.group({
-    code: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
     password: ['', [Validators.required, backendPasswordValidator()]],
     confirmPassword: ['', [Validators.required]]
   });
@@ -58,6 +64,10 @@ export class ForgotPasswordComponent {
     try {
       const response = await this.auth.forgotPassword(this.form.getRawValue());
       this.codeSent.set(true);
+      this.codeVerified.set(false);
+      this.verifiedCode.set('');
+      this.resetCodeDigits();
+      this.resetForm.reset({ password: '', confirmPassword: '' });
       this.feedback.set(response.msg || 'Solicitud recibida. Si la cuenta existe, enviaremos un código.');
       this.feedbackTone.set('success');
       this.toast.success('Solicitud recibida. Revisa el correo si la cuenta existe.');
@@ -67,7 +77,7 @@ export class ForgotPasswordComponent {
       }
       if (response.resetCode) {
         this.devResetCode.set(response.resetCode);
-        this.resetForm.patchValue({ code: response.resetCode });
+        this.codeDigits.set(response.resetCode.split('').slice(0, 6));
       }
     } catch (error) {
       const message = resolveErrorMessage(error, 'No fue posible solicitar la recuperación.');
@@ -79,23 +89,61 @@ export class ForgotPasswordComponent {
     }
   }
 
+  async verifyCode() {
+    const code = this.codeValue();
+    if (!/^\d{6}$/.test(code) || this.form.invalid || this.isVerifying()) {
+      this.feedback.set('Ingresa el código de 6 dígitos que llegó al correo.');
+      this.feedbackTone.set('error');
+      return;
+    }
+
+    this.isVerifying.set(true);
+    this.feedback.set('Validando código de recuperación...');
+    this.feedbackTone.set('info');
+
+    try {
+      const response = await this.auth.verifyResetCode({
+        email: this.form.controls.email.value,
+        code
+      });
+      this.verifiedCode.set(code);
+      this.codeVerified.set(true);
+      this.feedback.set(response.msg || 'Código validado. Ahora crea tu nueva contraseña.');
+      this.feedbackTone.set('success');
+      this.toast.success('Código validado.');
+    } catch (error) {
+      const message = resolveErrorMessage(error, 'El código es inválido o expiró.');
+      this.feedback.set(message);
+      this.feedbackTone.set('error');
+      this.toast.error(message);
+    } finally {
+      this.isVerifying.set(false);
+    }
+  }
+
   async submitReset() {
     if (this.resetForm.invalid || !this.passwordsMatch() || this.isResetting()) {
       this.resetForm.markAllAsTouched();
-      this.feedback.set('Ingresa el código de 6 dígitos y confirma la nueva contraseña.');
+      this.feedback.set('Confirma la nueva contraseña antes de continuar.');
+      this.feedbackTone.set('error');
+      return;
+    }
+
+    if (!this.codeVerified() || !this.verifiedCode()) {
+      this.feedback.set('Primero valida el código de recuperación.');
       this.feedbackTone.set('error');
       return;
     }
 
     this.isResetting.set(true);
-    this.feedback.set('Validando código y actualizando contraseña...');
+    this.feedback.set('Actualizando contraseña...');
     this.feedbackTone.set('info');
 
     try {
       const raw = this.resetForm.getRawValue();
       const response = await this.auth.resetPassword({
         email: this.form.controls.email.value,
-        code: raw.code,
+        code: this.verifiedCode(),
         password: raw.password,
         confirmPassword: raw.confirmPassword
       });
@@ -116,6 +164,59 @@ export class ForgotPasswordComponent {
 
   protected passwordsMatch() {
     return this.resetForm.controls.password.value === this.resetForm.controls.confirmPassword.value;
+  }
+
+  protected codeInputId(index: number) {
+    return `reset-code-${index}`;
+  }
+
+  protected onCodeInput(event: Event, index: number) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value.replace(/\D/g, '').slice(-1);
+    const nextDigits = [...this.codeDigits()];
+    nextDigits[index] = value;
+    this.codeDigits.set(nextDigits);
+    input.value = value;
+
+    if (value && index < this.codeSlots.length - 1) {
+      document.getElementById(this.codeInputId(index + 1))?.focus();
+    }
+  }
+
+  protected onCodeKeydown(event: KeyboardEvent, index: number) {
+    if (event.key !== 'Backspace') return;
+    const nextDigits = [...this.codeDigits()];
+    if (nextDigits[index]) {
+      nextDigits[index] = '';
+      this.codeDigits.set(nextDigits);
+      return;
+    }
+    if (index > 0) {
+      document.getElementById(this.codeInputId(index - 1))?.focus();
+    }
+  }
+
+  protected onCodePaste(event: ClipboardEvent) {
+    const pasted = event.clipboardData?.getData('text')?.replace(/\D/g, '').slice(0, 6) || '';
+    if (!pasted) return;
+    event.preventDefault();
+    const nextDigits = ['', '', '', '', '', ''];
+    pasted.split('').forEach((digit, index) => {
+      nextDigits[index] = digit;
+    });
+    this.codeDigits.set(nextDigits);
+    document.getElementById(this.codeInputId(Math.min(pasted.length, 6) - 1))?.focus();
+  }
+
+  protected editCode() {
+    this.codeVerified.set(false);
+    this.verifiedCode.set('');
+    this.feedback.set('Revisa el código e intenta validarlo nuevamente.');
+    this.feedbackTone.set('info');
+  }
+
+  private resetCodeDigits() {
+    this.codeDigits.set(['', '', '', '', '', '']);
   }
 
   protected passwordError() {

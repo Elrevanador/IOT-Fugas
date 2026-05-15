@@ -360,6 +360,46 @@ const forgotPassword = async (req, res, next) => {
   }
 };
 
+const verifyResetCode = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || "").toLowerCase().trim();
+    const code = String(req.body.code || "").trim();
+    const invalidMessage = "El código de recuperación es inválido o expiró";
+
+    const user = await User.findOne({ where: { email } });
+    if (!user || user.estado === "INACTIVO" || user.estado === "BLOQUEADO") {
+      return res.status(400).json({ ok: false, msg: invalidMessage });
+    }
+
+    const resetToken = await PasswordResetToken.findOne({
+      where: {
+        user_id: user.id,
+        token_hash: hashResetCode(user.id, code),
+        used_at: { [Op.is]: null },
+        expires_at: { [Op.gt]: new Date() }
+      }
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({ ok: false, msg: invalidMessage });
+    }
+
+    await recordAudit({
+      user: { id: user.id, email: user.email },
+      entidad: "User",
+      entidadId: user.id,
+      accion: "validacion_codigo_recuperacion",
+      detalle: { success: true },
+      req
+    });
+
+    return res.json({ ok: true, msg: "Código validado correctamente" });
+  } catch (error) {
+    logger.error("Error validando codigo de recuperacion", { error: error.message });
+    return next(error);
+  }
+};
+
 const resetPassword = async (req, res, next) => {
   try {
     const token = String(req.body.token || "").trim();
@@ -590,4 +630,4 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, forgotPassword, resetPassword, me, changePassword };
+module.exports = { register, login, forgotPassword, verifyResetCode, resetPassword, me, changePassword };
