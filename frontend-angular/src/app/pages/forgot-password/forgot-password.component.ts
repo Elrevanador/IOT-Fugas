@@ -101,9 +101,21 @@ export class ForgotPasswordComponent {
 
   async verifyCode() {
     const code = this.codeValue();
-    if (!/^\d{6}$/.test(code) || this.form.invalid || this.isVerifying()) {
+    const email = this.form.controls.email.value;
+
+    if (!/^\d{6}$/.test(code)) {
       this.feedback.set('Ingresa el código de 6 dígitos que llegó al correo.');
       this.feedbackTone.set('error');
+      return;
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      this.feedback.set('Correo inválido.');
+      this.feedbackTone.set('error');
+      return;
+    }
+
+    if (this.isVerifying()) {
       return;
     }
 
@@ -113,7 +125,7 @@ export class ForgotPasswordComponent {
 
     try {
       const response = await this.auth.verifyResetCode({
-        email: this.form.controls.email.value,
+        email,
         code
       });
       this.verifiedCode.set(code);
