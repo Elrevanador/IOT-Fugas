@@ -2,27 +2,36 @@
 
 const logger = require("../utils/logger");
 
-const buildEmailHtml = ({ resetUrl, minutes }) => `
+const buildEmailHtml = ({ resetUrl, code, minutes }) => `
   <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
     <h2>Recupera tu contraseña</h2>
     <p>Recibimos una solicitud para cambiar la contraseña de tu cuenta.</p>
+    ${
+      code
+        ? `<p>Ingresa este código en la página de recuperación:</p>
+           <p style="font-size:28px;letter-spacing:8px;font-weight:700;background:#f1f5f9;padding:14px 18px;border-radius:10px;display:inline-block">${code}</p>`
+        : ""
+    }
     <p>
       <a href="${resetUrl}" style="display:inline-block;padding:12px 16px;border-radius:8px;background:#0d9488;color:#ffffff;text-decoration:none;font-weight:700">
-        Crear nueva contraseña
+        Abrir recuperación
       </a>
     </p>
-    <p>Este enlace vence en ${minutes} minutos y solo se puede usar una vez.</p>
+    <p>Este ${code ? "código" : "enlace"} vence en ${minutes} minutos y solo se puede usar una vez.</p>
     <p>Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
   </div>
 `;
 
-const buildEmailText = ({ resetUrl, userName, minutes }) =>
-  [
+const buildEmailText = ({ resetUrl, code, userName, minutes }) => {
+  const lines = [
     `Hola${userName ? ` ${userName}` : ""}.`,
     "Recibimos una solicitud para cambiar la contraseña de tu cuenta.",
-    `Abre este enlace antes de ${minutes} minutos: ${resetUrl}`,
+    code ? `Tu código de recuperación es: ${code}` : "",
+    `Abre la página de recuperación antes de ${minutes} minutos: ${resetUrl}`,
     "Si no solicitaste este cambio, ignora este mensaje."
-  ].join("\n\n");
+  ].filter(Boolean);
+  return lines.join("\n\n");
+};
 
 const parseFromAddress = (value) => {
   const raw = String(value || "").trim();
@@ -33,7 +42,7 @@ const parseFromAddress = (value) => {
   return { email: raw };
 };
 
-const sendWithResend = async ({ to, resetUrl, userName, minutes }) => {
+const sendWithResend = async ({ to, resetUrl, code, userName, minutes }) => {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.PASSWORD_RESET_FROM_EMAIL;
 
@@ -51,8 +60,8 @@ const sendWithResend = async ({ to, resetUrl, userName, minutes }) => {
       from,
       to,
       subject: "Recupera tu contraseña",
-      html: buildEmailHtml({ resetUrl, minutes }),
-      text: buildEmailText({ resetUrl, userName, minutes })
+      html: buildEmailHtml({ resetUrl, code, minutes }),
+      text: buildEmailText({ resetUrl, code, userName, minutes })
     })
   });
 
@@ -64,7 +73,7 @@ const sendWithResend = async ({ to, resetUrl, userName, minutes }) => {
   return { sent: true, provider: "resend" };
 };
 
-const sendWithSendGrid = async ({ to, resetUrl, userName, minutes }) => {
+const sendWithSendGrid = async ({ to, resetUrl, code, userName, minutes }) => {
   const apiKey = process.env.SENDGRID_API_KEY;
   const from = process.env.PASSWORD_RESET_FROM_EMAIL;
 
@@ -90,11 +99,11 @@ const sendWithSendGrid = async ({ to, resetUrl, userName, minutes }) => {
       content: [
         {
           type: "text/plain",
-          value: buildEmailText({ resetUrl, userName, minutes })
+          value: buildEmailText({ resetUrl, code, userName, minutes })
         },
         {
           type: "text/html",
-          value: buildEmailHtml({ resetUrl, minutes })
+          value: buildEmailHtml({ resetUrl, code, minutes })
         }
       ]
     })
@@ -108,13 +117,14 @@ const sendWithSendGrid = async ({ to, resetUrl, userName, minutes }) => {
   return { sent: true, provider: "sendgrid" };
 };
 
-const sendPasswordResetEmail = async ({ user, resetUrl, minutes }) => {
+const sendPasswordResetEmail = async ({ user, resetUrl, code, minutes }) => {
   try {
     const provider = String(process.env.PASSWORD_RESET_EMAIL_PROVIDER || "").trim().toLowerCase();
     const useSendGrid = provider === "sendgrid" || (!provider && Boolean(process.env.SENDGRID_API_KEY));
     const result = await (useSendGrid ? sendWithSendGrid : sendWithResend)({
       to: user.email,
       resetUrl,
+      code,
       userName: user.nombre,
       minutes
     });

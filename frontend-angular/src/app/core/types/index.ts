@@ -79,11 +79,13 @@ export interface ForgotPasswordResponse {
   ok: boolean;
   msg: string;
   resetUrl?: string;
-  resetToken?: string;
+  resetCode?: string;
 }
 
 export interface ResetPasswordPayload {
-  token: string;
+  token?: string;
+  email?: string;
+  code?: string;
   password: string;
   confirmPassword: string;
 }

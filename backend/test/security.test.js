@@ -441,7 +441,7 @@ test("login aplica rate limit por IP", async () => {
   }
 });
 
-test("recuperacion de contraseña genera token temporal hasheado", async () => {
+test("recuperacion de contraseña genera codigo temporal hasheado", async () => {
   const previousExposeResetToken = process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN;
   process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN = "true";
   let createdToken = null;
@@ -489,10 +489,17 @@ test("recuperacion de contraseña genera token temporal hasheado", async () => {
 
           assert.equal(response.statusCode, 200);
           assert.equal(response.body.ok, true);
-          assert.match(response.body.resetToken, /^[a-f0-9]{64}$/);
-          assert.ok(response.body.resetUrl.includes("/reset-password?token="));
+          assert.match(response.body.resetCode, /^\d{6}$/);
+          assert.ok(response.body.resetUrl.includes("/forgot-password?email="));
           assert.ok(createdToken);
-          assert.notEqual(createdToken.token_hash, response.body.resetToken);
+          assert.notEqual(createdToken.token_hash, response.body.resetCode);
+          assert.equal(
+            createdToken.token_hash,
+            crypto
+              .createHash("sha256")
+              .update(`password-reset-code:12:${response.body.resetCode}`, "utf8")
+              .digest("hex")
+          );
           assert.match(createdToken.token_hash, /^[a-f0-9]{64}$/);
         } finally {
           await server.close();
@@ -508,9 +515,9 @@ test("recuperacion de contraseña genera token temporal hasheado", async () => {
   }
 });
 
-test("reset de contraseña consume token y limpia bloqueo de login", async () => {
-  const token = "a".repeat(64);
-  const tokenHash = crypto.createHash("sha256").update(token, "utf8").digest("hex");
+test("reset de contraseña consume codigo y limpia bloqueo de login", async () => {
+  const code = "123456";
+  const tokenHash = crypto.createHash("sha256").update(`password-reset-code:15:${code}`, "utf8").digest("hex");
   const previousPasswordHash = await bcrypt.hash("OldPass123!", 4);
   let tokenUsed = false;
   let invalidatedSiblingTokens = false;
@@ -523,7 +530,9 @@ test("reset de contraseña consume token y limpia bloqueo de login", async () =>
           transaction: async (callback) => callback({ id: "tx" })
         },
         User: {
-          findByPk: async () => ({
+          findOne: async ({ where }) => {
+            assert.equal(where.email, "duvan@example.com");
+            return {
             id: 15,
             email: "duvan@example.com",
             estado: "ACTIVO",
@@ -531,10 +540,12 @@ test("reset de contraseña consume token y limpia bloqueo de login", async () =>
             update: async (payload) => {
               userUpdate = payload;
             }
-          })
+            };
+          }
         },
         PasswordResetToken: {
           findOne: async ({ where }) => {
+            assert.equal(where.user_id, 15);
             assert.equal(where.token_hash, tokenHash);
             return {
               id: 22,
@@ -567,7 +578,8 @@ test("reset de contraseña consume token y limpia bloqueo de login", async () =>
           method: "POST",
           path: "/api/auth/reset-password",
           body: {
-            token,
+            email: "duvan@example.com",
+            code,
             password: "NewPass123!",
             confirmPassword: "NewPass123!"
           }

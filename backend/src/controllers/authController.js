@@ -13,7 +13,7 @@ const logger = require("../utils/logger");
 // Configuración de seguridad
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_TIME_MINUTES = 30;
-const PASSWORD_RESET_TOKEN_BYTES = 32;
+const PASSWORD_RESET_CODE_DIGITS = 6;
 const PASSWORD_RESET_TTL_MINUTES = Number.parseInt(process.env.PASSWORD_RESET_TTL_MINUTES || "", 10) || 15;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/;
@@ -22,6 +22,9 @@ const PASSWORD_RESET_PUBLIC_MESSAGE =
 
 const normalizeUsername = (value) => String(value || "").trim().toLowerCase();
 const hashResetToken = (token) => crypto.createHash("sha256").update(String(token || ""), "utf8").digest("hex");
+const generateResetCode = () =>
+  String(crypto.randomInt(0, 10 ** PASSWORD_RESET_CODE_DIGITS)).padStart(PASSWORD_RESET_CODE_DIGITS, "0");
+const hashResetCode = (userId, code) => hashResetToken(`password-reset-code:${userId}:${String(code || "").trim()}`);
 
 const getRequestIp = (req) => {
   const ip =
@@ -41,15 +44,16 @@ const getUserAgent = (req) => {
 const shouldExposeResetToken = () =>
   process.env.NODE_ENV !== "production" || process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN === "true";
 
-const buildPasswordResetUrl = (req, token) => {
+const buildPasswordResetUrl = (req, { token = null, email = null } = {}) => {
   const configuredBase =
     process.env.PASSWORD_RESET_BASE_URL ||
     process.env.FRONTEND_URL ||
     (req.get ? req.get("origin") : "") ||
     `${req.protocol || "https"}://${req.get ? req.get("host") : ""}`;
 
-  const url = new URL("/reset-password", configuredBase);
-  url.searchParams.set("token", token);
+  const url = new URL(token ? "/reset-password" : "/forgot-password", configuredBase);
+  if (token) url.searchParams.set("token", token);
+  if (email) url.searchParams.set("email", email);
   return url.toString();
 };
 
@@ -286,10 +290,10 @@ const forgotPassword = async (req, res, next) => {
       return res.json(response);
     }
 
-    const rawToken = crypto.randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString("hex");
-    const tokenHash = hashResetToken(rawToken);
+    const resetCode = generateResetCode();
+    const tokenHash = hashResetCode(user.id, resetCode);
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000);
-    const resetUrl = buildPasswordResetUrl(req, rawToken);
+    const resetUrl = buildPasswordResetUrl(req, { email: user.email });
 
     await sequelize.transaction(async (transaction) => {
       await PasswordResetToken.update(
@@ -328,6 +332,7 @@ const forgotPassword = async (req, res, next) => {
     const delivery = await sendPasswordResetEmail({
       user,
       resetUrl,
+      code: resetCode,
       minutes: PASSWORD_RESET_TTL_MINUTES
     });
 
@@ -336,12 +341,13 @@ const forgotPassword = async (req, res, next) => {
       email: user.email,
       expiresAt,
       delivery,
-      resetUrl: shouldExposeResetToken() ? resetUrl : undefined
+      resetUrl: shouldExposeResetToken() ? resetUrl : undefined,
+      resetCode: shouldExposeResetToken() ? resetCode : undefined
     });
 
     if (shouldExposeResetToken()) {
       response.resetUrl = resetUrl;
-      response.resetToken = rawToken;
+      response.resetCode = resetCode;
     }
 
     return res.json(response);
@@ -357,7 +363,18 @@ const forgotPassword = async (req, res, next) => {
 const resetPassword = async (req, res, next) => {
   try {
     const token = String(req.body.token || "").trim();
+    const code = String(req.body.code || "").trim();
+    const email = String(req.body.email || "").toLowerCase().trim();
     const { password } = req.body;
+
+    const isCodeFlow = Boolean(code && email);
+    const invalidResetMessage = isCodeFlow
+      ? "El código de recuperación es inválido o expiró"
+      : "El enlace de recuperación es inválido o expiró";
+
+    if (!token && !isCodeFlow) {
+      return res.status(400).json({ ok: false, msg: "Código o token de recuperación requerido" });
+    }
 
     if (!PASSWORD_REGEX.test(password)) {
       return res.status(400).json({
@@ -366,26 +383,48 @@ const resetPassword = async (req, res, next) => {
       });
     }
 
-    const tokenHash = hashResetToken(token);
     const now = new Date();
 
     const result = await sequelize.transaction(async (transaction) => {
-      const resetToken = await PasswordResetToken.findOne({
-        where: {
-          token_hash: tokenHash,
-          used_at: { [Op.is]: null },
-          expires_at: { [Op.gt]: now }
-        },
-        transaction
-      });
+      let user = null;
+      let resetToken = null;
 
-      if (!resetToken) {
-        return { status: 400, body: { ok: false, msg: "El enlace de recuperación es inválido o expiró" } };
+      if (isCodeFlow) {
+        user = await User.findOne({ where: { email }, transaction });
+        if (!user || user.estado === "INACTIVO" || user.estado === "BLOQUEADO") {
+          return { status: 400, body: { ok: false, msg: invalidResetMessage } };
+        }
+
+        resetToken = await PasswordResetToken.findOne({
+          where: {
+            user_id: user.id,
+            token_hash: hashResetCode(user.id, code),
+            used_at: { [Op.is]: null },
+            expires_at: { [Op.gt]: now }
+          },
+          transaction
+        });
+      } else {
+        resetToken = await PasswordResetToken.findOne({
+          where: {
+            token_hash: hashResetToken(token),
+            used_at: { [Op.is]: null },
+            expires_at: { [Op.gt]: now }
+          },
+          transaction
+        });
+
+        if (resetToken) {
+          user = await User.findByPk(resetToken.user_id, { transaction });
+        }
       }
 
-      const user = await User.findByPk(resetToken.user_id, { transaction });
+      if (!resetToken) {
+        return { status: 400, body: { ok: false, msg: invalidResetMessage } };
+      }
+
       if (!user || user.estado === "INACTIVO" || user.estado === "BLOQUEADO") {
-        return { status: 400, body: { ok: false, msg: "El enlace de recuperación es inválido o expiró" } };
+        return { status: 400, body: { ok: false, msg: invalidResetMessage } };
       }
 
       const isSamePassword = await bcrypt.compare(password, user.password_hash);
@@ -424,7 +463,7 @@ const resetPassword = async (req, res, next) => {
         entidad: "User",
         entidadId: user.id,
         accion: "recuperacion_contraseña",
-        detalle: { success: true },
+        detalle: { success: true, method: isCodeFlow ? "email_code" : "reset_link" },
         req,
         transaction
       });

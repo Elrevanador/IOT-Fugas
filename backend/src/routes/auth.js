@@ -115,9 +115,27 @@ router.post(
   passwordResetRateLimit,
   [
     body("token")
+      .optional({ values: "falsy" })
       .trim()
       .isLength({ min: 64, max: 128 })
       .withMessage("Token invalido"),
+    body("email")
+      .optional({ values: "falsy" })
+      .trim()
+      .isEmail()
+      .withMessage("Email invalido")
+      .isLength({ max: 254 })
+      .withMessage("Email demasiado largo"),
+    body("code")
+      .optional({ values: "falsy" })
+      .trim()
+      .isLength({ min: 6, max: 6 })
+      .withMessage("Código invalido")
+      .isNumeric()
+      .withMessage("Código invalido"),
+    body()
+      .custom((value) => Boolean(value.token || (value.email && value.code)))
+      .withMessage("Token o código requerido"),
     body("password")
       .isLength({ min: 8, max: 128 })
       .withMessage("Contraseña debe tener al menos 8 caracteres")
