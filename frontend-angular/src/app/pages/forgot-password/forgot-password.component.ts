@@ -54,7 +54,8 @@ export class ForgotPasswordComponent {
     confirmPassword: ['', [Validators.required]]
   });
 
-  async submit() {
+  async submit(event?: Event) {
+    event?.preventDefault();
     if (this.form.invalid || this.isSubmitting()) {
       this.form.markAllAsTouched();
       this.feedback.set('Ingresa un correo válido para continuar.');
@@ -153,7 +154,8 @@ export class ForgotPasswordComponent {
     }
   }
 
-  async submitReset() {
+  async submitReset(event?: Event) {
+    event?.preventDefault();
     if (this.resetForm.invalid || !this.passwordsMatch() || this.isResetting()) {
       this.resetForm.markAllAsTouched();
       this.feedback.set('Confirma la nueva contraseña antes de continuar.');
@@ -249,7 +251,8 @@ export class ForgotPasswordComponent {
     this.feedbackTone.set('info');
   }
 
-  async resendCode() {
+  async resendCode(event?: Event) {
+    event?.preventDefault();
     if (this.form.invalid || this.isSubmitting()) {
       this.form.markAllAsTouched();
       return;
