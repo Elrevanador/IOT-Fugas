@@ -4,20 +4,20 @@
   </button>
 
   <div class="page-title">
-    <h1>Panel operativo</h1>
-    <p>Telemetría, alertas y administración del sistema IoT</p>
+    <h1>{{ pageHeading().title }}</h1>
+    <p>{{ pageHeading().subtitle }}</p>
   </div>
 
   <div class="user-area">
     @if (auth.currentUser(); as user) {
-      <div class="user-card">
+      <a class="user-card" routerLink="/profile" title="Ir a mi cuenta">
         <div class="user-avatar" aria-hidden="true">{{ initials(user.nombre) }}</div>
         <div class="user-info">
           <strong>{{ user.nombre }}</strong>
           <span>{{ user.email }}</span>
         </div>
         <span class="role-pill">{{ user.role | uppercase }}</span>
-      </div>
+      </a>
     }
 
     <button class="logout-button" type="button" (click)="logout()">

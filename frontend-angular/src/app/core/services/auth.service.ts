@@ -4,6 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import {
   AuthUser,
+  ChangePasswordPayload,
+  ChangePasswordResponse,
   ForgotPasswordPayload,
   ForgotPasswordResponse,
   LoginPayload,
@@ -13,6 +15,8 @@ import {
   RegisterResponse,
   ResetPasswordPayload,
   ResetPasswordResponse,
+  UpdateProfilePayload,
+  UpdateProfileResponse,
   VerifyResetCodePayload,
   VerifyResetCodeResponse
 } from '../types';
@@ -110,6 +114,20 @@ export class AuthService {
     return firstValueFrom(this.api.post<ResetPasswordResponse>('/api/auth/reset-password', payload));
   }
 
+  async updateProfile(payload: UpdateProfilePayload) {
+    const response = await firstValueFrom(this.api.patch<UpdateProfileResponse>('/api/auth/profile', payload));
+    if (response.user) {
+      this.currentUser.set(response.user);
+    } else {
+      await this.ensureFreshProfile();
+    }
+    return response;
+  }
+
+  async changePassword(payload: ChangePasswordPayload) {
+    return firstValueFrom(this.api.post<ChangePasswordResponse>('/api/auth/change-password', payload));
+  }
+
   async ensureFreshProfile() {
     const response = await firstValueFrom(this.api.get<MeResponse>('/api/auth/me'));
     this.currentUser.set(response.user);
@@ -138,6 +156,10 @@ export class AuthService {
 
     if (normalized === '/admin' || normalized.startsWith('/admin')) {
       return this.isAdmin();
+    }
+
+    if (normalized === '/profile' || normalized.startsWith('/profile')) {
+      return this.isAuthenticated();
     }
 
     return this.permissions().some((resource) => {

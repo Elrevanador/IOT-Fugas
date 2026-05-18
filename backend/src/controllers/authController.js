@@ -582,11 +582,98 @@ const me = async (req, res, next) => {
   }
 };
 
+const updateProfile = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      include: [{ model: House, attributes: ["id", "name", "code", "status"], required: false }]
+    });
+
+    if (!user) {
+      return res.status(404).json({ ok: false, msg: "Usuario no encontrado" });
+    }
+
+    if (user.estado === "INACTIVO" || user.estado === "BLOQUEADO") {
+      return res.status(403).json({ ok: false, msg: "Tu cuenta no puede actualizar el perfil en este momento" });
+    }
+
+    const nombre = String(req.body.nombre || "").trim();
+    const apellido = String(req.body.apellido || "").trim();
+    const username = normalizeUsername(req.body.username);
+    const normalizedEmail = String(req.body.email || "").toLowerCase().trim();
+
+    if (!USERNAME_REGEX.test(username)) {
+      return res.status(400).json({
+        ok: false,
+        msg: "El username solo puede contener letras, numeros, punto, guion o guion bajo"
+      });
+    }
+
+    if (normalizedEmail !== user.email) {
+      const duplicateEmail = await User.findOne({ where: { email: normalizedEmail } });
+      if (duplicateEmail) {
+        return res.status(409).json({ ok: false, msg: "Email ya registrado" });
+      }
+    }
+
+    if (username !== user.username) {
+      const duplicateUsername = await User.findOne({ where: { username } });
+      if (duplicateUsername) {
+        return res.status(409).json({ ok: false, msg: "Username ya registrado" });
+      }
+    }
+
+    await user.update({
+      nombre,
+      apellido,
+      username,
+      email: normalizedEmail
+    });
+
+    await recordAudit({
+      user: req.user,
+      entidad: "User",
+      entidadId: user.id,
+      accion: "actualizacion_perfil",
+      detalle: { email: normalizedEmail, username },
+      req
+    });
+
+    const access = await buildUserAccessProfile(user, { silent: true });
+
+    logger.info("Perfil actualizado", { userId: user.id, email: user.email });
+
+    return res.json({
+      ok: true,
+      msg: "Perfil actualizado correctamente",
+      user: {
+        ...serializeAuthUser(user, access, undefined),
+        house: user.House
+          ? {
+              id: user.House.id,
+              name: user.House.name,
+              code: user.House.code,
+              status: user.House.status
+            }
+          : null,
+        last_login_at: user.last_login_at,
+        email_verified: user.email_verified
+      }
+    });
+  } catch (error) {
+    logger.error("Error actualizando perfil", { error: error.message, userId: req.user?.id });
+    return next(error);
+  }
+};
+
 const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    // Validar fortaleza de nueva contraseña
+    const dbUser = await User.findByPk(req.user.id);
+    if (!dbUser) {
+      return res.status(404).json({ ok: false, msg: "Usuario no encontrado" });
+    }
+
     if (!PASSWORD_REGEX.test(newPassword)) {
       return res.status(400).json({
         ok: false,
@@ -594,14 +681,12 @@ const changePassword = async (req, res, next) => {
       });
     }
 
-    // Verificar que no sea la misma contraseña
-    const isSamePassword = await bcrypt.compare(newPassword, req.user.password_hash);
+    const isSamePassword = await bcrypt.compare(newPassword, dbUser.password_hash);
     if (isSamePassword) {
       return res.status(400).json({ ok: false, msg: "La nueva contraseña no puede ser igual a la actual" });
     }
 
-    // Verificar contraseña actual
-    const currentPasswordValid = await bcrypt.compare(currentPassword, req.user.password_hash);
+    const currentPasswordValid = await bcrypt.compare(currentPassword, dbUser.password_hash);
     if (!currentPasswordValid) {
       logger.warn("Intento de cambio de contraseña con contraseña actual incorrecta", {
         userId: req.user.id,
@@ -610,15 +695,8 @@ const changePassword = async (req, res, next) => {
       return res.status(401).json({ ok: false, msg: "Contraseña actual incorrecta" });
     }
 
-    // Generar nuevo hash
     const salt = await bcrypt.genSalt(12);
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
-
-    // Actualizar usuario
-    const dbUser = await User.findByPk(req.user.id);
-    if (!dbUser) {
-      return res.status(404).json({ ok: false, msg: "Usuario no encontrado" });
-    }
 
     await dbUser.update({
       password_hash: newPasswordHash,
@@ -670,4 +748,14 @@ const checkEmail = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, forgotPassword, verifyResetCode, resetPassword, me, changePassword, checkEmail };
+module.exports = {
+  register,
+  login,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword,
+  me,
+  updateProfile,
+  changePassword,
+  checkEmail
+};

@@ -30,6 +30,16 @@ export class MenuService {
         padre: null,
         estado: 'ACTIVO',
         items: []
+      },
+      {
+        id: 3,
+        nombre: 'Mi cuenta',
+        path: '/profile',
+        icono: 'fa-solid fa-user-gear',
+        orden: 2,
+        padre: null,
+        estado: 'ACTIVO',
+        items: []
       }
     ];
 
@@ -39,7 +49,7 @@ export class MenuService {
         nombre: 'Administración',
         path: '/admin',
         icono: 'fa-solid fa-screwdriver-wrench',
-        orden: 2,
+        orden: 3,
         padre: null,
         estado: 'ACTIVO',
         items: []

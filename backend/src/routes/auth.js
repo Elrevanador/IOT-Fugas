@@ -7,6 +7,7 @@ const {
   verifyResetCode,
   resetPassword,
   me,
+  updateProfile,
   changePassword,
   checkEmail
 } = require("../controllers/authController");
@@ -103,6 +104,36 @@ router.post(
 );
 
 router.get("/me", auth, profileRateLimit, me);
+
+router.patch(
+  "/profile",
+  auth,
+  profileRateLimit,
+  [
+    body("nombre")
+      .trim()
+      .isLength({ min: 3, max: 120 })
+      .withMessage("Nombre invalido"),
+    body("apellido")
+      .trim()
+      .isLength({ min: 2, max: 120 })
+      .withMessage("Apellido invalido"),
+    body("username")
+      .trim()
+      .isLength({ min: 3, max: 80 })
+      .withMessage("Username invalido")
+      .matches(/^[a-zA-Z0-9._-]+$/)
+      .withMessage("Username invalido"),
+    body("email")
+      .trim()
+      .isEmail()
+      .withMessage("Email invalido")
+      .isLength({ max: 254 })
+      .withMessage("Email demasiado largo")
+  ],
+  validate,
+  updateProfile
+);
 
 router.post(
   "/check-email",

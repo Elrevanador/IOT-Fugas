@@ -1,0 +1,179 @@
+<section class="profile-page">
+  @if (user(); as current) {
+    <header class="profile-hero glass-panel">
+      <div class="profile-hero__glow" aria-hidden="true"></div>
+      <div class="profile-hero__avatar" aria-hidden="true">{{ initials(displayName()) }}</div>
+      <div class="profile-hero__copy">
+        <span class="eyebrow">Mi cuenta</span>
+        <h1>{{ displayName() }}</h1>
+        <p>{{ current.email }}</p>
+        <div class="profile-hero__chips">
+          <span class="chip chip--role">{{ roleLabel() }}</span>
+          @if (current.estado) {
+            <span class="chip" [class.chip--active]="current.estado === 'ACTIVO'">{{ current.estado }}</span>
+          }
+          @if (current.house?.name) {
+            <span class="chip chip--house">
+              <i class="fa-solid fa-house" aria-hidden="true"></i>
+              {{ current.house?.name }}
+            </span>
+          }
+        </div>
+      </div>
+      <dl class="profile-hero__meta">
+        <div>
+          <dt>Usuario</dt>
+          <dd>{{ current.username || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Último acceso</dt>
+          <dd>{{ current.last_login_at ? (current.last_login_at | date: 'medium') : 'Sin registro' }}</dd>
+        </div>
+        <div>
+          <dt>Correo verificado</dt>
+          <dd>{{ current.email_verified ? 'Sí' : 'Pendiente' }}</dd>
+        </div>
+      </dl>
+    </header>
+
+    <div class="profile-grid">
+      <article class="profile-card glass-panel">
+        <header class="profile-card__header">
+          <div>
+            <span class="eyebrow">Datos personales</span>
+            <h2>Información de perfil</h2>
+          </div>
+          <i class="fa-solid fa-id-card profile-card__icon" aria-hidden="true"></i>
+        </header>
+
+        <form class="profile-form" [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+          <div class="profile-form__grid">
+            <label>
+              <span>Nombre</span>
+              <input type="text" formControlName="nombre" autocomplete="given-name" />
+              @if (fieldError('nombre'); as msg) {
+                <small class="field-error">{{ msg }}</small>
+              }
+            </label>
+
+            <label>
+              <span>Apellido</span>
+              <input type="text" formControlName="apellido" autocomplete="family-name" />
+              @if (fieldError('apellido'); as msg) {
+                <small class="field-error">{{ msg }}</small>
+              }
+            </label>
+
+            <label>
+              <span>Username</span>
+              <input type="text" formControlName="username" autocomplete="username" />
+              @if (fieldError('username'); as msg) {
+                <small class="field-error">{{ msg }}</small>
+              }
+            </label>
+
+            <label>
+              <span>Correo</span>
+              <input type="email" formControlName="email" autocomplete="email" />
+              @if (fieldError('email'); as msg) {
+                <small class="field-error">{{ msg }}</small>
+              }
+            </label>
+          </div>
+
+          <p class="profile-hint">
+            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+            El rol y la vivienda asignada solo pueden cambiarlas un administrador.
+          </p>
+
+          <button type="submit" class="profile-btn profile-btn--primary" [disabled]="savingProfile()">
+            @if (savingProfile()) {
+              <span class="button-loader"></span>
+              Guardando...
+            } @else {
+              <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+              Guardar cambios
+            }
+          </button>
+        </form>
+      </article>
+
+      <article class="profile-card glass-panel profile-card--security">
+        <header class="profile-card__header">
+          <div>
+            <span class="eyebrow">Seguridad</span>
+            <h2>Cambiar contraseña</h2>
+          </div>
+          <i class="fa-solid fa-shield-halved profile-card__icon" aria-hidden="true"></i>
+        </header>
+
+        <form class="profile-form" [formGroup]="passwordForm" (ngSubmit)="savePassword()">
+          <label class="password-field">
+            <span>Contraseña actual</span>
+            <div class="password-field__control">
+              <input
+                [type]="showCurrentPassword() ? 'text' : 'password'"
+                formControlName="currentPassword"
+                autocomplete="current-password"
+              />
+              <button type="button" class="password-field__toggle" (click)="toggleVisibility('current')">
+                <i [class]="showCurrentPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" aria-hidden="true"></i>
+              </button>
+            </div>
+            @if (passwordFieldError('currentPassword'); as msg) {
+              <small class="field-error">{{ msg }}</small>
+            }
+          </label>
+
+          <label class="password-field">
+            <span>Nueva contraseña</span>
+            <div class="password-field__control">
+              <input
+                [type]="showNewPassword() ? 'text' : 'password'"
+                formControlName="newPassword"
+                autocomplete="new-password"
+              />
+              <button type="button" class="password-field__toggle" (click)="toggleVisibility('new')">
+                <i [class]="showNewPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" aria-hidden="true"></i>
+              </button>
+            </div>
+            @if (passwordFieldError('newPassword'); as msg) {
+              <small class="field-error">{{ msg }}</small>
+            }
+          </label>
+
+          <label class="password-field">
+            <span>Confirmar nueva contraseña</span>
+            <div class="password-field__control">
+              <input
+                [type]="showConfirmPassword() ? 'text' : 'password'"
+                formControlName="confirmPassword"
+                autocomplete="new-password"
+              />
+              <button type="button" class="password-field__toggle" (click)="toggleVisibility('confirm')">
+                <i [class]="showConfirmPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" aria-hidden="true"></i>
+              </button>
+            </div>
+            @if (passwordFieldError('confirmPassword'); as msg) {
+              <small class="field-error">{{ msg }}</small>
+            }
+          </label>
+
+          <button type="submit" class="profile-btn profile-btn--secondary" [disabled]="savingPassword()">
+            @if (savingPassword()) {
+              <span class="button-loader"></span>
+              Actualizando...
+            } @else {
+              <i class="fa-solid fa-key" aria-hidden="true"></i>
+              Actualizar contraseña
+            }
+          </button>
+        </form>
+      </article>
+    </div>
+  } @else {
+    <div class="profile-empty glass-panel">
+      <p>Cargando tu perfil...</p>
+    </div>
+  }
+</section>

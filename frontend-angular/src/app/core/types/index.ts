@@ -23,8 +23,33 @@ export interface AuthUser {
   } | null;
   roles?: string[];
   permissions?: AuthPermission[];
+  last_login_at?: string | null;
+  email_verified?: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface UpdateProfilePayload {
+  nombre: string;
+  apellido: string;
+  username: string;
+  email: string;
+}
+
+export interface UpdateProfileResponse {
+  ok: boolean;
+  msg: string;
+  user: AuthUser;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  ok: boolean;
+  msg: string;
 }
 
 export interface AuthPermission {
