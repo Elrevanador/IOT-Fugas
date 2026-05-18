@@ -378,7 +378,9 @@ const forgotPassword = async (req, res, next) => {
 const verifyResetCode = async (req, res, next) => {
   try {
     const email = String(req.body.email || "").toLowerCase().trim();
-    const code = String(req.body.code || "").trim();
+    const code = String(req.body.code || "")
+      .replace(/\D/g, "")
+      .slice(0, PASSWORD_RESET_CODE_DIGITS);
     const invalidMessage = "El código de recuperación es inválido o expiró";
 
     const user = await User.findOne({ where: { email } });
@@ -418,7 +420,9 @@ const verifyResetCode = async (req, res, next) => {
 const resetPassword = async (req, res, next) => {
   try {
     const token = String(req.body.token || "").trim();
-    const code = String(req.body.code || "").trim();
+    const code = String(req.body.code || "")
+      .replace(/\D/g, "")
+      .slice(0, PASSWORD_RESET_CODE_DIGITS);
     const email = String(req.body.email || "").toLowerCase().trim();
     const { password } = req.body;
 

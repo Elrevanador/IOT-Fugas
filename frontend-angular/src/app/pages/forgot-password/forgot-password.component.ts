@@ -22,26 +22,32 @@ export class ForgotPasswordComponent {
   private readonly router = inject(Router);
   private readonly recoveryEmailKey = 'passwordRecoveryEmail';
   private readonly recoveryPendingKey = 'passwordRecoveryCodePending';
+  private readonly recoveryVerifiedCodeKey = 'passwordRecoveryVerifiedCode';
   private readonly emailFromQuery = this.normalizeEmail(this.route.snapshot.queryParamMap.get('email') || '');
   private readonly storedEmail = this.normalizeEmail(sessionStorage.getItem(this.recoveryEmailKey) || '');
   private readonly initialEmail = this.emailFromQuery || this.storedEmail;
   private readonly hasPendingRecovery =
     sessionStorage.getItem(this.recoveryPendingKey) === 'true' && Boolean(this.initialEmail);
+  private readonly storedVerifiedCode = sessionStorage.getItem(this.recoveryVerifiedCodeKey) || '';
 
   readonly isSubmitting = signal(false);
   readonly isVerifying = signal(false);
   readonly isResetting = signal(false);
-  readonly codeSent = signal(Boolean(this.emailFromQuery) || this.hasPendingRecovery);
-  readonly codeVerified = signal(false);
-  readonly verifiedCode = signal('');
+  readonly codeSent = signal(
+    (Boolean(this.emailFromQuery) || this.hasPendingRecovery) && !this.storedVerifiedCode
+  );
+  readonly codeVerified = signal(Boolean(this.storedVerifiedCode));
+  readonly verifiedCode = signal(this.storedVerifiedCode);
   readonly codeDigits = signal(['', '', '', '', '', '']);
   readonly codeSlots = [0, 1, 2, 3, 4, 5];
   readonly showPassword = signal(false);
   readonly showConfirmPassword = signal(false);
   readonly feedback = signal(
-    this.codeSent()
-      ? 'Ingresa el código de 6 dígitos que llegó a tu correo.'
-      : 'Ingresa el correo de tu cuenta para solicitar un código de recuperación.'
+    this.codeVerified()
+      ? 'Código validado. Crea tu nueva contraseña.'
+      : this.codeSent()
+        ? 'Ingresa el código de 6 dígitos que llegó a tu correo.'
+        : 'Ingresa el correo de tu cuenta para solicitar un código de recuperación.'
   );
   readonly feedbackTone = signal<'info' | 'error' | 'success'>('info');
   readonly devResetUrl = signal('');
@@ -100,6 +106,10 @@ export class ForgotPasswordComponent {
 
   async verifyCode(event?: Event) {
     event?.preventDefault();
+    await this.runVerifyCode();
+  }
+
+  private async runVerifyCode() {
     const code = this.codeValue();
     const email = this.normalizeEmail(this.form.controls.email.value);
 
@@ -115,7 +125,7 @@ export class ForgotPasswordComponent {
       return;
     }
 
-    if (this.isVerifying()) {
+    if (this.isVerifying() || this.codeVerified()) {
       return;
     }
 
@@ -125,12 +135,18 @@ export class ForgotPasswordComponent {
 
     try {
       const response = await this.auth.verifyResetCode({ email, code });
+      sessionStorage.setItem(this.recoveryVerifiedCodeKey, code);
       this.verifiedCode.set(code);
       this.codeVerified.set(true);
       this.codeSent.set(false);
       this.feedback.set(response.msg || 'Código validado. Ahora crea tu nueva contraseña.');
       this.feedbackTone.set('success');
       this.toast.success('Código validado.');
+      await this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true
+      });
     } catch (error) {
       const message = resolveErrorMessage(error, 'El código es inválido o expiró.');
       this.feedback.set(message);
@@ -194,7 +210,15 @@ export class ForgotPasswordComponent {
 
   protected onCodeInput(event: Event, index: number) {
     const input = event.target as HTMLInputElement;
-    const value = input.value.replace(/\D/g, '').slice(-1);
+    const digitsOnly = input.value.replace(/\D/g, '');
+
+    if (digitsOnly.length > 1) {
+      this.applyCodeDigits(digitsOnly);
+      void this.tryAutoVerify();
+      return;
+    }
+
+    const value = digitsOnly.slice(-1);
     const nextDigits = [...this.codeDigits()];
     nextDigits[index] = value;
     this.codeDigits.set(nextDigits);
@@ -203,6 +227,8 @@ export class ForgotPasswordComponent {
     if (value && index < this.codeSlots.length - 1) {
       document.getElementById(this.codeInputId(index + 1))?.focus();
     }
+
+    void this.tryAutoVerify();
   }
 
   protected onCodeKeydown(event: KeyboardEvent, index: number) {
@@ -219,22 +245,24 @@ export class ForgotPasswordComponent {
   }
 
   protected onCodePaste(event: ClipboardEvent) {
-    const pasted = event.clipboardData?.getData('text')?.replace(/\D/g, '').slice(0, 6) || '';
+    const pasted = event.clipboardData?.getData('text')?.replace(/\D/g, '') || '';
     if (!pasted) return;
     event.preventDefault();
-    const nextDigits = ['', '', '', '', '', ''];
-    pasted.split('').forEach((digit, index) => {
-      nextDigits[index] = digit;
-    });
-    this.codeDigits.set(nextDigits);
-    const focusIndex = Math.min(Math.max(pasted.length - 1, 0), 5);
-    document.getElementById(this.codeInputId(focusIndex))?.focus();
+    this.applyCodeDigits(pasted);
+    void this.tryAutoVerify();
+  }
+
+  protected onCodeFormSubmit(event: Event) {
+    event.preventDefault();
+    void this.runVerifyCode();
   }
 
   protected editCode() {
+    sessionStorage.removeItem(this.recoveryVerifiedCodeKey);
     this.codeVerified.set(false);
     this.verifiedCode.set('');
     this.codeSent.set(true);
+    this.resetCodeDigits();
     this.feedback.set('Revisa el código e intenta validarlo nuevamente.');
     this.feedbackTone.set('info');
   }
@@ -294,6 +322,7 @@ export class ForgotPasswordComponent {
   }
 
   private markRecoveryPending(email: string) {
+    sessionStorage.removeItem(this.recoveryVerifiedCodeKey);
     sessionStorage.setItem(this.recoveryEmailKey, email);
     sessionStorage.setItem(this.recoveryPendingKey, 'true');
   }
@@ -301,6 +330,33 @@ export class ForgotPasswordComponent {
   private clearRecoverySession() {
     sessionStorage.removeItem(this.recoveryEmailKey);
     sessionStorage.removeItem(this.recoveryPendingKey);
+    sessionStorage.removeItem(this.recoveryVerifiedCodeKey);
+  }
+
+  private applyCodeDigits(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    const nextDigits = ['', '', '', '', '', ''];
+    digits.split('').forEach((digit, index) => {
+      nextDigits[index] = digit;
+    });
+    this.codeDigits.set(nextDigits);
+    this.syncCodeInputs(nextDigits);
+    const focusIndex = Math.min(Math.max(digits.length - 1, 0), 5);
+    document.getElementById(this.codeInputId(focusIndex))?.focus();
+  }
+
+  private syncCodeInputs(digits: string[]) {
+    digits.forEach((digit, index) => {
+      const input = document.getElementById(this.codeInputId(index)) as HTMLInputElement | null;
+      if (input) input.value = digit;
+    });
+  }
+
+  private async tryAutoVerify() {
+    if (!/^\d{6}$/.test(this.codeValue()) || this.isVerifying() || this.codeVerified()) {
+      return;
+    }
+    await this.runVerifyCode();
   }
 
   private applyDevRecoveryHints(response: { resetUrl?: string; resetCode?: string; emailDelivered?: boolean }) {
