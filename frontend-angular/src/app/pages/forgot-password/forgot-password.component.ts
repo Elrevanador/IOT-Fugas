@@ -20,24 +20,31 @@ export class ForgotPasswordComponent {
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly recoveryEmailKey = 'passwordRecoveryEmail';
+  private readonly initialEmail =
+    this.route.snapshot.queryParamMap.get('email') || sessionStorage.getItem(this.recoveryEmailKey) || '';
 
   readonly isSubmitting = signal(false);
   readonly isVerifying = signal(false);
   readonly isResetting = signal(false);
-  readonly codeSent = signal(false);
+  readonly codeSent = signal(Boolean(this.initialEmail));
   readonly codeVerified = signal(false);
   readonly verifiedCode = signal('');
   readonly codeDigits = signal(['', '', '', '', '', '']);
   readonly codeSlots = [0, 1, 2, 3, 4, 5];
   readonly showPassword = signal(false);
   readonly showConfirmPassword = signal(false);
-  readonly feedback = signal('Ingresa el correo de tu cuenta para solicitar un código de recuperación.');
+  readonly feedback = signal(
+    this.initialEmail
+      ? 'Ingresa el código de 6 dígitos que llegó a tu correo.'
+      : 'Ingresa el correo de tu cuenta para solicitar un código de recuperación.'
+  );
   readonly feedbackTone = signal<'info' | 'error' | 'success'>('info');
   readonly devResetUrl = signal('');
   readonly devResetCode = signal('');
 
   readonly form = this.fb.nonNullable.group({
-    email: [this.route.snapshot.queryParamMap.get('email') || '', [Validators.required, Validators.email, Validators.maxLength(254)]]
+    email: [this.initialEmail, [Validators.required, Validators.email, Validators.maxLength(254)]]
   });
 
   readonly codeValue = computed(() => this.codeDigits().join(''));
@@ -73,6 +80,7 @@ export class ForgotPasswordComponent {
       }
 
       const response = await this.auth.forgotPassword({ email });
+      sessionStorage.setItem(this.recoveryEmailKey, email);
       this.codeSent.set(true);
       this.codeVerified.set(false);
       this.verifiedCode.set('');
@@ -130,6 +138,7 @@ export class ForgotPasswordComponent {
       });
       this.verifiedCode.set(code);
       this.codeVerified.set(true);
+      this.codeSent.set(false);
       this.feedback.set(response.msg || 'Código validado. Ahora crea tu nueva contraseña.');
       this.feedbackTone.set('success');
       this.toast.success('Código validado.');
@@ -173,6 +182,7 @@ export class ForgotPasswordComponent {
       this.feedback.set(response.msg || 'Contraseña actualizada correctamente.');
       this.feedbackTone.set('success');
       this.toast.success('Contraseña actualizada. Ya puedes iniciar sesión.');
+      sessionStorage.removeItem(this.recoveryEmailKey);
       setTimeout(() => void this.router.navigateByUrl('/login'), 700);
     } catch (error) {
       const message = resolveErrorMessage(error, 'No fue posible actualizar la contraseña.');
@@ -233,6 +243,7 @@ export class ForgotPasswordComponent {
   protected editCode() {
     this.codeVerified.set(false);
     this.verifiedCode.set('');
+    this.codeSent.set(true);
     this.feedback.set('Revisa el código e intenta validarlo nuevamente.');
     this.feedbackTone.set('info');
   }
@@ -259,6 +270,10 @@ export class ForgotPasswordComponent {
       }
 
       const response = await this.auth.forgotPassword(this.form.getRawValue());
+      sessionStorage.setItem(this.recoveryEmailKey, email);
+      this.codeSent.set(true);
+      this.codeVerified.set(false);
+      this.verifiedCode.set('');
       this.resetCodeDigits();
       this.feedback.set(response.msg || 'Código reenviado. Revisa tu correo.');
       this.feedbackTone.set('success');
