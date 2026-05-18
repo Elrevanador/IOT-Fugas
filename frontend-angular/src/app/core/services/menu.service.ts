@@ -30,16 +30,6 @@ export class MenuService {
         padre: null,
         estado: 'ACTIVO',
         items: []
-      },
-      {
-        id: 3,
-        nombre: 'Mi cuenta',
-        path: '/profile',
-        icono: 'fa-solid fa-user-gear',
-        orden: 2,
-        padre: null,
-        estado: 'ACTIVO',
-        items: []
       }
     ];
 
@@ -49,7 +39,7 @@ export class MenuService {
         nombre: 'Administración',
         path: '/admin',
         icono: 'fa-solid fa-screwdriver-wrench',
-        orden: 3,
+        orden: 2,
         padre: null,
         estado: 'ACTIVO',
         items: []
@@ -59,8 +49,23 @@ export class MenuService {
     return base.sort((a, b) => a.orden - b.orden);
   });
 
+  readonly profileLink = computed<MenuItem>(() => ({
+    id: 3,
+    nombre: 'Mi cuenta',
+    path: '/profile',
+    icono: 'fa-solid fa-user-gear',
+    orden: 99,
+    padre: null,
+    estado: 'ACTIVO',
+    items: []
+  }));
+
   getMenu(): MenuItem[] {
     return this.menu();
+  }
+
+  getProfileLink(): MenuItem {
+    return this.profileLink();
   }
 
   hasAccess(fullPath: string): boolean {

@@ -21,6 +21,10 @@ export class SidebarComponent {
     return this.menuService.getMenu();
   }
 
+  get profileLink() {
+    return this.menuService.getProfileLink();
+  }
+
   close(): void {
     this.closeSidebar.emit();
   }

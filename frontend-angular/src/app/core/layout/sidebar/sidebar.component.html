@@ -28,4 +28,19 @@
       </div>
     }
   </nav>
+
+  <footer class="sidebar-footer">
+    <a
+      class="sidebar-footer__link"
+      [routerLink]="profileLink.path"
+      routerLinkActive="active"
+      (click)="close()"
+      [attr.title]="collapsed ? profileLink.nombre : null"
+    >
+      <i [class]="profileLink.icono || 'fa-solid fa-user-gear'"></i>
+      @if (!collapsed) {
+        <span>{{ profileLink.nombre }}</span>
+      }
+    </a>
+  </footer>
 </aside>
