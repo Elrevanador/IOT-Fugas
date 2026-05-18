@@ -146,9 +146,7 @@ router.post(
       .withMessage("Email demasiado largo"),
     body("code")
       .trim()
-      .isLength({ min: 6, max: 6 })
-      .withMessage("Código invalido")
-      .isNumeric()
+      .matches(/^\d{6}$/)
       .withMessage("Código invalido")
   ],
   validate,
@@ -174,9 +172,7 @@ router.post(
     body("code")
       .optional({ values: "falsy" })
       .trim()
-      .isLength({ min: 6, max: 6 })
-      .withMessage("Código invalido")
-      .isNumeric()
+      .matches(/^\d{6}$/)
       .withMessage("Código invalido"),
     body()
       .custom((value) => Boolean(value.token || (value.email && value.code)))

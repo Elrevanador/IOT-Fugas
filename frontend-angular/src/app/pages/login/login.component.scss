@@ -230,6 +230,26 @@ input:focus {
   font-variant-numeric: tabular-nums;
 }
 
+.recovery-email {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  margin: 0 0 0.85rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.link-button {
+  border: 0;
+  background: transparent;
+  color: #5eead4;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
 .verified-code {
   display: flex;
   align-items: center;

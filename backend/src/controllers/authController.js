@@ -44,14 +44,24 @@ const getUserAgent = (req) => {
 const shouldExposeResetToken = () =>
   process.env.NODE_ENV !== "production" || process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN === "true";
 
-const buildPasswordResetUrl = (req, { token = null, email = null } = {}) => {
-  const configuredBase =
-    process.env.PASSWORD_RESET_BASE_URL ||
-    process.env.FRONTEND_URL ||
-    (req.get ? req.get("origin") : "") ||
-    `${req.protocol || "https"}://${req.get ? req.get("host") : ""}`;
+const resolveFrontendBaseUrl = (req) => {
+  const explicit = process.env.PASSWORD_RESET_BASE_URL || process.env.FRONTEND_URL;
+  if (explicit) return String(explicit).trim().replace(/\/+$/, "");
 
-  const url = new URL(token ? "/reset-password" : "/forgot-password", configuredBase);
+  const configuredOrigins = String(process.env.FRONTEND_ORIGIN || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (configuredOrigins.length) return configuredOrigins[0].replace(/\/+$/, "");
+
+  const requestOrigin = req.get ? req.get("origin") : req.headers?.origin;
+  if (requestOrigin) return String(requestOrigin).trim().replace(/\/+$/, "");
+
+  return `${req.protocol || "http"}://${req.get ? req.get("host") : "localhost"}`;
+};
+
+const buildPasswordResetUrl = (req, { token = null, email = null } = {}) => {
+  const url = new URL(token ? "/reset-password" : "/forgot-password", `${resolveFrontendBaseUrl(req)}/`);
   if (token) url.searchParams.set("token", token);
   if (email) url.searchParams.set("email", email);
   return url.toString();
@@ -348,6 +358,11 @@ const forgotPassword = async (req, res, next) => {
     if (shouldExposeResetToken()) {
       response.resetUrl = resetUrl;
       response.resetCode = resetCode;
+      response.emailDelivered = Boolean(delivery.sent);
+      if (!delivery.sent) {
+        response.msg =
+          "Código generado. El correo no está configurado en el servidor; usa el código mostrado abajo o configura el envío de correos.";
+      }
     }
 
     return res.json(response);

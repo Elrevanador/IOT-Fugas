@@ -80,6 +80,7 @@ export interface ForgotPasswordResponse {
   msg: string;
   resetUrl?: string;
   resetCode?: string;
+  emailDelivered?: boolean;
 }
 
 export interface ResetPasswordPayload {

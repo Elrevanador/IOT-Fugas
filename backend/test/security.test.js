@@ -443,7 +443,9 @@ test("login aplica rate limit por IP", async () => {
 
 test("recuperacion de contraseña genera codigo temporal hasheado", async () => {
   const previousExposeResetToken = process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN;
+  const previousFrontendOrigin = process.env.FRONTEND_ORIGIN;
   process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN = "true";
+  process.env.FRONTEND_ORIGIN = "http://localhost:4200";
   let createdToken = null;
 
   try {
@@ -490,7 +492,8 @@ test("recuperacion de contraseña genera codigo temporal hasheado", async () => 
           assert.equal(response.statusCode, 200);
           assert.equal(response.body.ok, true);
           assert.match(response.body.resetCode, /^\d{6}$/);
-          assert.ok(response.body.resetUrl.includes("/forgot-password?email="));
+          assert.ok(response.body.resetUrl.startsWith("http://localhost:4200/forgot-password?email="));
+          assert.equal(response.body.emailDelivered, false);
           assert.ok(createdToken);
           assert.notEqual(createdToken.token_hash, response.body.resetCode);
           assert.equal(
@@ -511,6 +514,11 @@ test("recuperacion de contraseña genera codigo temporal hasheado", async () => 
       delete process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN;
     } else {
       process.env.AUTH_EXPOSE_PASSWORD_RESET_TOKEN = previousExposeResetToken;
+    }
+    if (previousFrontendOrigin === undefined) {
+      delete process.env.FRONTEND_ORIGIN;
+    } else {
+      process.env.FRONTEND_ORIGIN = previousFrontendOrigin;
     }
   }
 });
