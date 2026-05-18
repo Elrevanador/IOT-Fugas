@@ -107,7 +107,8 @@ export class ForgotPasswordComponent {
     }
   }
 
-  async verifyCode() {
+  async verifyCode(event?: Event) {
+    event?.preventDefault();
     const code = this.codeValue();
     const email = this.form.controls.email.value;
 
