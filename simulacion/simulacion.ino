@@ -1,5 +1,6 @@
 #include <Arduino.h>
-#include <LiquidCrystal_I2C.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 #include "modulos/config.h"
 #include "modulos/estado.h"
@@ -23,7 +24,10 @@
 #include "modulos/comandos.cpp"
 
 // ---------------- Objetos ----------------
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // ---------------- Estado ----------------
 SystemState state;
@@ -33,7 +37,7 @@ unsigned long lastMeasure   = 0;
 unsigned long lastSend      = 0;
 unsigned long lastCommandPoll = 0;
 unsigned long lastBlink     = 0;
-unsigned long lastLCDUpdate = 0;
+unsigned long lastDisplayUpdate = 0;
 
 // Valores guardados para detectar cambios en la simulación
 float lastReportedFlow     = -1.0;
@@ -81,7 +85,7 @@ void setup() {
 
   initActuadores();
   initSensores(state);
-  initDisplay(lcd, state);
+  initDisplay(oled, state);
 
   attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, RISING);
   Serial.println("Interrupcion OK");
@@ -115,7 +119,7 @@ void loop() {
       state.nivelRiesgo
     );
 
-    actualizarLCD(lcd, state, lastLCDUpdate);
+    actualizarOLED(oled, state, lastDisplayUpdate);
 
     Serial.print("Estado: ");       Serial.println(estadoTexto(state.estadoSistema));
     Serial.print("Nivel riesgo: "); Serial.println(state.nivelRiesgo);

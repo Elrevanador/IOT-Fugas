@@ -192,6 +192,12 @@ export interface DashboardDeviceSummary {
   internetConnected?: boolean;
   lastConnectionAt?: string | null;
   latestReading: DashboardReading | null;
+  electrovalvula?: {
+    id: number;
+    estado: 'ABIERTA' | 'CERRADA' | 'DESCONOCIDO';
+    modo: 'AUTO' | 'MANUAL' | 'BLOQUEADA';
+    bloqueoEmergencia: boolean;
+  } | null;
 }
 
 // ============================================================

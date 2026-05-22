@@ -1,10 +1,12 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include <LiquidCrystal_I2C.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include "modulos/estado.h"
 
-void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state);
-void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned long &lastLCDUpdate);
+void initDisplay(Adafruit_SSD1306 &display, const SystemState &state);
+void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigned long &lastDisplayUpdate);
 
 #endif
+

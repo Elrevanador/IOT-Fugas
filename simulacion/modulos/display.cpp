@@ -1,28 +1,40 @@
 #include <Arduino.h>
 #include "modulos/display.h"
 
-void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state) {
-  lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Iniciando...");
-  lcd.setCursor(0, 1);
-  lcd.print("Sistema IoT");
-
-  if (!state.sensorOK) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Error presion");
+void initDisplay(Adafruit_SSD1306 &display, const SystemState &state) {
+  // Address 0x3C is standard for 128x64 SSD1306 OLED
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("Fallo al iniciar SSD1306");
+    return;
   }
-
-  Serial.println("LCD OK");
+  
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(10, 10);
+  display.print("Iniciando...");
+  display.setCursor(10, 30);
+  display.print("Sistema IoT v1.0");
+  
+  if (!state.sensorOK) {
+    display.clearDisplay();
+    display.setCursor(0, 10);
+    display.print("Error de Presion");
+    display.setCursor(0, 30);
+    display.print("Verificar sensor!");
+  }
+  display.display();
+  Serial.println("OLED OK");
 }
 
-void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned long &lastLCDUpdate) {
+void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigned long &lastDisplayUpdate) {
   static int ultimoEstado = -1;
   static int ultimoRiesgo = -1;
   static int ultimoFlujo10 = -1;
   static int ultimaPresion = -1;
+  static bool ultimoBackendOnline = false;
+  static bool ultimaValvula = false;
+
   int flujo10 = (int)(state.flujoLmin * 10.0f);
   int presion = (int)(state.presionKPa + 0.5f);
 
@@ -30,7 +42,9 @@ void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned lo
       state.nivelRiesgo == ultimoRiesgo &&
       flujo10 == ultimoFlujo10 &&
       presion == ultimaPresion &&
-      millis() - lastLCDUpdate < 500) {
+      state.backendOnline == ultimoBackendOnline &&
+      state.valvulaAbierta == ultimaValvula &&
+      millis() - lastDisplayUpdate < 500) {
     return;
   }
 
@@ -38,44 +52,69 @@ void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned lo
   ultimoRiesgo = state.nivelRiesgo;
   ultimoFlujo10 = flujo10;
   ultimaPresion = presion;
-  lastLCDUpdate = millis();
+  ultimoBackendOnline = state.backendOnline;
+  ultimaValvula = state.valvulaAbierta;
+  lastDisplayUpdate = millis();
 
-  lcd.clear();
+  display.clearDisplay();
 
+  // Dibujar un borde o linea de cabecera
+  display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
+  display.drawLine(0, 14, 128, 14, SSD1306_WHITE);
+
+  // Cabecera: Nombre o Estado
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  
+  display.setCursor(5, 4);
   switch (state.estadoSistema) {
     case ESTADO_NORMAL:
-      lcd.setCursor(0, 0);
-      lcd.print("Estado:NORMAL");
-      lcd.setCursor(0, 1);
-      lcd.print("Q:");
-      lcd.print(state.flujoLmin, 1);
-      lcd.print(" P:");
-      lcd.print(state.presionKPa, 0);
+      display.print("SISTEMA: NORMAL");
       break;
-
     case ESTADO_ALERTA:
-      lcd.setCursor(0, 0);
-      lcd.print("Estado:ALERTA");
-      lcd.setCursor(0, 1);
-      lcd.print("Riesgo:");
-      lcd.print(state.nivelRiesgo);
-      lcd.print("%");
+      display.print("SISTEMA: ALERTA");
       break;
-
     case ESTADO_FUGA:
-      lcd.setCursor(0, 0);
-      lcd.print("FUGA CONFIRMADA");
-      lcd.setCursor(0, 1);
-      lcd.print("Riesgo:");
-      lcd.print(state.nivelRiesgo);
-      lcd.print("%");
+      display.print("SISTEMA: !FUGA!");
       break;
-
     case ESTADO_ERROR:
-      lcd.setCursor(0, 0);
-      lcd.print("ERROR SENSOR");
-      lcd.setCursor(0, 1);
-      lcd.print("Verif transduc");
+      display.print("SISTEMA: ERROR");
       break;
   }
+
+  // Indicador de Cloud/Conexion
+  display.setCursor(95, 4);
+  if (state.backendOnline) {
+    display.print("[Cloud]");
+  } else {
+    display.print("[NoCloud]");
+  }
+
+  // Contenido de mediciones
+  display.setCursor(8, 20);
+  display.print("Flujo: ");
+  display.print(state.flujoLmin, 1);
+  display.print(" L/min");
+
+  display.setCursor(8, 31);
+  display.print("Pres.: ");
+  display.print(state.presionKPa, 0);
+  display.print(" kPa");
+
+  display.setCursor(8, 42);
+  display.print("Riesgo: ");
+  display.print(state.nivelRiesgo);
+  display.print("%");
+
+  // Estado de la electroválvula
+  display.setCursor(8, 53);
+  display.print("Valvula: ");
+  if (state.valvulaAbierta) {
+    display.print("ABIERTA");
+  } else {
+    display.print("CERRADA");
+  }
+
+  display.display();
 }
+

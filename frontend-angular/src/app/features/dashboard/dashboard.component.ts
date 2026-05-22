@@ -22,6 +22,7 @@ type TimeRange = '1h' | '6h' | '24h' | '7d';
 type DashboardTab = 'overview' | 'readings' | 'alerts' | 'commands' | 'analytics';
 type ReadingStateFilter = 'ALL' | 'NORMAL' | 'ALERTA' | 'FUGA' | 'ERROR';
 type AlertFilter = 'ALL' | 'PENDING' | 'ACK' | 'ALERTA' | 'FUGA' | 'ERROR';
+type HardwareTone = 'active' | 'normal' | 'alert' | 'danger' | 'error' | 'inactive';
 type DashboardDeviceView = {
   id: number;
   name: string | null;
@@ -34,6 +35,28 @@ type DashboardDeviceView = {
   ipAddress: string | null;
   wifiSsid: string | null;
   internetConnected: boolean;
+  electrovalvula?: {
+    id: number;
+    estado: 'ABIERTA' | 'CERRADA' | 'DESCONOCIDO';
+    modo: 'AUTO' | 'MANUAL' | 'BLOQUEADA';
+    bloqueoEmergencia: boolean;
+  } | null;
+};
+type CircuitComponentView = {
+  id: 'esp32' | 'oled' | 'flow' | 'pressure' | 'valve' | 'buzzer' | 'leds';
+  title: string;
+  role: string;
+  icon: string;
+  status: string;
+  detail: string;
+  metric: string;
+  tone: HardwareTone;
+  pulse: boolean;
+  leds?: {
+    green: boolean;
+    yellow: boolean;
+    red: boolean;
+  };
 };
 type RegisteredDevice = {
   id: number;
@@ -346,6 +369,105 @@ export class DashboardComponent {
   readonly riskChartPoints = computed(() => this.buildChartPoints('risk'));
   readonly heroTone = computed(() => this.resolveTone(this.currentState()));
   readonly lastPacketLabel = computed(() => this.relativeTime(this.scopedLastSeenAt()));
+  readonly circuitDevice = computed<DashboardDeviceView | null>(() => this.selectedDevice() || this.highlightedDevice() || this.uniqueDevices()[0] || null);
+  readonly circuitComponents = computed<CircuitComponentView[]>(() => {
+    const device = this.circuitDevice();
+    const reading = device?.latestReading || this.latestReading();
+    const state = this.currentState();
+    const isOnline = Boolean(device?.isOnline ?? this.scopedDeviceOnline());
+    const flow = Number(reading?.flow_lmin || 0);
+    const pressure = Number(reading?.pressure_kpa || 0);
+    const valve = device?.electrovalvula || null;
+    const valveMode = valve?.bloqueoEmergencia ? 'BLOQUEADA' : valve?.modo || 'AUTO';
+    const valveState = valve?.estado || 'DESCONOCIDO';
+    const hasAlarm = state === 'FUGA' || state === 'ALERTA';
+    const hasError = state === 'ERROR';
+
+    return [
+      {
+        id: 'esp32',
+        title: 'ESP32',
+        role: 'Cerebro / Controlador',
+        icon: 'fa-solid fa-microchip',
+        status: isOnline ? 'Online' : 'Offline',
+        detail: `${device?.wifiSsid || 'WiFi no reportado'} · ${device?.ipAddress || 'Sin IP'}`,
+        metric: this.relativeTime(device?.lastTs || reading?.ts || null),
+        tone: isOnline ? 'active' : 'inactive',
+        pulse: isOnline
+      },
+      {
+        id: 'oled',
+        title: 'OLED SSD1306',
+        role: 'Pantalla local',
+        icon: 'fa-solid fa-tv',
+        status: isOnline ? 'Encendida' : 'Inactiva',
+        detail: isOnline ? 'Mostrando telemetria del nodo' : 'Sin enlace con el controlador',
+        metric: device?.name || 'Nodo no seleccionado',
+        tone: isOnline ? 'normal' : 'inactive',
+        pulse: false
+      },
+      {
+        id: 'flow',
+        title: 'YF-S201',
+        role: 'Caudalimetro',
+        icon: 'fa-solid fa-water',
+        status: !isOnline ? 'Sin datos' : flow > 0.05 ? 'Midiendo' : 'Reposo',
+        detail: state === 'FUGA' ? 'Caudal asociado a fuga' : 'Lectura en tiempo real',
+        metric: `${flow.toFixed(2)} L/min`,
+        tone: !isOnline ? 'inactive' : state === 'FUGA' ? 'danger' : state === 'ALERTA' ? 'alert' : flow > 0.05 ? 'active' : 'normal',
+        pulse: isOnline && flow > 0.05
+      },
+      {
+        id: 'pressure',
+        title: 'Transductor',
+        role: 'Presion de linea',
+        icon: 'fa-solid fa-gauge-high',
+        status: hasError ? 'Falla de lectura' : 'OK',
+        detail: hasError ? 'Estado ERROR reportado' : 'Senal estable',
+        metric: `${pressure.toFixed(1)} kPa`,
+        tone: !isOnline ? 'inactive' : hasError ? 'error' : state === 'ALERTA' ? 'alert' : 'normal',
+        pulse: hasError
+      },
+      {
+        id: 'valve',
+        title: 'Electrovalvula',
+        role: 'Corte hidraulico',
+        icon: valveState === 'ABIERTA' ? 'fa-solid fa-toggle-on' : 'fa-solid fa-toggle-off',
+        status: valveState,
+        detail: `Modo ${valveMode}`,
+        metric: valve?.bloqueoEmergencia ? 'Bloqueo activo' : 'Lista',
+        tone: valve?.bloqueoEmergencia ? 'danger' : valveState === 'DESCONOCIDO' ? 'inactive' : valveState === 'ABIERTA' ? 'active' : 'normal',
+        pulse: valveState === 'ABIERTA' || Boolean(valve?.bloqueoEmergencia)
+      },
+      {
+        id: 'buzzer',
+        title: 'Buzzer',
+        role: 'Alarma sonora',
+        icon: 'fa-solid fa-volume-high',
+        status: hasAlarm ? 'Activo' : 'Silencioso',
+        detail: hasAlarm ? 'Sonando por evento critico' : 'Sin alarma audible',
+        metric: state,
+        tone: state === 'FUGA' ? 'danger' : state === 'ALERTA' ? 'alert' : !isOnline ? 'inactive' : 'normal',
+        pulse: hasAlarm
+      },
+      {
+        id: 'leds',
+        title: 'LEDs de Estado',
+        role: 'Indicadores fisicos',
+        icon: 'fa-solid fa-circle-nodes',
+        status: state === 'FUGA' ? 'Rojo' : state === 'ALERTA' ? 'Amarillo' : isOnline ? 'Verde' : 'Apagados',
+        detail: 'NORMAL / ALERTA / FUGA',
+        metric: state,
+        tone: state === 'FUGA' ? 'danger' : state === 'ALERTA' ? 'alert' : !isOnline ? 'inactive' : 'active',
+        pulse: hasAlarm,
+        leds: {
+          green: isOnline && state !== 'ALERTA' && state !== 'FUGA' && state !== 'ERROR',
+          yellow: state === 'ALERTA',
+          red: state === 'FUGA'
+        }
+      }
+    ];
+  });
   readonly deviceHealth = computed(() => {
     const latest = this.latestReading();
     const device = this.selectedDevice();
@@ -826,7 +948,8 @@ export class DashboardComponent {
       isOnline: Boolean(device.online),
       ipAddress: device.ipAddress || null,
       wifiSsid: device.wifiSsid || null,
-      internetConnected: Boolean(device.internetConnected ?? device.online)
+      internetConnected: Boolean(device.internetConnected ?? device.online),
+      electrovalvula: device.electrovalvula || null
     };
   }
 
@@ -845,7 +968,8 @@ export class DashboardComponent {
       isOnline: Boolean(device.internetConnected ?? device.internet_connected) && this.isOnlineAt(lastSeenAt),
       ipAddress: device.ipAddress ?? device.ip_address ?? null,
       wifiSsid: device.wifiSsid ?? device.wifi_ssid ?? null,
-      internetConnected: Boolean(device.internetConnected ?? device.internet_connected)
+      internetConnected: Boolean(device.internetConnected ?? device.internet_connected),
+      electrovalvula: null
     };
   }
 
@@ -861,7 +985,8 @@ export class DashboardComponent {
       isOnline: this.isOnlineAt(reading.ts),
       ipAddress: null,
       wifiSsid: null,
-      internetConnected: this.isOnlineAt(reading.ts)
+      internetConnected: this.isOnlineAt(reading.ts),
+      electrovalvula: null
     };
   }
 
@@ -890,7 +1015,8 @@ export class DashboardComponent {
       isOnline: existing.isOnline || candidate.isOnline,
       ipAddress: candidate.ipAddress || existing.ipAddress,
       wifiSsid: candidate.wifiSsid || existing.wifiSsid,
-      internetConnected: existing.internetConnected || candidate.internetConnected
+      internetConnected: existing.internetConnected || candidate.internetConnected,
+      electrovalvula: candidate.electrovalvula || existing.electrovalvula || null
     });
   }
 

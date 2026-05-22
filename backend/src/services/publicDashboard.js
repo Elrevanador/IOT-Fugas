@@ -1,5 +1,5 @@
 const { Op, QueryTypes } = require("sequelize");
-const { Alert, Device, House, Reading, sequelize } = require("../models");
+const { Alert, Device, House, Reading, Electrovalvula, sequelize } = require("../models");
 const { getUserHouseScope } = require("../middlewares/authorize");
 const logger = require("../utils/logger");
 
@@ -124,7 +124,13 @@ const mapDeviceSummary = (device, latestReading, nowMs) => {
     wifiSsid: device.wifi_ssid || null,
     internetConnected: Boolean(device.internet_connected),
     lastConnectionAt: device.last_connection_at || null,
-    latestReading: mappedReading
+    latestReading: mappedReading,
+    electrovalvula: device.electrovalvula ? {
+      id: device.electrovalvula.id,
+      estado: device.electrovalvula.estado,
+      modo: device.electrovalvula.modo,
+      bloqueoEmergencia: Boolean(device.electrovalvula.bloqueo_emergencia)
+    } : null
   };
 };
 
@@ -220,7 +226,10 @@ const buildPublicDashboardPayload = async (user, query = {}) => {
           "last_connection_at"
         ],
         where: scopedHouseId ? { house_id: scopedHouseId } : undefined,
-        include: [{ model: House, attributes: ["id", "name"], required: false }],
+        include: [
+          { model: House, attributes: ["id", "name"], required: false },
+          { model: Electrovalvula, as: "electrovalvula", attributes: ["id", "estado", "modo", "bloqueo_emergencia"], required: false }
+        ],
         order: [["id", "ASC"]],
         limit: 200
       })
