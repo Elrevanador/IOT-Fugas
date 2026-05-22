@@ -23,6 +23,7 @@ type DashboardTab = 'overview' | 'readings' | 'alerts' | 'commands' | 'analytics
 type ReadingStateFilter = 'ALL' | 'NORMAL' | 'ALERTA' | 'FUGA' | 'ERROR';
 type AlertFilter = 'ALL' | 'PENDING' | 'ACK' | 'ALERTA' | 'FUGA' | 'ERROR';
 type HardwareTone = 'active' | 'normal' | 'alert' | 'danger' | 'error' | 'inactive';
+type HardwareHealth = 'GOOD' | 'WARNING' | 'BAD' | 'UNKNOWN';
 type DashboardDeviceView = {
   id: number;
   name: string | null;
@@ -51,6 +52,8 @@ type CircuitComponentView = {
   detail: string;
   metric: string;
   tone: HardwareTone;
+  health: HardwareHealth;
+  healthLabel: string;
   pulse: boolean;
   leds?: {
     green: boolean;
@@ -382,6 +385,13 @@ export class DashboardComponent {
     const valveState = valve?.estado || 'DESCONOCIDO';
     const hasAlarm = state === 'FUGA' || state === 'ALERTA';
     const hasError = state === 'ERROR';
+    const hasReading = Boolean(reading);
+    const esp32Health = isOnline && Boolean(device?.internetConnected) ? 'GOOD' : 'BAD';
+    const flowHealth = !isOnline || !hasReading ? 'UNKNOWN' : hasError ? 'BAD' : state === 'FUGA' || state === 'ALERTA' ? 'WARNING' : 'GOOD';
+    const pressureHealth = !isOnline || !hasReading ? 'UNKNOWN' : hasError || !Number.isFinite(pressure) ? 'BAD' : state === 'ALERTA' ? 'WARNING' : 'GOOD';
+    const valveHealth = !valve ? 'UNKNOWN' : valve.bloqueoEmergencia || valve.modo === 'BLOQUEADA' ? 'BAD' : valve.estado === 'DESCONOCIDO' ? 'UNKNOWN' : 'GOOD';
+    const alarmHealth = !isOnline ? 'UNKNOWN' : hasError ? 'BAD' : hasAlarm || state === 'NORMAL' ? 'GOOD' : 'WARNING';
+    const ledsHealth = !isOnline ? 'UNKNOWN' : hasError ? 'BAD' : 'GOOD';
 
     return [
       {
@@ -393,6 +403,8 @@ export class DashboardComponent {
         detail: `${device?.wifiSsid || 'WiFi no reportado'} · ${device?.ipAddress || 'Sin IP'}`,
         metric: this.relativeTime(device?.lastTs || reading?.ts || null),
         tone: isOnline ? 'active' : 'inactive',
+        health: esp32Health,
+        healthLabel: this.hardwareHealthLabel(esp32Health),
         pulse: isOnline
       },
       {
@@ -404,6 +416,8 @@ export class DashboardComponent {
         detail: isOnline ? 'Mostrando telemetria del nodo' : 'Sin enlace con el controlador',
         metric: device?.name || 'Nodo no seleccionado',
         tone: isOnline ? 'normal' : 'inactive',
+        health: isOnline ? 'GOOD' : 'UNKNOWN',
+        healthLabel: this.hardwareHealthLabel(isOnline ? 'GOOD' : 'UNKNOWN'),
         pulse: false
       },
       {
@@ -415,6 +429,8 @@ export class DashboardComponent {
         detail: state === 'FUGA' ? 'Caudal asociado a fuga' : 'Lectura en tiempo real',
         metric: `${flow.toFixed(2)} L/min`,
         tone: !isOnline ? 'inactive' : state === 'FUGA' ? 'danger' : state === 'ALERTA' ? 'alert' : flow > 0.05 ? 'active' : 'normal',
+        health: flowHealth,
+        healthLabel: this.hardwareHealthLabel(flowHealth),
         pulse: isOnline && flow > 0.05
       },
       {
@@ -426,6 +442,8 @@ export class DashboardComponent {
         detail: hasError ? 'Estado ERROR reportado' : 'Senal estable',
         metric: `${pressure.toFixed(1)} kPa`,
         tone: !isOnline ? 'inactive' : hasError ? 'error' : state === 'ALERTA' ? 'alert' : 'normal',
+        health: pressureHealth,
+        healthLabel: this.hardwareHealthLabel(pressureHealth),
         pulse: hasError
       },
       {
@@ -437,6 +455,8 @@ export class DashboardComponent {
         detail: `Modo ${valveMode}`,
         metric: valve?.bloqueoEmergencia ? 'Bloqueo activo' : 'Lista',
         tone: valve?.bloqueoEmergencia ? 'danger' : valveState === 'DESCONOCIDO' ? 'inactive' : valveState === 'ABIERTA' ? 'active' : 'normal',
+        health: valveHealth,
+        healthLabel: this.hardwareHealthLabel(valveHealth),
         pulse: valveState === 'ABIERTA' || Boolean(valve?.bloqueoEmergencia)
       },
       {
@@ -448,6 +468,8 @@ export class DashboardComponent {
         detail: hasAlarm ? 'Sonando por evento critico' : 'Sin alarma audible',
         metric: state,
         tone: state === 'FUGA' ? 'danger' : state === 'ALERTA' ? 'alert' : !isOnline ? 'inactive' : 'normal',
+        health: alarmHealth,
+        healthLabel: this.hardwareHealthLabel(alarmHealth),
         pulse: hasAlarm
       },
       {
@@ -459,6 +481,8 @@ export class DashboardComponent {
         detail: 'NORMAL / ALERTA / FUGA',
         metric: state,
         tone: state === 'FUGA' ? 'danger' : state === 'ALERTA' ? 'alert' : !isOnline ? 'inactive' : 'active',
+        health: ledsHealth,
+        healthLabel: this.hardwareHealthLabel(ledsHealth),
         pulse: hasAlarm,
         leds: {
           green: isOnline && state !== 'ALERTA' && state !== 'FUGA' && state !== 'ERROR',
@@ -1062,6 +1086,19 @@ export class DashboardComponent {
         .sort((a, b) => this.statePriority(b.lastState) - this.statePriority(a.lastState))
         [0]?.lastState || this.payload()?.currentState || 'SIN_DATOS'
     );
+  }
+
+  private hardwareHealthLabel(health: HardwareHealth) {
+    switch (health) {
+      case 'GOOD':
+        return 'Buen estado';
+      case 'WARNING':
+        return 'Atención';
+      case 'BAD':
+        return 'Falla';
+      default:
+        return 'Sin datos';
+    }
   }
 
   private buildSeries(metric: 'flow_lmin' | 'pressure_kpa') {

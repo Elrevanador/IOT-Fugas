@@ -336,7 +336,12 @@
                 <div class="hardware-card__body">
                   <span>{{ component.role }}</span>
                   <h3>{{ component.title }}</h3>
-                  <strong>{{ component.status }}</strong>
+                  <div class="hardware-card__status-row">
+                    <strong>{{ component.status }}</strong>
+                    <em class="hardware-health" [attr.data-health]="component.health">
+                      {{ component.healthLabel }}
+                    </em>
+                  </div>
                   <p>{{ component.detail }}</p>
                 </div>
                 <div class="hardware-card__metric">

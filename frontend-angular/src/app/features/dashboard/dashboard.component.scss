@@ -752,7 +752,8 @@ h2 {
   line-height: 1.2;
 }
 
-.hardware-card__body strong {
+.hardware-card__body strong,
+.hardware-health {
   display: inline-flex;
   max-width: 100%;
   padding: 0.28rem 0.5rem;
@@ -760,7 +761,6 @@ h2 {
   background: rgba(2, 6, 23, 0.48);
   color: #e2e8f0;
   font-size: 0.82rem;
-  overflow-wrap: anywhere;
 }
 
 .hardware-card__body p {
