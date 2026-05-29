@@ -311,55 +311,6 @@
           </article>
         </section>
 
-        <section class="hardware-panel glass-panel glass-panel--inner" aria-label="Estado de componentes del circuito">
-          <header class="hardware-panel__header">
-            <div>
-              <span class="eyebrow">Circuito físico</span>
-              <h2>Estado de Componentes del Circuito</h2>
-            </div>
-            <span class="hardware-panel__device">
-              {{ circuitDevice()?.name || latestReading()?.deviceName || 'Dispositivo sin seleccionar' }}
-            </span>
-          </header>
-
-          <div class="hardware-grid">
-            @for (component of circuitComponents(); track component.id; let i = $index) {
-              <article
-                class="hardware-card"
-                [attr.data-tone]="component.tone"
-                [class.hardware-card--pulse]="component.pulse"
-                [style.animation-delay.ms]="i * 70"
-              >
-                <div class="hardware-card__icon">
-                  <i [class]="component.icon" aria-hidden="true"></i>
-                </div>
-                <div class="hardware-card__body">
-                  <span>{{ component.role }}</span>
-                  <h3>{{ component.title }}</h3>
-                  <div class="hardware-card__status-row">
-                    <strong>{{ component.status }}</strong>
-                    <em class="hardware-health" [attr.data-health]="component.health">
-                      {{ component.healthLabel }}
-                    </em>
-                  </div>
-                  <p>{{ component.detail }}</p>
-                </div>
-                <div class="hardware-card__metric">
-                  {{ component.metric }}
-                </div>
-
-                @if (component.leds; as leds) {
-                  <div class="hardware-leds" aria-label="Indicadores LED">
-                    <span class="hardware-led hardware-led--green" [class.hardware-led--on]="leds.green"></span>
-                    <span class="hardware-led hardware-led--yellow" [class.hardware-led--on]="leds.yellow"></span>
-                    <span class="hardware-led hardware-led--red" [class.hardware-led--on]="leds.red"></span>
-                  </div>
-                }
-              </article>
-            }
-          </div>
-        </section>
-
         <section class="overview-grid">
           <article class="glass-panel glass-panel--inner command-panel">
             <header>
@@ -412,6 +363,59 @@
               </button>
             </div>
           </article>
+        </section>
+      </section>
+    }
+
+    @if (activeTab() === 'hardware') {
+      <section class="dashboard-pane">
+        <section class="hardware-panel glass-panel glass-panel--inner" aria-label="Estado de componentes del circuito">
+          <header class="hardware-panel__header">
+            <div>
+              <span class="eyebrow">Circuito físico</span>
+              <h2>Estado de Componentes del Circuito</h2>
+            </div>
+            <span class="hardware-panel__device">
+              {{ circuitDevice()?.name || latestReading()?.deviceName || 'Dispositivo sin seleccionar' }}
+            </span>
+          </header>
+
+          <div class="hardware-grid">
+            @for (component of circuitComponents(); track component.id; let i = $index) {
+              <article
+                class="hardware-card"
+                [attr.data-tone]="component.tone"
+                [class.hardware-card--pulse]="component.pulse"
+                [style.animation-delay.ms]="i * 70"
+              >
+                <div class="hardware-card__icon">
+                  <i [class]="component.icon" aria-hidden="true"></i>
+                </div>
+                <div class="hardware-card__body">
+                  <span>{{ component.role }}</span>
+                  <h3>{{ component.title }}</h3>
+                  <div class="hardware-card__status-row">
+                    <strong>{{ component.status }}</strong>
+                    <em class="hardware-health" [attr.data-health]="component.health">
+                      {{ component.healthLabel }}
+                    </em>
+                  </div>
+                  <p>{{ component.detail }}</p>
+                </div>
+                <div class="hardware-card__metric">
+                  {{ component.metric }}
+                </div>
+
+                @if (component.leds; as leds) {
+                  <div class="hardware-leds" aria-label="Indicadores LED">
+                    <span class="hardware-led hardware-led--green" [class.hardware-led--on]="leds.green"></span>
+                    <span class="hardware-led hardware-led--yellow" [class.hardware-led--on]="leds.yellow"></span>
+                    <span class="hardware-led hardware-led--red" [class.hardware-led--on]="leds.red"></span>
+                  </div>
+                }
+              </article>
+            }
+          </div>
         </section>
       </section>
     }

@@ -19,7 +19,7 @@ import { ModalComponent } from '../../shared/components/modal/modal.component';
 import { resolveErrorMessage } from '../../core/utils/error-message';
 
 type TimeRange = '1h' | '6h' | '24h' | '7d';
-type DashboardTab = 'overview' | 'readings' | 'alerts' | 'commands' | 'analytics';
+type DashboardTab = 'overview' | 'readings' | 'alerts' | 'commands' | 'hardware' | 'analytics';
 type ReadingStateFilter = 'ALL' | 'NORMAL' | 'ALERTA' | 'FUGA' | 'ERROR';
 type AlertFilter = 'ALL' | 'PENDING' | 'ACK' | 'ALERTA' | 'FUGA' | 'ERROR';
 type HardwareTone = 'active' | 'normal' | 'alert' | 'danger' | 'error' | 'inactive';
@@ -531,6 +531,7 @@ export class DashboardComponent {
     { id: 'readings', label: 'Lecturas', detail: 'Timeline y paquetes', icon: 'fa-solid fa-list-ul' },
     { id: 'alerts', label: 'Alertas', detail: 'Eventos y respuesta', icon: 'fa-solid fa-triangle-exclamation' },
     { id: 'commands', label: 'Comandos', detail: 'Órdenes y respuestas', icon: 'fa-solid fa-terminal' },
+    { id: 'hardware', label: 'Circuito físico', detail: 'Componentes y señales', icon: 'fa-solid fa-microchip' },
     { id: 'analytics', label: 'Analítica', detail: 'Histórico y curvas', icon: 'fa-solid fa-chart-line' }
   ];
   readonly readingFilters: Array<{ id: ReadingStateFilter; label: string }> = [
@@ -953,6 +954,8 @@ export class DashboardComponent {
         return this.activeAlerts().length;
       case 'commands':
         return this.pendingCommands().length || null;
+      case 'hardware':
+        return this.circuitComponents().length;
       case 'analytics':
         return this.historicalReadings().length;
       default:
@@ -1350,7 +1353,7 @@ export class DashboardComponent {
 
   private restoreTab(): DashboardTab {
     const saved = localStorage.getItem(this.dashboardTabKey);
-    if (saved === 'overview' || saved === 'readings' || saved === 'alerts' || saved === 'commands' || saved === 'analytics') {
+    if (saved === 'overview' || saved === 'readings' || saved === 'alerts' || saved === 'commands' || saved === 'hardware' || saved === 'analytics') {
       return saved;
     }
     return 'overview';
