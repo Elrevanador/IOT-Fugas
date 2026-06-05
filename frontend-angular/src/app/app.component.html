@@ -8,55 +8,32 @@
     <div class="world-loader" aria-hidden="true">
       <svg class="world-loader__svg" viewBox="0 0 180 112" focusable="false">
         <defs>
-          <linearGradient id="loader-drop" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stop-color="#bae6fd" />
-            <stop offset="58%" stop-color="#0ea5e9" />
-            <stop offset="100%" stop-color="#075985" />
-          </linearGradient>
-          <linearGradient id="loader-shirt" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stop-color="#ef4444" />
-            <stop offset="52%" stop-color="#ef4444" />
-            <stop offset="53%" stop-color="#f8fafc" />
-            <stop offset="63%" stop-color="#f8fafc" />
-            <stop offset="64%" stop-color="#16a34a" />
-          </linearGradient>
+          <radialGradient id="loader-ball-fill" cx="35%" cy="28%" r="70%">
+            <stop offset="0%" stop-color="#ffffff" />
+            <stop offset="58%" stop-color="#f8fafc" />
+            <stop offset="100%" stop-color="#cbd5e1" />
+          </radialGradient>
         </defs>
 
-        <path class="world-loader__arc" d="M42 42 C62 12 116 6 142 32" />
-        <ellipse class="world-loader__shadow" cx="75" cy="92" rx="32" ry="5" />
-        <path class="world-loader__ground" d="M24 94 H156" />
-
-        <g class="world-loader__drop">
-          <path d="M0 -20 C-10 -6 -17 4 -17 15 C-17 27 -9 35 0 35 C9 35 17 27 17 15 C17 4 10 -6 0 -20Z" />
-          <ellipse cx="-5" cy="7" rx="4" ry="8" />
+        <path class="world-loader__field-line" d="M22 88 H158" />
+        <path class="world-loader__field-arc" d="M72 88 C74 72 106 72 108 88" />
+        <g class="world-loader__wake">
+          <path d="M46 77 H74" />
+          <path d="M34 84 H60" />
+          <path d="M112 80 H138" />
         </g>
-
-        <g class="world-loader__splash">
-          <ellipse cx="53" cy="91" rx="12" ry="3" />
-          <circle cx="39" cy="86" r="2.5" />
-          <circle cx="66" cy="84" r="2" />
-          <circle cx="75" cy="90" r="1.8" />
-        </g>
+        <ellipse class="world-loader__shadow" cx="86" cy="87" rx="20" ry="5" />
 
         <g class="world-loader__ball">
-          <circle cx="0" cy="0" r="15" />
-          <path d="M-15 0 H15 M0 -15 V15 M-10 -10 L10 10 M10 -10 L-10 10" />
-          <polygon points="0,-6 6,-2 4,6 -4,6 -6,-2" />
-        </g>
-
-        <g class="world-loader__player">
-          <circle class="world-loader__head" cx="135" cy="48" r="7" />
-          <path class="world-loader__body" d="M129 58 H143 L147 80 H125Z" />
-          <path class="world-loader__arm" d="M128 62 C116 66 113 74 116 81" />
-          <path class="world-loader__support-leg" d="M135 80 L133 96" />
-          <g class="world-loader__kick-leg">
-            <path d="M137 80 L119 90" />
-            <path class="world-loader__boot" d="M119 90 L105 88" />
-          </g>
+          <circle class="world-loader__ball-shell" cx="0" cy="0" r="18" />
+          <polygon class="world-loader__panel" points="0,-8 8,-3 5,7 -5,7 -8,-3" />
+          <path class="world-loader__seams" d="M0 -8 L0 -18 M8 -3 L17 -7 M5 7 L11 16 M-5 7 L-11 16 M-8 -3 L-17 -7" />
+          <path class="world-loader__seams" d="M-14 -11 C-8 -15 8 -15 14 -11 M-16 8 C-8 16 8 16 16 8" />
+          <circle class="world-loader__shine" cx="-7" cy="-8" r="3.5" />
         </g>
       </svg>
     </div>
     <strong>Sincronizando</strong>
-    <p>Preparando la jugada...</p>
+    <p>Preparando datos...</p>
   </div>
 </div>

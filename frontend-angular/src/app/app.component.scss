@@ -62,212 +62,119 @@
   height: 100%;
 }
 
-.world-loader__arc {
+.world-loader__field-line,
+.world-loader__field-arc {
   fill: none;
-  stroke: rgba(125, 211, 252, 0.3);
-  stroke-dasharray: 5 7;
-  stroke-linecap: round;
-  stroke-width: 2;
-}
-
-.world-loader__ground {
-  fill: none;
-  stroke: #22c55e;
+  stroke: rgba(34, 197, 94, 0.72);
   stroke-linecap: round;
   stroke-width: 3;
 }
 
+.world-loader__field-arc {
+  stroke: rgba(226, 232, 240, 0.26);
+  stroke-width: 2;
+}
+
+.world-loader__wake path {
+  fill: none;
+  stroke: rgba(125, 211, 252, 0.44);
+  stroke-dasharray: 18 18;
+  stroke-linecap: round;
+  stroke-width: 2;
+  animation: loader-wake 1.35s linear infinite;
+}
+
+.world-loader__wake path:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.world-loader__wake path:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
 .world-loader__shadow {
   fill: rgba(2, 6, 23, 0.36);
-  transform-origin: 75px 92px;
-  animation: loader-shadow 3s ease-in-out infinite;
-}
-
-.world-loader__drop {
-  fill: url('#loader-drop');
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: loader-drop 3s cubic-bezier(0.55, 0.04, 0.22, 1) infinite;
-}
-
-.world-loader__drop ellipse {
-  fill: rgba(255, 255, 255, 0.38);
-}
-
-.world-loader__splash {
-  fill: #67e8f9;
-  opacity: 0;
-  transform-origin: 54px 91px;
-  animation: loader-splash 3s ease-in-out infinite;
+  transform-origin: 86px 87px;
+  animation: loader-shadow 1.35s ease-in-out infinite;
 }
 
 .world-loader__ball {
-  opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: loader-ball 3s cubic-bezier(0.45, 0.02, 0.22, 1) infinite;
+  animation: loader-ball-roll 1.35s cubic-bezier(0.45, 0.03, 0.2, 1) infinite;
 }
 
-.world-loader__ball circle {
-  fill: #f8fafc;
+.world-loader__ball-shell {
+  fill: url('#loader-ball-fill');
   stroke: #0f172a;
   stroke-width: 2.5;
+  filter: drop-shadow(0 5px 7px rgba(2, 6, 23, 0.28));
 }
 
-.world-loader__ball path {
+.world-loader__seams {
   fill: none;
   stroke: #0f172a;
   stroke-linecap: round;
-  stroke-width: 1.4;
+  stroke-width: 1.6;
 }
 
-.world-loader__ball polygon {
+.world-loader__panel {
   fill: #0f172a;
 }
 
-.world-loader__player {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: loader-player 3s ease-in-out infinite;
+.world-loader__shine {
+  fill: rgba(255, 255, 255, 0.72);
 }
 
-.world-loader__head {
-  fill: #f3c9a6;
-}
-
-.world-loader__body {
-  fill: url('#loader-shirt');
-}
-
-.world-loader__arm,
-.world-loader__support-leg,
-.world-loader__kick-leg path {
-  fill: none;
-  stroke: #e2e8f0;
-  stroke-linecap: round;
-  stroke-width: 5;
-}
-
-.world-loader__boot {
-  stroke: #0f172a;
-  stroke-width: 6;
-}
-
-.world-loader__kick-leg {
-  transform-box: fill-box;
-  transform-origin: 138px 80px;
-  animation: loader-kick 3s ease-in-out infinite;
-}
-
-@keyframes loader-drop {
+@keyframes loader-ball-roll {
   0% {
-    opacity: 0;
-    transform: translate(54px, 4px) scale(0.7) rotate(0deg);
+    transform: translate(38px, 69px) rotate(0deg);
   }
-  10%, 32% {
-    opacity: 1;
-  }
-  38% {
-    opacity: 1;
-    transform: translate(54px, 57px) scale(0.96) rotate(0deg);
-  }
-  43%, 100% {
-    opacity: 0;
-    transform: translate(54px, 63px) scale(0.2) rotate(0deg);
-  }
-}
-
-@keyframes loader-splash {
-  0%, 36%, 55%, 100% {
-    opacity: 0;
-    transform: scale(0.65);
-  }
-  44% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes loader-ball {
-  0%, 42% {
-    opacity: 0;
-    transform: translate(54px, 91px) scale(0.35) rotate(0deg);
-  }
-  50% {
-    opacity: 1;
-    transform: translate(54px, 77px) scale(1) rotate(0deg);
-  }
-  66% {
-    opacity: 1;
-    transform: translate(92px, 77px) scale(1) rotate(180deg);
-  }
-  88% {
-    opacity: 1;
-    transform: translate(150px, 36px) scale(0.82) rotate(540deg);
+  45% {
+    transform: translate(90px, 69px) rotate(210deg);
   }
   100% {
-    opacity: 0;
-    transform: translate(166px, 24px) scale(0.68) rotate(700deg);
+    transform: translate(142px, 69px) rotate(420deg);
   }
 }
 
-@keyframes loader-player {
-  0%, 48%, 100% {
-    opacity: 0;
-    transform: translateX(12px);
+@keyframes loader-wake {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.16;
   }
-  58%, 86% {
-    opacity: 1;
-    transform: translateX(0);
+  45% {
+    opacity: 0.62;
   }
-}
-
-@keyframes loader-kick {
-  0%, 59%, 100% {
-    transform: rotate(0deg);
-  }
-  70% {
-    transform: rotate(-34deg);
-  }
-  80% {
-    transform: rotate(8deg);
+  100% {
+    stroke-dashoffset: -36;
+    opacity: 0.16;
   }
 }
 
 @keyframes loader-shadow {
-  0%, 42%, 100% {
+  0%, 100% {
     opacity: 0.24;
-    transform: scaleX(0.72);
+    transform: translateX(-48px) scaleX(0.72);
   }
-  54%, 70% {
+  45% {
     opacity: 0.42;
-    transform: scaleX(1);
+    transform: translateX(0) scaleX(1);
+  }
+  55% {
+    opacity: 0.42;
+    transform: translateX(0) scaleX(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .world-loader__drop,
-  .world-loader__splash,
   .world-loader__ball,
-  .world-loader__player,
-  .world-loader__kick-leg,
+  .world-loader__wake path,
   .world-loader__shadow {
     animation: none;
   }
 
-  .world-loader__drop,
-  .world-loader__splash {
-    opacity: 0;
-  }
-
-  .world-loader__ball,
-  .world-loader__player {
-    opacity: 1;
-  }
-
   .world-loader__ball {
-    transform: translate(76px, 77px);
+    transform: translate(90px, 69px);
   }
 }
