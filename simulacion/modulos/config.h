@@ -42,5 +42,6 @@ extern const float PRESSURE_SENSOR_MAX_PSI;
 extern const float PRESSURE_SENSOR_MIN_V;
 extern const float PRESSURE_SENSOR_MAX_V;
 extern const float PRESSURE_DIVIDER_FACTOR;
+extern const float PRESSURE_DEAD_ZONE_PSI;
 
 #endif

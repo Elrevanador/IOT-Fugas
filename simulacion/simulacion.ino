@@ -87,7 +87,7 @@ void setup() {
   initSensores(state);
   initDisplay(oled, state);
 
-  attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, RISING);
+  attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, FALLING);
   Serial.println("Interrupcion OK");
 
   initWiFi();

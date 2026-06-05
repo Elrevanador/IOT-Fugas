@@ -5,12 +5,29 @@
 
 <div class="loading-overlay" [class.loading-overlay--visible]="loading.isBusy()" aria-live="polite" aria-busy="true">
   <div class="loading-overlay__panel">
-    <div class="loading-orbit">
-      <span></span>
-      <span></span>
-      <span></span>
+    <div class="world-loader" aria-hidden="true">
+      <div class="world-loader__trail"></div>
+      <div class="world-loader__drop"></div>
+      <div class="world-loader__splash">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="world-loader__ball">
+        <span class="world-loader__patch world-loader__patch--center"></span>
+        <span class="world-loader__patch world-loader__patch--top"></span>
+        <span class="world-loader__patch world-loader__patch--right"></span>
+        <span class="world-loader__patch world-loader__patch--bottom"></span>
+        <span class="world-loader__patch world-loader__patch--left"></span>
+      </div>
+      <div class="world-loader__player">
+        <span class="world-loader__body"></span>
+        <span class="world-loader__leg"></span>
+        <span class="world-loader__shoe"></span>
+      </div>
+      <div class="world-loader__ground"></div>
     </div>
     <strong>Sincronizando</strong>
-    <p>Preparando datos del servidor…</p>
+    <p>Preparando la jugada...</p>
   </div>
 </div>

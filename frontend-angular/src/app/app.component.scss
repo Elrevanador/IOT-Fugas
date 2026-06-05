@@ -24,15 +24,16 @@
 }
 
 .loading-overlay__panel {
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(15, 23, 42, 0.94);
   color: #e2e8f0;
-  padding: clamp(1rem, 2vw, 1.5rem) clamp(1.25rem, 3vw, 2rem);
-  border-radius: clamp(12px, 2vw, 16px);
+  padding: clamp(1rem, 2vw, 1.4rem) clamp(1.15rem, 3vw, 1.8rem);
+  border-radius: 8px;
   text-align: center;
-  max-width: min(280px, 90vw);
+  width: min(19rem, calc(100vw - 2rem));
   border: 1px solid rgba(148, 163, 184, 0.25);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
+  box-shadow: 0 22px 60px rgba(2, 6, 23, 0.38);
 }
 
 .loading-overlay__panel strong {
@@ -47,36 +48,306 @@
   color: #94a3b8;
 }
 
-.loading-orbit {
-  display: flex;
-  justify-content: center;
-  gap: clamp(4px, 1vw, 6px);
+.world-loader {
+  position: relative;
+  width: 10.5rem;
+  height: 6.25rem;
+  margin: 0 auto;
+  overflow: hidden;
 }
 
-.loading-orbit span {
-  width: 8px;
-  height: 8px;
+.world-loader__trail {
+  position: absolute;
+  left: 2.05rem;
+  top: 0.75rem;
+  width: 0.16rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0), rgba(125, 211, 252, 0.75));
+  animation: trail-fall 2.8s ease-in-out infinite;
+}
+
+.world-loader__drop {
+  position: absolute;
+  left: 1.55rem;
+  top: 0.35rem;
+  width: 1.15rem;
+  height: 1.55rem;
+  border-radius: 55% 55% 60% 60%;
+  background: linear-gradient(145deg, #7dd3fc 10%, #0ea5e9 58%, #0369a1 100%);
+  box-shadow: inset -0.14rem -0.18rem 0 rgba(2, 132, 199, 0.35), 0 0.45rem 1rem rgba(14, 165, 233, 0.28);
+  transform: rotate(45deg);
+  transform-origin: 50% 70%;
+  animation: drop-to-ball 2.8s cubic-bezier(0.55, 0.05, 0.2, 1) infinite;
+}
+
+.world-loader__splash {
+  position: absolute;
+  left: 0.95rem;
+  bottom: 1.25rem;
+  width: 2.5rem;
+  height: 0.65rem;
+}
+
+.world-loader__splash span {
+  position: absolute;
+  bottom: 0;
+  width: 0.45rem;
+  height: 0.22rem;
+  border-radius: 999px;
+  background: #67e8f9;
+  opacity: 0;
+  animation: splash-pop 2.8s ease-in-out infinite;
+}
+
+.world-loader__splash span:nth-child(1) {
+  left: 0.15rem;
+  transform: rotate(-18deg);
+}
+
+.world-loader__splash span:nth-child(2) {
+  left: 0.95rem;
+}
+
+.world-loader__splash span:nth-child(3) {
+  right: 0.25rem;
+  transform: rotate(18deg);
+}
+
+.world-loader__ball {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 0.85rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 0.12rem solid #111827;
   border-radius: 50%;
-  background: #5bf3d4;
-  animation: pulse 0.9s ease-in-out infinite;
+  background:
+    linear-gradient(90deg, transparent 44%, #111827 45% 47%, transparent 48%),
+    linear-gradient(30deg, transparent 43%, #111827 44% 46%, transparent 47%),
+    linear-gradient(150deg, transparent 43%, #111827 44% 46%, transparent 47%),
+    #f8fafc;
+  box-shadow: 0 0.45rem 0.9rem rgba(2, 6, 23, 0.28);
+  opacity: 0;
+  animation: ball-kick 2.8s cubic-bezier(0.45, 0.02, 0.2, 1) infinite;
 }
 
-.loading-orbit span:nth-child(2) {
-  animation-delay: 0.15s;
+.world-loader__patch {
+  position: absolute;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 35%;
+  background: #111827;
 }
 
-.loading-orbit span:nth-child(3) {
-  animation-delay: 0.3s;
+.world-loader__patch--center {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.85);
+.world-loader__patch--top {
+  left: 0.62rem;
+  top: 0.13rem;
+  transform: rotate(12deg) scale(0.7);
+}
+
+.world-loader__patch--right {
+  right: 0.15rem;
+  top: 0.62rem;
+  transform: rotate(20deg) scale(0.68);
+}
+
+.world-loader__patch--bottom {
+  left: 0.63rem;
+  bottom: 0.11rem;
+  transform: rotate(-10deg) scale(0.7);
+}
+
+.world-loader__patch--left {
+  left: 0.14rem;
+  top: 0.62rem;
+  transform: rotate(-20deg) scale(0.68);
+}
+
+.world-loader__player {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 0.84rem;
+  width: 2.45rem;
+  height: 3.7rem;
+  opacity: 0;
+  animation: player-appear 2.8s ease-in-out infinite;
+}
+
+.world-loader__body {
+  position: absolute;
+  right: 0.78rem;
+  top: 0.55rem;
+  width: 0.9rem;
+  height: 1.55rem;
+  border-radius: 0.42rem 0.42rem 0.28rem 0.28rem;
+  background: linear-gradient(180deg, #ef4444 0 48%, #f8fafc 48% 55%, #22c55e 55% 100%);
+}
+
+.world-loader__body::before {
+  content: '';
+  position: absolute;
+  left: 0.2rem;
+  top: -0.62rem;
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 50%;
+  background: #f8caa5;
+}
+
+.world-loader__leg {
+  position: absolute;
+  right: 0.95rem;
+  top: 2rem;
+  width: 0.28rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  transform-origin: 50% 0.05rem;
+  animation: leg-kick 2.8s ease-in-out infinite;
+}
+
+.world-loader__shoe {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.18rem;
+  width: 0.78rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: #111827;
+  transform-origin: 0.15rem 50%;
+  animation: shoe-kick 2.8s ease-in-out infinite;
+}
+
+.world-loader__ground {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.65rem;
+  bottom: 0.62rem;
+  height: 0.12rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0), #22c55e 18%, #84cc16 82%, rgba(132, 204, 22, 0));
+}
+
+@keyframes trail-fall {
+  0%, 58%, 100% {
+    opacity: 0;
+    transform: translateY(-0.4rem) scaleY(0.7);
   }
-  50% {
+  12%, 34% {
     opacity: 1;
-    transform: scale(1.1);
+    transform: translateY(1.4rem) scaleY(1);
+  }
+}
+
+@keyframes drop-to-ball {
+  0% {
+    opacity: 1;
+    transform: translateY(-1.1rem) rotate(45deg) scale(1);
+    border-radius: 55% 55% 60% 60%;
+  }
+  34% {
+    opacity: 1;
+    transform: translateY(3.5rem) rotate(45deg) scale(0.9);
+  }
+  43%, 100% {
+    opacity: 0;
+    transform: translateY(3.5rem) rotate(45deg) scale(0.35);
+  }
+}
+
+@keyframes splash-pop {
+  0%, 32%, 55%, 100% {
+    opacity: 0;
+    transform: translateY(0) scale(0.5);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-0.35rem) scale(1);
+  }
+}
+
+@keyframes ball-kick {
+  0%, 39% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0.72);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+  63% {
+    opacity: 1;
+    transform: translate(1.7rem, 0) rotate(120deg) scale(1);
+  }
+  86% {
+    opacity: 1;
+    transform: translate(6.6rem, -2.4rem) rotate(620deg) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(7.3rem, -2.7rem) rotate(760deg) scale(0.75);
+  }
+}
+
+@keyframes player-appear {
+  0%, 48%, 100% {
+    opacity: 0;
+    transform: translateX(0.5rem);
+  }
+  54%, 88% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes leg-kick {
+  0%, 56%, 100% {
+    transform: rotate(12deg);
+  }
+  66% {
+    transform: rotate(58deg);
+  }
+  76% {
+    transform: rotate(-18deg);
+  }
+}
+
+@keyframes shoe-kick {
+  0%, 56%, 100% {
+    transform: translate(0, 0) rotate(12deg);
+  }
+  66% {
+    transform: translate(-0.34rem, -0.15rem) rotate(18deg);
+  }
+  76% {
+    transform: translate(0.25rem, 0.02rem) rotate(-12deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-loader__trail,
+  .world-loader__drop,
+  .world-loader__splash span,
+  .world-loader__ball,
+  .world-loader__player,
+  .world-loader__leg,
+  .world-loader__shoe {
+    animation: none;
+  }
+
+  .world-loader__drop {
+    opacity: 0;
+  }
+
+  .world-loader__ball,
+  .world-loader__player {
+    opacity: 1;
   }
 }

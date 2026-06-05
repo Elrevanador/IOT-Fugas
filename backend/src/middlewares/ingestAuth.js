@@ -33,6 +33,13 @@ const getIncomingHardwareUid = (req) => {
   return typeof value === "string" ? value.trim() : "";
 };
 
+const getIncomingDeviceKey = (req) => {
+  const rawHeaderKey = req.headers["x-device-key"] || req.headers["x-api-key"];
+  const headerKey = Array.isArray(rawHeaderKey) ? rawHeaderKey[0] : rawHeaderKey;
+  const value = firstPresent(headerKey, req.body?.deviceKey, req.body?.apiKey, req.query?.deviceKey, req.query?.apiKey);
+  return typeof value === "string" ? value.trim() : "";
+};
+
 const findDeviceForCredential = async (req) => {
   const deviceId = getIncomingDeviceId(req);
 
@@ -91,8 +98,7 @@ module.exports = async (req, res, next) => {
     return next(error);
   }
 
-  const rawDeviceKey = req.headers["x-device-key"] || req.headers["x-api-key"] || "";
-  const deviceKey = Array.isArray(rawDeviceKey) ? rawDeviceKey[0] : String(rawDeviceKey).trim();
+  const deviceKey = getIncomingDeviceKey(req);
 
   if (deviceKey) {
     if (ingestApiKey && safeCompare(deviceKey, ingestApiKey)) {

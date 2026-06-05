@@ -15,7 +15,7 @@ static String ipLocalTexto() {
 static void conectarWiFi() {
   Serial.print("Conectando a WiFi");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password, 6);
+  WiFi.begin(ssid, password);
 
   int intentos = 0;
   while (WiFi.status() != WL_CONNECTED && intentos < 30) {

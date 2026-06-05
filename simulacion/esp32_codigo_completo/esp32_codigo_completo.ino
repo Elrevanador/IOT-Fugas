@@ -1,11 +1,13 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <WiFi.h>
+#include <WiFiManager.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <LiquidCrystal_I2C.h>      // puedes cambiar a <LiquidCrystal_PCF8574.h> para quitar el aviso
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <Preferences.h>
 #include <mbedtls/md.h>            // para HMAC
 #include <esp_task_wdt.h>          // watchdog
@@ -37,13 +39,41 @@ const char* HMAC_SECRET_KEY = "c0ntraclave-hmac-muy-segura-2024!";
 #endif
 
 // ===================== PARÁMETROS POR DEFECTO (si no hay NVS) =====================
-const char* DEFAULT_SSID     = "Wokwi-GUEST";
-const char* DEFAULT_PASSWORD = "";
-const char* DEFAULT_INGEST_API_KEY = "CAMBIA_ESTA_CLAVE_POR_UNA_NUEVA";
-const char* DEVICE_NAME      = "ESP32-WOKWI-01";
-const char* DEVICE_TYPE      = "ESP32-WOKWI";
-const char* DEVICE_FIRMWARE_VERSION = "sim-1.0.0";
-const char* DEVICE_HARDWARE_UID = "HW-WOKWI-ESP32-01";
+#ifndef WIFI_SSID_VALUE
+#define WIFI_SSID_VALUE "MONTOYA_MA2.4G"
+#endif
+
+#ifndef WIFI_PASSWORD_VALUE
+#define WIFI_PASSWORD_VALUE "CAMBIA_ESTA_CLAVE_WIFI"
+#endif
+
+#ifndef DEVICE_NAME_VALUE
+#define DEVICE_NAME_VALUE "ESP32-FISICO-01"
+#endif
+
+#ifndef DEVICE_TYPE_VALUE
+#define DEVICE_TYPE_VALUE "ESP32-FISICO"
+#endif
+
+#ifndef DEVICE_FIRMWARE_VERSION_VALUE
+#define DEVICE_FIRMWARE_VERSION_VALUE "fisico-1.0.0"
+#endif
+
+#ifndef DEVICE_HARDWARE_UID_VALUE
+#define DEVICE_HARDWARE_UID_VALUE "HW-ESP32-FISICO-01"
+#endif
+
+#ifndef INGEST_API_KEY_VALUE
+#define INGEST_API_KEY_VALUE "pon_una_clave_larga_y_nueva"
+#endif
+
+const char* DEFAULT_SSID     = WIFI_SSID_VALUE;
+const char* DEFAULT_PASSWORD = WIFI_PASSWORD_VALUE;
+const char* DEFAULT_INGEST_API_KEY = INGEST_API_KEY_VALUE;
+const char* DEVICE_NAME      = DEVICE_NAME_VALUE;
+const char* DEVICE_TYPE      = DEVICE_TYPE_VALUE;
+const char* DEVICE_FIRMWARE_VERSION = DEVICE_FIRMWARE_VERSION_VALUE;
+const char* DEVICE_HARDWARE_UID = DEVICE_HARDWARE_UID_VALUE;
 
 enum BackendMode {
   BACKEND_LOCAL = 0,
@@ -58,10 +88,15 @@ const int DEVICE_ID = 0;
 const int HOUSE_ID = 0;
 const int SENSOR_ID = 0;
 
+const int SCREEN_WIDTH = 128;
+const int SCREEN_HEIGHT = 64;
+const int OLED_ADDR = 0x3C;
+const int OLED_RESET = -1;
+
 const unsigned long SENSOR_READ_INTERVAL_MS = 500;
 const unsigned long BACKEND_SEND_INTERVAL_MS = 2000;
 const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
-const unsigned long BACKEND_TIMEOUT_MS = 500;
+const unsigned long BACKEND_TIMEOUT_MS = 5000;
 
 const int flowPin    = 27;
 const int pressurePin = 34;
@@ -74,9 +109,10 @@ const int valveIndicatorPin = 5;
 const int buttonPin  = 13;
 
 const float PRESSURE_SENSOR_MAX_PSI = 100.0f;
-const float PRESSURE_SENSOR_MIN_V = 0.0f;
-const float PRESSURE_SENSOR_MAX_V = 3.3f;
-const float PRESSURE_DIVIDER_FACTOR = 1.0f;
+const float PRESSURE_SENSOR_MIN_V = 0.27f;
+const float PRESSURE_SENSOR_MAX_V = 2.46f;
+const float PRESSURE_DIVIDER_FACTOR = 1.5f;
+const float PRESSURE_DEAD_ZONE_PSI = 0.5f;
 
 // ===================== ESTADO Y LOGICA =====================
 enum EstadoSistema {
@@ -121,6 +157,9 @@ struct SystemState {
 static String wifiSSID;
 static String wifiPass;
 static String ingestApiKey;
+
+const char* WIFI_MANAGER_AP_NAME = "ESP32-FUGAS-SETUP";
+const char* WIFI_MANAGER_AP_PASSWORD = "12345678";
 
 static float limitarFloat(float valor, float minimo, float maximo) {
   if (valor < minimo) return minimo;
@@ -206,7 +245,7 @@ EstadoSistema evaluarEstado(float flujoLmin, float presionKPa, bool sensorOK,
 }
 
 // ===================== OBJETOS Y TEMPORIZADORES =====================
-LiquidCrystal_I2C lcd(0x27, 16, 2);   // o LiquidCrystal_PCF8574 lcd(0x27);
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 SystemState state;
 
 unsigned long lastMeasure = 0;
@@ -257,12 +296,17 @@ static String urlEncode(const String &value) {
   return encoded;
 }
 
+static String backendDeviceKeyQuery() {
+  return "deviceKey=" + urlEncode(ingestApiKey);
+}
+
 String backendPendingCommandsUrl() {
   String url = backendBaseUrl() + "/api/commands/pending?";
+  url += backendDeviceKeyQuery();
   if (DEVICE_ID > 0) {
-    url += "deviceId=" + String(DEVICE_ID);
+    url += "&deviceId=" + String(DEVICE_ID);
   } else {
-    url += "deviceName=" + urlEncode(String(DEVICE_NAME));
+    url += "&deviceName=" + urlEncode(String(DEVICE_NAME));
   }
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
     url += "&hardwareUid=" + urlEncode(String(DEVICE_HARDWARE_UID));
@@ -271,7 +315,7 @@ String backendPendingCommandsUrl() {
 }
 
 String backendCommandResponseUrl(unsigned long commandId) {
-  return backendBaseUrl() + "/api/commands/" + String(commandId) + "/response";
+  return backendBaseUrl() + "/api/commands/" + String(commandId) + "/response?" + backendDeviceKeyQuery();
 }
 
 static bool backendUsaHttps(const String &url) {
@@ -288,17 +332,38 @@ static String ipLocalTexto() {
 }
 
 static void conectarWiFi() {
-  Serial.print("Conectando a WiFi");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(wifiSSID.c_str(), wifiPass.c_str(), 6);
-  int intentos = 0;
-  while (WiFi.status() != WL_CONNECTED && intentos < 30) {
-    delay(300);
-    Serial.print(".");
-    intentos++;
+
+  WiFiManager wm;
+  wm.setConnectTimeout(20);
+  wm.setConfigPortalTimeout(180);
+  wm.setBreakAfterConfig(true);
+
+  Serial.println("Conectando WiFi con WiFiManager...");
+  Serial.print("Si no conecta, abre la red: ");
+  Serial.println(WIFI_MANAGER_AP_NAME);
+
+  oled.clearDisplay();
+  oled.setTextColor(SSD1306_WHITE);
+  oled.setTextSize(1);
+  oled.setCursor(0, 8);
+  oled.print("WiFiManager");
+  oled.setCursor(0, 24);
+  oled.print(WIFI_MANAGER_AP_NAME);
+  oled.setCursor(0, 40);
+  oled.print("Clave: ");
+  oled.print(WIFI_MANAGER_AP_PASSWORD);
+  oled.display();
+
+  bool conectado = wm.autoConnect(WIFI_MANAGER_AP_NAME, WIFI_MANAGER_AP_PASSWORD);
+  if (!conectado && WiFi.status() != WL_CONNECTED) {
+    Serial.println("No se pudo configurar WiFi. Reiniciando...");
+    delay(1000);
+    ESP.restart();
   }
-  Serial.println();
+
   if (wifiConectado()) {
+    wifiSSID = WiFi.SSID();
     Serial.println("WiFi conectado");
     Serial.print("IP: ");
     Serial.println(ipLocalTexto());
@@ -320,9 +385,8 @@ void initWiFi() {
 bool asegurarWiFi() {
   if (wifiConectado()) return true;
   Serial.println("WiFi caido. Reconectando...");
-  WiFi.disconnect(true);
-  delay(500);
-  WiFi.begin(wifiSSID.c_str(), wifiPass.c_str());
+  WiFi.disconnect(false);
+  WiFi.reconnect();
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
     delay(300);
@@ -336,7 +400,8 @@ bool asegurarWiFi() {
     return true;
   }
   Serial.println("No fue posible reconectar WiFi");
-  return false;
+  conectarWiFi();
+  return wifiConectado();
 }
 
 static void updateBackoff(bool success, unsigned long &backoffMs) {
@@ -457,6 +522,7 @@ void enviarBackend(SystemState &state) {
   if (String(DEVICE_TYPE).length() > 0) appendField("\"deviceType\":\"" + escapeJson(String(DEVICE_TYPE)) + "\"");
   if (String(DEVICE_FIRMWARE_VERSION).length() > 0) appendField("\"firmwareVersion\":\"" + escapeJson(String(DEVICE_FIRMWARE_VERSION)) + "\"");
   if (String(DEVICE_HARDWARE_UID).length() > 0) appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
+  appendField("\"deviceKey\":\"" + escapeJson(ingestApiKey) + "\"");
   appendField("\"ipAddress\":\"" + WiFi.localIP().toString() + "\"");
   appendField("\"wifiSsid\":\"" + escapeJson(wifiSSID) + "\"");
   appendField("\"internetConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false"));
@@ -564,6 +630,7 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
   if (DEVICE_ID > 0) appendField("\"deviceId\":" + String(DEVICE_ID));
   appendField("\"deviceName\":\"" + escapeJson(String(DEVICE_NAME)) + "\"");
   if (String(DEVICE_HARDWARE_UID).length() > 0) appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
+  appendField("\"deviceKey\":\"" + escapeJson(ingestApiKey) + "\"");
   appendField("\"codigoResultado\":\"" + escapeJson(codigo) + "\"");
   appendField("\"mensaje\":\"" + escapeJson(mensaje) + "\"");
 
@@ -695,6 +762,15 @@ void consultarComandosBackend(SystemState &state) {
 }
 
 // ===================== SENSORES =====================
+static int leerAdcPromediado(int pin, int muestras, unsigned int pausaUs) {
+  long suma = 0;
+  for (int i = 0; i < muestras; i++) {
+    suma += analogRead(pin);
+    delayMicroseconds(pausaUs);
+  }
+  return (int)(suma / muestras);
+}
+
 void initSensores(SystemState &state) {
   pinMode(pressurePin, INPUT);
   analogReadResolution(12);
@@ -716,16 +792,20 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
 
   float frequencyHz = pulses / sampleSeconds;
   float nuevoFlujo = frequencyHz / 7.5;
-  int rawPressure = analogRead(pressurePin);
+  int rawPressure = leerAdcPromediado(pressurePin, 20, 200);
   float adcVoltage = (rawPressure / 4095.0f) * 3.3f;
   float sensorVoltage = adcVoltage * PRESSURE_DIVIDER_FACTOR;
   int pressurePercent = (int)((rawPressure * 100L) / 4095L);
   float pressureRatio = (sensorVoltage - PRESSURE_SENSOR_MIN_V) /
                         (PRESSURE_SENSOR_MAX_V - PRESSURE_SENSOR_MIN_V);
   float pressurePsi = limitarFloat(pressureRatio, 0.0f, 1.0f) * PRESSURE_SENSOR_MAX_PSI;
+  if (pressurePsi < PRESSURE_DEAD_ZONE_PSI) {
+    pressurePsi = 0.0f;
+  }
   float nuevaPresion = pressurePsi * 6.89476f;
 
-  state.sensorOK = sensorVoltage >= 0.25f && sensorVoltage <= 4.8f;
+  state.sensorOK = sensorVoltage >= (PRESSURE_SENSOR_MIN_V - 0.05f) &&
+                   sensorVoltage <= (PRESSURE_SENSOR_MAX_V + 0.05f);
 
   if (nuevoFlujo < 0.0) nuevoFlujo = 0.0;
   if (nuevoFlujo > 5.0) nuevoFlujo = 5.0;
@@ -753,6 +833,7 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   Serial.print("ADC presion: ");          Serial.println(rawPressure);
   Serial.print("Pot presion (%): ");      Serial.println(pressurePercent);
   Serial.print("V transductor: ");        Serial.println(sensorVoltage, 2);
+  Serial.print("Presion (PSI): ");        Serial.println(pressurePsi, 2);
   Serial.print("Flujo real detectado: "); Serial.println(state.flujoRealDetectado ? "SI" : "NO");
   Serial.print("Flujo (L/min): ");        Serial.println(state.flujoLmin, 2);
   Serial.print("Presion (kPa): ");        Serial.println(state.presionKPa, 2);
@@ -769,7 +850,7 @@ static void encenderBuzzerContinuo() {
 }
 
 void initActuadores() {
-  pinMode(flowPin, INPUT_PULLUP);
+  pinMode(flowPin, INPUT);
   pinMode(buttonPin, INPUT_PULLUP);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledNaranja, OUTPUT);
@@ -864,76 +945,92 @@ void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
   }
 }
 
-// ===================== LCD =====================
-void initDisplay(LiquidCrystal_I2C &lcd, const SystemState &state) {
-  lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Iniciando...");
-  lcd.setCursor(0, 1);
-  lcd.print("Sistema IoT");
-  if (!state.sensorOK) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Error presion");
+// ===================== OLED =====================
+void initDisplay(Adafruit_SSD1306 &display, const SystemState &state) {
+  Wire.begin(21, 22);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    Serial.println("OLED no encontrado");
+    return;
   }
-  Serial.println("LCD OK");
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(8, 18);
+  display.print("Iniciando...");
+  display.setCursor(8, 34);
+  display.print("Sistema IoT");
+  if (!state.sensorOK) {
+    display.setCursor(8, 50);
+    display.print("Verificar presion");
+  }
+  display.display();
+  Serial.println("OLED OK");
 }
 
-void actualizarLCD(LiquidCrystal_I2C &lcd, const SystemState &state, unsigned long &lastLCDUpdate) {
+void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigned long &lastDisplayUpdate) {
   static int ultimoEstado = -1;
   static int ultimoRiesgo = -1;
   static int ultimoFlujo10 = -1;
   static int ultimaPresion = -1;
+  static bool ultimoSensorOK = true;
+  static bool ultimoBackendOnline = false;
+  static bool ultimaValvula = false;
+
   int flujo10 = (int)(state.flujoLmin * 10.0f);
   int presion = (int)(state.presionKPa + 0.5f);
+
   if ((int)state.estadoSistema == ultimoEstado &&
       state.nivelRiesgo == ultimoRiesgo &&
       flujo10 == ultimoFlujo10 &&
       presion == ultimaPresion &&
-      millis() - lastLCDUpdate < 500) {
+      state.sensorOK == ultimoSensorOK &&
+      state.backendOnline == ultimoBackendOnline &&
+      state.valvulaAbierta == ultimaValvula &&
+      millis() - lastDisplayUpdate < 500) {
     return;
   }
+
   ultimoEstado = (int)state.estadoSistema;
   ultimoRiesgo = state.nivelRiesgo;
   ultimoFlujo10 = flujo10;
   ultimaPresion = presion;
-  lastLCDUpdate = millis();
-  lcd.clear();
+  ultimoSensorOK = state.sensorOK;
+  ultimoBackendOnline = state.backendOnline;
+  ultimaValvula = state.valvulaAbierta;
+  lastDisplayUpdate = millis();
 
-  switch (state.estadoSistema) {
-    case ESTADO_NORMAL:
-      lcd.setCursor(0, 0);
-      lcd.print("Estado:NORMAL");
-      lcd.setCursor(0, 1);
-      lcd.print("Q:");
-      lcd.print(state.flujoLmin, 1);
-      lcd.print(" P:");
-      lcd.print(state.presionKPa, 0);
-      break;
-    case ESTADO_ALERTA:
-      lcd.setCursor(0, 0);
-      lcd.print("Estado:ALERTA");
-      lcd.setCursor(0, 1);
-      lcd.print("Riesgo:");
-      lcd.print(state.nivelRiesgo);
-      lcd.print("%");
-      break;
-    case ESTADO_FUGA:
-      lcd.setCursor(0, 0);
-      lcd.print("FUGA CONFIRMADA");
-      lcd.setCursor(0, 1);
-      lcd.print("Riesgo:");
-      lcd.print(state.nivelRiesgo);
-      lcd.print("%");
-      break;
-    case ESTADO_ERROR:
-      lcd.setCursor(0, 0);
-      lcd.print("ERROR SENSOR");
-      lcd.setCursor(0, 1);
-      lcd.print("Verif transduc");
-      break;
-  }
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+
+  display.setCursor(2, 2);
+  display.print("ESP32-FISICO ");
+  display.print(state.backendOnline ? "ON" : "OFF");
+  display.drawFastHLine(0, 12, 128, SSD1306_WHITE);
+
+  display.setCursor(2, 18);
+  display.print("Estado: ");
+  display.print(estadoTexto(state.estadoSistema));
+
+  display.setCursor(2, 30);
+  display.print("Q: ");
+  display.print(state.flujoLmin, 1);
+  display.print(" L/min");
+
+  display.setCursor(2, 42);
+  display.print("P: ");
+  display.print(state.presionKPa, 0);
+  display.print(" kPa R:");
+  display.print(state.nivelRiesgo);
+  display.print("%");
+
+  display.setCursor(2, 54);
+  display.print(state.sensorOK ? "Sensor OK " : "Sensor ERROR ");
+  display.print(state.valvulaAbierta ? "Valv AB" : "Valv CE");
+
+  display.display();
 }
 
 // ===================== COMANDOS SERIALES =====================
@@ -981,7 +1078,13 @@ void handleCommands(SystemState &state) {
     Serial.print(" CMD=");
     Serial.println(state.ultimoComandoBackend);
   } else if (pendingCommand == "HELP") {
-    Serial.println("CMD:HELP PING | STATUS | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
+    Serial.println("CMD:HELP PING | STATUS | RESET_WIFI | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
+  } else if (pendingCommand == "RESET_WIFI") {
+    WiFiManager wm;
+    wm.resetSettings();
+    Serial.println("CMD:RESET_WIFI OK. Reiniciando para abrir portal...");
+    delay(1000);
+    ESP.restart();
   } else if (pendingCommand.startsWith("FORCE ")) {
     String arg = pendingCommand.substring(6);
     arg.trim();
@@ -1057,6 +1160,15 @@ void setup() {
   Serial.println("Credenciales cargadas desde NVS o defaults.");
 #endif
 
+  initActuadores();
+  initSensores(state);
+  initDisplay(oled, state);
+
+  attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, FALLING);
+  Serial.println("Interrupcion OK");
+
+  initWiFi();
+
   const esp_task_wdt_config_t wdtConfig = {
     .timeout_ms = 10000,
     .idle_core_mask = (1 << portNUM_PROCESSORS) - 1,
@@ -1064,15 +1176,6 @@ void setup() {
   };
   esp_task_wdt_init(&wdtConfig);
   esp_task_wdt_add(NULL);
-
-  initActuadores();
-  initSensores(state);
-  initDisplay(lcd, state);
-
-  attachInterrupt(digitalPinToInterrupt(flowPin), onPulse, RISING);
-  Serial.println("Interrupcion OK");
-
-  initWiFi();
 
   lastMeasure = millis();
   lastSend = millis();
@@ -1105,7 +1208,7 @@ void loop() {
       state.estadoSistema = commandForcedState();
     }
 
-    actualizarLCD(lcd, state, lastLCDUpdate);
+    actualizarOLED(oled, state, lastLCDUpdate);
 
 #ifdef DEBUG_SERIAL
     Serial.print("Estado: ");       Serial.println(estadoTexto(state.estadoSistema));

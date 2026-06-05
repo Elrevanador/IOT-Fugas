@@ -11,7 +11,7 @@ static void encenderBuzzerContinuo() {
 }
 
 void initActuadores() {
-  pinMode(flowPin, INPUT_PULLUP);
+  pinMode(flowPin, INPUT);
   pinMode(buttonPin, INPUT_PULLUP);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledNaranja, OUTPUT);

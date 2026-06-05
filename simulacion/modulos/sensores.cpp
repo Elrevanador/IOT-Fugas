@@ -8,6 +8,15 @@ static float limitarPresion(float valor, float minimo, float maximo) {
   return valor;
 }
 
+static int leerAdcPromediado(int pin, int muestras, unsigned int pausaUs) {
+  long suma = 0;
+  for (int i = 0; i < muestras; i++) {
+    suma += analogRead(pin);
+    delayMicroseconds(pausaUs);
+  }
+  return (int)(suma / muestras);
+}
+
 static void aplicarLecturaSuavizada(SystemState &state, float nuevoFlujo, float nuevaPresion) {
   if (nuevoFlujo < 0.0f) nuevoFlujo = 0.0f;
   if (nuevoFlujo > 5.0f) nuevoFlujo = 5.0f;
@@ -71,16 +80,20 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   int flowControlPercent = (int)((rawFlowControl * 100L) / 4095L);
   float flujoPorControl = (rawFlowControl / 4095.0f) * 5.0f;
   float nuevoFlujo = max(flujoPorPulsos, flujoPorControl);
-  int rawPressure = analogRead(pressurePin);
+  int rawPressure = leerAdcPromediado(pressurePin, 20, 200);
   float adcVoltage = (rawPressure / 4095.0f) * 3.3f;
   float sensorVoltage = adcVoltage * PRESSURE_DIVIDER_FACTOR;
   int pressurePercent = (int)((rawPressure * 100L) / 4095L);
   float pressureRatio = (sensorVoltage - PRESSURE_SENSOR_MIN_V) /
                         (PRESSURE_SENSOR_MAX_V - PRESSURE_SENSOR_MIN_V);
   float pressurePsi = limitarPresion(pressureRatio, 0.0f, 1.0f) * PRESSURE_SENSOR_MAX_PSI;
+  if (pressurePsi < PRESSURE_DEAD_ZONE_PSI) {
+    pressurePsi = 0.0f;
+  }
   float nuevaPresion = pressurePsi * 6.89476f;
 
-  state.sensorOK = sensorVoltage >= 0.25f && sensorVoltage <= 4.8f;
+  state.sensorOK = sensorVoltage >= (PRESSURE_SENSOR_MIN_V - 0.05f) &&
+                   sensorVoltage <= (PRESSURE_SENSOR_MAX_V + 0.05f);
 
   aplicarLecturaSuavizada(state, nuevoFlujo, nuevaPresion);
 
@@ -92,6 +105,7 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   Serial.print("ADC presion: ");          Serial.println(rawPressure);
   Serial.print("Pot presion (%): ");      Serial.println(pressurePercent);
   Serial.print("V transductor: ");        Serial.println(sensorVoltage, 2);
+  Serial.print("Presion (PSI): ");        Serial.println(pressurePsi, 2);
   Serial.print("Flujo real detectado: "); Serial.println(state.flujoRealDetectado ? "SI" : "NO");
   Serial.print("Flujo (L/min): ");        Serial.println(state.flujoLmin, 2);
   Serial.print("Presion (kPa): ");        Serial.println(state.presionKPa, 2);

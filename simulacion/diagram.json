@@ -148,7 +148,7 @@
     [ "btn1:1.l", "esp1:D13", "blue", [ "v0" ] ],
     [ "btn1:2.l", "esp1:GND.1", "black", [ "v0" ] ],
 
-    [ "esp1:D17", "relay1:IN", "green", [ "v0" ] ],
+    [ "esp1:TX2", "relay1:IN", "green", [ "v0" ] ],
     [ "relay1:VCC", "esp1:VIN", "red", [ "v0" ] ],
     [ "relay1:GND", "esp1:GND.2", "black", [ "v0" ] ],
     [ "esp1:D5", "rValve:1", "cyan", [ "v0" ] ],

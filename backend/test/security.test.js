@@ -160,6 +160,72 @@ test("lecturas sin x-device-key son rechazadas", async () => {
   );
 });
 
+test("lecturas aceptan deviceKey en body cuando no llega header personalizado", async () => {
+  const deviceRecord = {
+    id: 9,
+    name: "ESP32-BODY-KEY",
+    house_id: null,
+    status: "NORMAL",
+    update: async () => undefined
+  };
+
+  await withFreshApp(
+    {
+      "src/config/env.js": {
+        getIngestApiKey: () => TEST_DEVICE_KEY,
+        getJwtSecret: () => TEST_JWT_SECRET,
+        getTrustProxySetting: () => false
+      },
+      "src/models/index.js": {
+        sequelize: {
+          transaction: async (fn) => fn({})
+        },
+        Device: {
+          findByPk: async () => null,
+          findOne: async () => null,
+          findOrCreate: async () => [deviceRecord]
+        },
+        Reading: {
+          create: async (payload) => ({ id: 91, ...payload })
+        },
+        Alert: {
+          findOne: async () => null,
+          create: async () => ({ id: 44 })
+        },
+        House: {
+          findByPk: async () => null
+        }
+      },
+      "src/services/dashboardStream.js": {
+        broadcastDashboardUpdate: async () => undefined
+      }
+    },
+    async (app) => {
+      const server = await createTestServer(app);
+      try {
+        const response = await createJsonRequest({
+          port: server.port,
+          method: "POST",
+          path: "/api/readings",
+          body: {
+            deviceKey: TEST_DEVICE_KEY,
+            deviceName: "ESP32-BODY-KEY",
+            flow_lmin: 0.7,
+            pressure_kpa: 120,
+            risk: 15,
+            state: "NORMAL"
+          }
+        });
+
+        assert.equal(response.statusCode, 201);
+        assert.equal(response.body.reading.device_id, 9);
+      } finally {
+        await server.close();
+      }
+    }
+  );
+});
+
 test("lecturas aceptan credencial propia del dispositivo", async () => {
   const apiKey = createDeviceApiKey();
   const deviceRecord = {

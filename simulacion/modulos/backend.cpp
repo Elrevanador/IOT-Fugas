@@ -55,12 +55,17 @@ String backendReadingsUrl() {
   return backendBaseUrl() + "/api/readings";
 }
 
+static String backendDeviceKeyQuery() {
+  return "deviceKey=" + urlEncode(String(INGEST_API_KEY));
+}
+
 String backendPendingCommandsUrl() {
   String url = backendBaseUrl() + "/api/commands/pending?";
+  url += backendDeviceKeyQuery();
   if (DEVICE_ID > 0) {
-    url += "deviceId=" + String(DEVICE_ID);
+    url += "&deviceId=" + String(DEVICE_ID);
   } else {
-    url += "deviceName=" + urlEncode(String(DEVICE_NAME));
+    url += "&deviceName=" + urlEncode(String(DEVICE_NAME));
   }
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
     url += "&hardwareUid=" + urlEncode(String(DEVICE_HARDWARE_UID));
@@ -69,7 +74,7 @@ String backendPendingCommandsUrl() {
 }
 
 String backendCommandResponseUrl(unsigned long commandId) {
-  return backendBaseUrl() + "/api/commands/" + String(commandId) + "/response";
+  return backendBaseUrl() + "/api/commands/" + String(commandId) + "/response?" + backendDeviceKeyQuery();
 }
 
 String backendModeTexto() {
@@ -202,6 +207,7 @@ void enviarBackend(SystemState &state) {
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
     appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
   }
+  appendField("\"deviceKey\":\"" + escapeJson(String(INGEST_API_KEY)) + "\"");
   appendField("\"ipAddress\":\"" + WiFi.localIP().toString() + "\"");
   appendField("\"wifiSsid\":\"" + escapeJson(String(ssid)) + "\"");
   appendField("\"internetConnected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false"));
@@ -375,6 +381,7 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
   if (String(DEVICE_HARDWARE_UID).length() > 0) {
     appendField("\"hardwareUid\":\"" + escapeJson(String(DEVICE_HARDWARE_UID)) + "\"");
   }
+  appendField("\"deviceKey\":\"" + escapeJson(String(INGEST_API_KEY)) + "\"");
   appendField("\"codigoResultado\":\"" + escapeJson(codigo) + "\"");
   appendField("\"mensaje\":\"" + escapeJson(mensaje) + "\"");
   if (payloadJson.length() > 0) {
