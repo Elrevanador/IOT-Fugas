@@ -50,304 +50,224 @@
 
 .world-loader {
   position: relative;
-  width: 10.5rem;
-  height: 6.25rem;
+  width: 11.25rem;
+  height: 7rem;
   margin: 0 auto;
   overflow: hidden;
 }
 
-.world-loader__trail {
-  position: absolute;
-  left: 2.05rem;
-  top: 0.75rem;
-  width: 0.16rem;
-  height: 2.6rem;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(125, 211, 252, 0), rgba(125, 211, 252, 0.75));
-  animation: trail-fall 2.8s ease-in-out infinite;
+.world-loader__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.world-loader__drop {
-  position: absolute;
-  left: 1.55rem;
-  top: 0.35rem;
-  width: 1.15rem;
-  height: 1.55rem;
-  border-radius: 55% 55% 60% 60%;
-  background: linear-gradient(145deg, #7dd3fc 10%, #0ea5e9 58%, #0369a1 100%);
-  box-shadow: inset -0.14rem -0.18rem 0 rgba(2, 132, 199, 0.35), 0 0.45rem 1rem rgba(14, 165, 233, 0.28);
-  transform: rotate(45deg);
-  transform-origin: 50% 70%;
-  animation: drop-to-ball 2.8s cubic-bezier(0.55, 0.05, 0.2, 1) infinite;
-}
-
-.world-loader__splash {
-  position: absolute;
-  left: 0.95rem;
-  bottom: 1.25rem;
-  width: 2.5rem;
-  height: 0.65rem;
-}
-
-.world-loader__splash span {
-  position: absolute;
-  bottom: 0;
-  width: 0.45rem;
-  height: 0.22rem;
-  border-radius: 999px;
-  background: #67e8f9;
-  opacity: 0;
-  animation: splash-pop 2.8s ease-in-out infinite;
-}
-
-.world-loader__splash span:nth-child(1) {
-  left: 0.15rem;
-  transform: rotate(-18deg);
-}
-
-.world-loader__splash span:nth-child(2) {
-  left: 0.95rem;
-}
-
-.world-loader__splash span:nth-child(3) {
-  right: 0.25rem;
-  transform: rotate(18deg);
-}
-
-.world-loader__ball {
-  position: absolute;
-  left: 1.25rem;
-  bottom: 0.85rem;
-  width: 1.7rem;
-  height: 1.7rem;
-  border: 0.12rem solid #111827;
-  border-radius: 50%;
-  background:
-    linear-gradient(90deg, transparent 44%, #111827 45% 47%, transparent 48%),
-    linear-gradient(30deg, transparent 43%, #111827 44% 46%, transparent 47%),
-    linear-gradient(150deg, transparent 43%, #111827 44% 46%, transparent 47%),
-    #f8fafc;
-  box-shadow: 0 0.45rem 0.9rem rgba(2, 6, 23, 0.28);
-  opacity: 0;
-  animation: ball-kick 2.8s cubic-bezier(0.45, 0.02, 0.2, 1) infinite;
-}
-
-.world-loader__patch {
-  position: absolute;
-  width: 0.38rem;
-  height: 0.38rem;
-  border-radius: 35%;
-  background: #111827;
-}
-
-.world-loader__patch--center {
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.world-loader__patch--top {
-  left: 0.62rem;
-  top: 0.13rem;
-  transform: rotate(12deg) scale(0.7);
-}
-
-.world-loader__patch--right {
-  right: 0.15rem;
-  top: 0.62rem;
-  transform: rotate(20deg) scale(0.68);
-}
-
-.world-loader__patch--bottom {
-  left: 0.63rem;
-  bottom: 0.11rem;
-  transform: rotate(-10deg) scale(0.7);
-}
-
-.world-loader__patch--left {
-  left: 0.14rem;
-  top: 0.62rem;
-  transform: rotate(-20deg) scale(0.68);
-}
-
-.world-loader__player {
-  position: absolute;
-  right: 1.5rem;
-  bottom: 0.84rem;
-  width: 2.45rem;
-  height: 3.7rem;
-  opacity: 0;
-  animation: player-appear 2.8s ease-in-out infinite;
-}
-
-.world-loader__body {
-  position: absolute;
-  right: 0.78rem;
-  top: 0.55rem;
-  width: 0.9rem;
-  height: 1.55rem;
-  border-radius: 0.42rem 0.42rem 0.28rem 0.28rem;
-  background: linear-gradient(180deg, #ef4444 0 48%, #f8fafc 48% 55%, #22c55e 55% 100%);
-}
-
-.world-loader__body::before {
-  content: '';
-  position: absolute;
-  left: 0.2rem;
-  top: -0.62rem;
-  width: 0.52rem;
-  height: 0.52rem;
-  border-radius: 50%;
-  background: #f8caa5;
-}
-
-.world-loader__leg {
-  position: absolute;
-  right: 0.95rem;
-  top: 2rem;
-  width: 0.28rem;
-  height: 1.3rem;
-  border-radius: 999px;
-  background: #e2e8f0;
-  transform-origin: 50% 0.05rem;
-  animation: leg-kick 2.8s ease-in-out infinite;
-}
-
-.world-loader__shoe {
-  position: absolute;
-  right: 0.75rem;
-  bottom: 0.18rem;
-  width: 0.78rem;
-  height: 0.28rem;
-  border-radius: 999px;
-  background: #111827;
-  transform-origin: 0.15rem 50%;
-  animation: shoe-kick 2.8s ease-in-out infinite;
+.world-loader__arc {
+  fill: none;
+  stroke: rgba(125, 211, 252, 0.3);
+  stroke-dasharray: 5 7;
+  stroke-linecap: round;
+  stroke-width: 2;
 }
 
 .world-loader__ground {
-  position: absolute;
-  left: 0.75rem;
-  right: 0.65rem;
-  bottom: 0.62rem;
-  height: 0.12rem;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(34, 197, 94, 0), #22c55e 18%, #84cc16 82%, rgba(132, 204, 22, 0));
+  fill: none;
+  stroke: #22c55e;
+  stroke-linecap: round;
+  stroke-width: 3;
 }
 
-@keyframes trail-fall {
-  0%, 58%, 100% {
-    opacity: 0;
-    transform: translateY(-0.4rem) scaleY(0.7);
-  }
-  12%, 34% {
-    opacity: 1;
-    transform: translateY(1.4rem) scaleY(1);
-  }
+.world-loader__shadow {
+  fill: rgba(2, 6, 23, 0.36);
+  transform-origin: 75px 92px;
+  animation: loader-shadow 3s ease-in-out infinite;
 }
 
-@keyframes drop-to-ball {
+.world-loader__drop {
+  fill: url('#loader-drop');
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: loader-drop 3s cubic-bezier(0.55, 0.04, 0.22, 1) infinite;
+}
+
+.world-loader__drop ellipse {
+  fill: rgba(255, 255, 255, 0.38);
+}
+
+.world-loader__splash {
+  fill: #67e8f9;
+  opacity: 0;
+  transform-origin: 54px 91px;
+  animation: loader-splash 3s ease-in-out infinite;
+}
+
+.world-loader__ball {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: loader-ball 3s cubic-bezier(0.45, 0.02, 0.22, 1) infinite;
+}
+
+.world-loader__ball circle {
+  fill: #f8fafc;
+  stroke: #0f172a;
+  stroke-width: 2.5;
+}
+
+.world-loader__ball path {
+  fill: none;
+  stroke: #0f172a;
+  stroke-linecap: round;
+  stroke-width: 1.4;
+}
+
+.world-loader__ball polygon {
+  fill: #0f172a;
+}
+
+.world-loader__player {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: loader-player 3s ease-in-out infinite;
+}
+
+.world-loader__head {
+  fill: #f3c9a6;
+}
+
+.world-loader__body {
+  fill: url('#loader-shirt');
+}
+
+.world-loader__arm,
+.world-loader__support-leg,
+.world-loader__kick-leg path {
+  fill: none;
+  stroke: #e2e8f0;
+  stroke-linecap: round;
+  stroke-width: 5;
+}
+
+.world-loader__boot {
+  stroke: #0f172a;
+  stroke-width: 6;
+}
+
+.world-loader__kick-leg {
+  transform-box: fill-box;
+  transform-origin: 138px 80px;
+  animation: loader-kick 3s ease-in-out infinite;
+}
+
+@keyframes loader-drop {
   0% {
-    opacity: 1;
-    transform: translateY(-1.1rem) rotate(45deg) scale(1);
-    border-radius: 55% 55% 60% 60%;
+    opacity: 0;
+    transform: translate(54px, 4px) scale(0.7) rotate(0deg);
   }
-  34% {
+  10%, 32% {
     opacity: 1;
-    transform: translateY(3.5rem) rotate(45deg) scale(0.9);
+  }
+  38% {
+    opacity: 1;
+    transform: translate(54px, 57px) scale(0.96) rotate(0deg);
   }
   43%, 100% {
     opacity: 0;
-    transform: translateY(3.5rem) rotate(45deg) scale(0.35);
+    transform: translate(54px, 63px) scale(0.2) rotate(0deg);
   }
 }
 
-@keyframes splash-pop {
-  0%, 32%, 55%, 100% {
+@keyframes loader-splash {
+  0%, 36%, 55%, 100% {
     opacity: 0;
-    transform: translateY(0) scale(0.5);
+    transform: scale(0.65);
   }
-  40% {
+  44% {
     opacity: 1;
-    transform: translateY(-0.35rem) scale(1);
+    transform: scale(1);
   }
 }
 
-@keyframes ball-kick {
-  0%, 39% {
+@keyframes loader-ball {
+  0%, 42% {
     opacity: 0;
-    transform: translate(0, 0) rotate(0deg) scale(0.72);
+    transform: translate(54px, 91px) scale(0.35) rotate(0deg);
   }
-  45% {
+  50% {
     opacity: 1;
-    transform: translate(0, 0) rotate(0deg) scale(1);
+    transform: translate(54px, 77px) scale(1) rotate(0deg);
   }
-  63% {
+  66% {
     opacity: 1;
-    transform: translate(1.7rem, 0) rotate(120deg) scale(1);
+    transform: translate(92px, 77px) scale(1) rotate(180deg);
   }
-  86% {
+  88% {
     opacity: 1;
-    transform: translate(6.6rem, -2.4rem) rotate(620deg) scale(0.9);
+    transform: translate(150px, 36px) scale(0.82) rotate(540deg);
   }
   100% {
     opacity: 0;
-    transform: translate(7.3rem, -2.7rem) rotate(760deg) scale(0.75);
+    transform: translate(166px, 24px) scale(0.68) rotate(700deg);
   }
 }
 
-@keyframes player-appear {
+@keyframes loader-player {
   0%, 48%, 100% {
     opacity: 0;
-    transform: translateX(0.5rem);
+    transform: translateX(12px);
   }
-  54%, 88% {
+  58%, 86% {
     opacity: 1;
     transform: translateX(0);
   }
 }
 
-@keyframes leg-kick {
-  0%, 56%, 100% {
-    transform: rotate(12deg);
+@keyframes loader-kick {
+  0%, 59%, 100% {
+    transform: rotate(0deg);
   }
-  66% {
-    transform: rotate(58deg);
+  70% {
+    transform: rotate(-34deg);
   }
-  76% {
-    transform: rotate(-18deg);
+  80% {
+    transform: rotate(8deg);
   }
 }
 
-@keyframes shoe-kick {
-  0%, 56%, 100% {
-    transform: translate(0, 0) rotate(12deg);
+@keyframes loader-shadow {
+  0%, 42%, 100% {
+    opacity: 0.24;
+    transform: scaleX(0.72);
   }
-  66% {
-    transform: translate(-0.34rem, -0.15rem) rotate(18deg);
-  }
-  76% {
-    transform: translate(0.25rem, 0.02rem) rotate(-12deg);
+  54%, 70% {
+    opacity: 0.42;
+    transform: scaleX(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .world-loader__trail,
   .world-loader__drop,
-  .world-loader__splash span,
+  .world-loader__splash,
   .world-loader__ball,
   .world-loader__player,
-  .world-loader__leg,
-  .world-loader__shoe {
+  .world-loader__kick-leg,
+  .world-loader__shadow {
     animation: none;
   }
 
-  .world-loader__drop {
+  .world-loader__drop,
+  .world-loader__splash {
     opacity: 0;
   }
 
   .world-loader__ball,
   .world-loader__player {
     opacity: 1;
+  }
+
+  .world-loader__ball {
+    transform: translate(76px, 77px);
   }
 }

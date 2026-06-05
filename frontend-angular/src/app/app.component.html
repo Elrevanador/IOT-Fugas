@@ -6,26 +6,55 @@
 <div class="loading-overlay" [class.loading-overlay--visible]="loading.isBusy()" aria-live="polite" aria-busy="true">
   <div class="loading-overlay__panel">
     <div class="world-loader" aria-hidden="true">
-      <div class="world-loader__trail"></div>
-      <div class="world-loader__drop"></div>
-      <div class="world-loader__splash">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-      <div class="world-loader__ball">
-        <span class="world-loader__patch world-loader__patch--center"></span>
-        <span class="world-loader__patch world-loader__patch--top"></span>
-        <span class="world-loader__patch world-loader__patch--right"></span>
-        <span class="world-loader__patch world-loader__patch--bottom"></span>
-        <span class="world-loader__patch world-loader__patch--left"></span>
-      </div>
-      <div class="world-loader__player">
-        <span class="world-loader__body"></span>
-        <span class="world-loader__leg"></span>
-        <span class="world-loader__shoe"></span>
-      </div>
-      <div class="world-loader__ground"></div>
+      <svg class="world-loader__svg" viewBox="0 0 180 112" focusable="false">
+        <defs>
+          <linearGradient id="loader-drop" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#bae6fd" />
+            <stop offset="58%" stop-color="#0ea5e9" />
+            <stop offset="100%" stop-color="#075985" />
+          </linearGradient>
+          <linearGradient id="loader-shirt" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#ef4444" />
+            <stop offset="52%" stop-color="#ef4444" />
+            <stop offset="53%" stop-color="#f8fafc" />
+            <stop offset="63%" stop-color="#f8fafc" />
+            <stop offset="64%" stop-color="#16a34a" />
+          </linearGradient>
+        </defs>
+
+        <path class="world-loader__arc" d="M42 42 C62 12 116 6 142 32" />
+        <ellipse class="world-loader__shadow" cx="75" cy="92" rx="32" ry="5" />
+        <path class="world-loader__ground" d="M24 94 H156" />
+
+        <g class="world-loader__drop">
+          <path d="M0 -20 C-10 -6 -17 4 -17 15 C-17 27 -9 35 0 35 C9 35 17 27 17 15 C17 4 10 -6 0 -20Z" />
+          <ellipse cx="-5" cy="7" rx="4" ry="8" />
+        </g>
+
+        <g class="world-loader__splash">
+          <ellipse cx="53" cy="91" rx="12" ry="3" />
+          <circle cx="39" cy="86" r="2.5" />
+          <circle cx="66" cy="84" r="2" />
+          <circle cx="75" cy="90" r="1.8" />
+        </g>
+
+        <g class="world-loader__ball">
+          <circle cx="0" cy="0" r="15" />
+          <path d="M-15 0 H15 M0 -15 V15 M-10 -10 L10 10 M10 -10 L-10 10" />
+          <polygon points="0,-6 6,-2 4,6 -4,6 -6,-2" />
+        </g>
+
+        <g class="world-loader__player">
+          <circle class="world-loader__head" cx="135" cy="48" r="7" />
+          <path class="world-loader__body" d="M129 58 H143 L147 80 H125Z" />
+          <path class="world-loader__arm" d="M128 62 C116 66 113 74 116 81" />
+          <path class="world-loader__support-leg" d="M135 80 L133 96" />
+          <g class="world-loader__kick-leg">
+            <path d="M137 80 L119 90" />
+            <path class="world-loader__boot" d="M119 90 L105 88" />
+          </g>
+        </g>
+      </svg>
     </div>
     <strong>Sincronizando</strong>
     <p>Preparando la jugada...</p>
