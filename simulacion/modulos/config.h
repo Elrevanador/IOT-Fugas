@@ -30,6 +30,7 @@ extern const unsigned long BACKEND_TIMEOUT_MS;
 extern const int flowPin;
 extern const int flowControlPin;
 extern const int pressurePin;
+extern const int ledAzul;
 extern const int ledVerde;
 extern const int ledNaranja;
 extern const int ledRojo;

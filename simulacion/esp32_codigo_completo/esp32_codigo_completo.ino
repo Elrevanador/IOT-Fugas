@@ -100,12 +100,13 @@ const unsigned long BACKEND_TIMEOUT_MS = 5000;
 
 const int flowPin    = 27;
 const int pressurePin = 34;
-const int ledVerde   = 2;
+const int ledAzul    = 5;
+const int ledVerde   = 4;
 const int ledNaranja = 15;
-const int ledRojo    = 4;
+const int ledRojo    = 2;
 const int buzzerPin  = 16;
 const int relayPin   = 17;
-const int valveIndicatorPin = 5;
+const int valveIndicatorPin = ledAzul;
 const int buttonPin  = 13;
 
 const float PRESSURE_SENSOR_MAX_PSI = 100.0f;
@@ -157,6 +158,9 @@ struct SystemState {
 static String wifiSSID;
 static String wifiPass;
 static String ingestApiKey;
+static bool wifiChangeUncommitted = false;
+static String wifiCandidateSsid;
+static String wifiCandidatePassword;
 
 const char* WIFI_MANAGER_AP_NAME = "ESP32-FUGAS-SETUP";
 const char* WIFI_MANAGER_AP_PASSWORD = "12345678";
@@ -382,6 +386,95 @@ void initWiFi() {
   conectarWiFi();
 }
 
+static bool probarYCambiarWifi(const String &nuevoSsid, const String &nuevaPassword) {
+  String ssidAnterior = wifiSSID.length() ? wifiSSID : WiFi.SSID();
+  String passAnterior = wifiPass;
+
+  Serial.print("Probando nueva red WiFi: ");
+  Serial.println(nuevoSsid);
+
+  WiFi.persistent(false);
+  WiFi.disconnect(false);
+  delay(600);
+  WiFi.begin(nuevoSsid.c_str(), nuevaPassword.c_str());
+
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) {
+    delay(300);
+    Serial.print(".");
+    esp_task_wdt_reset();
+  }
+  Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiSSID = nuevoSsid;
+    wifiPass = nuevaPassword;
+    wifiCandidateSsid = nuevoSsid;
+    wifiCandidatePassword = nuevaPassword;
+    wifiChangeUncommitted = true;
+
+    Serial.print("Nueva red WiFi conectada. IP: ");
+    Serial.println(WiFi.localIP());
+    return true;
+  }
+
+  Serial.println("No se pudo conectar a la nueva red. Manteniendo red anterior.");
+  WiFi.disconnect(false);
+  delay(500);
+  if (ssidAnterior.length() > 0 && passAnterior.length() > 0) {
+    WiFi.begin(ssidAnterior.c_str(), passAnterior.c_str());
+  } else {
+    WiFi.reconnect();
+  }
+
+  unsigned long restoreStart = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - restoreStart < 12000) {
+    delay(300);
+    Serial.print(".");
+    esp_task_wdt_reset();
+  }
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiSSID = WiFi.SSID();
+    Serial.print("Red anterior restaurada. IP: ");
+    Serial.println(WiFi.localIP());
+  }
+  return false;
+}
+
+static void confirmarCambioWifi() {
+  if (!wifiChangeUncommitted || wifiCandidateSsid.length() == 0) {
+    return;
+  }
+
+  Preferences pref;
+  pref.begin("creds", false);
+  pref.putString("ssid", wifiCandidateSsid);
+  pref.putString("pass", wifiCandidatePassword);
+  pref.end();
+
+  WiFi.persistent(true);
+  WiFi.begin(wifiCandidateSsid.c_str(), wifiCandidatePassword.c_str());
+  WiFi.persistent(false);
+
+  wifiChangeUncommitted = false;
+  Serial.println("Nueva red WiFi confirmada y guardada.");
+}
+
+static void descartarCambioWifiNoConfirmado() {
+  if (!wifiChangeUncommitted) {
+    return;
+  }
+
+  Serial.println("No se pudo confirmar el backend con la nueva red. Volviendo a credenciales previas.");
+  wifiChangeUncommitted = false;
+  wifiCandidateSsid = "";
+  wifiCandidatePassword = "";
+  WiFi.disconnect(false);
+  delay(500);
+  WiFi.reconnect();
+}
+
 bool asegurarWiFi() {
   if (wifiConectado()) return true;
   Serial.println("WiFi caido. Reconectando...");
@@ -435,6 +528,50 @@ static String escapeJson(const String &value) {
     }
   }
   return escaped;
+}
+
+static String seguridadWifiTexto(wifi_auth_mode_t encryptionType) {
+  switch (encryptionType) {
+    case WIFI_AUTH_OPEN: return "OPEN";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-ENT";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3";
+    default: return "UNKNOWN";
+  }
+}
+
+static String construirPayloadEscaneoWifi() {
+  esp_task_wdt_reset();
+  int total = WiFi.scanNetworks(false, true);
+  esp_task_wdt_reset();
+  String payload = "\"payload\":{\"networks\":[";
+
+  if (total > 0) {
+    int limit = min(total, 12);
+    for (int i = 0; i < limit; i++) {
+      if (i > 0) {
+        payload += ",";
+      }
+      wifi_auth_mode_t encryptionType = WiFi.encryptionType(i);
+      payload += "{";
+      payload += "\"ssid\":\"" + escapeJson(WiFi.SSID(i)) + "\"";
+      payload += ",\"rssi\":" + String(WiFi.RSSI(i));
+      payload += ",\"channel\":" + String(WiFi.channel(i));
+      payload += ",\"secure\":" + String(encryptionType == WIFI_AUTH_OPEN ? "false" : "true");
+      payload += ",\"security\":\"" + seguridadWifiTexto(encryptionType) + "\"";
+      payload += "}";
+    }
+  }
+
+  payload += "],\"count\":" + String(max(total, 0));
+  payload += ",\"currentSsid\":\"" + escapeJson(WiFi.SSID()) + "\"";
+  payload += "}";
+  WiFi.scanDelete();
+  return payload;
 }
 
 // Función para calcular HMAC-SHA256
@@ -585,8 +722,9 @@ void enviarBackend(SystemState &state) {
   http.end();
 }
 
-static void ejecutarComando(SystemState &state, const String &tipo, String &codigo, String &mensaje) {
+static void ejecutarComando(SystemState &state, const String &tipo, JsonObject commandPayload, String &codigo, String &mensaje, String &payloadJson) {
   codigo = "OK";
+  payloadJson = "";
   if (tipo == "CERRAR_VALVULA") {
     state.valvulaAbierta = false;
     mensaje = "Valvula cerrada en simulacion";
@@ -596,7 +734,32 @@ static void ejecutarComando(SystemState &state, const String &tipo, String &codi
   } else if (tipo == "SOLICITAR_ESTADO") {
     mensaje = "Estado reportado desde simulacion";
   } else if (tipo == "ACTUALIZAR_CONFIG") {
-    mensaje = "Configuracion recibida por simulacion";
+    const char* ssid = commandPayload["wifiSsid"] | "";
+    const char* password = commandPayload["wifiPassword"] | "";
+    String nuevoSsid = String(ssid);
+    String nuevaPassword = String(password);
+    nuevoSsid.trim();
+
+    if (nuevoSsid.length() == 0 || nuevoSsid.length() > 64) {
+      codigo = "ERROR";
+      mensaje = "wifiSsid invalido";
+    } else if (nuevaPassword.length() > 64) {
+      codigo = "ERROR";
+      mensaje = "wifiPassword invalido";
+    } else {
+      bool conectado = probarYCambiarWifi(nuevoSsid, nuevaPassword);
+      if (conectado) {
+        mensaje = "WiFi actualizado y conectado";
+        payloadJson = "\"payload\":{\"wifiSsid\":\"" + escapeJson(wifiSSID) + "\",\"ipAddress\":\"" + WiFi.localIP().toString() + "\",\"applied\":true}";
+      } else {
+        codigo = "ERROR";
+        mensaje = "No se pudo conectar a la nueva red. Se conserva la anterior";
+        payloadJson = "\"payload\":{\"wifiSsid\":\"" + escapeJson(WiFi.SSID()) + "\",\"applied\":false}";
+      }
+    }
+  } else if (tipo == "ESCANEAR_WIFI") {
+    mensaje = "Escaneo WiFi completado";
+    payloadJson = construirPayloadEscaneoWifi();
   } else if (tipo == "REINICIAR") {
     mensaje = "Reinicio programado en simulacion";
   } else if (tipo == "OTRO") {
@@ -608,7 +771,7 @@ static void ejecutarComando(SystemState &state, const String &tipo, String &codi
 }
 
 static bool responderComandoBackend(SystemState &state, unsigned long commandId,
-                                    const String &codigo, const String &mensaje) {
+                                    const String &codigo, const String &mensaje, const String &payloadJson) {
   if (!asegurarWiFi()) return false;
   WiFiClient client;
   WiFiClientSecure secureClient;
@@ -634,13 +797,17 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
   appendField("\"codigoResultado\":\"" + escapeJson(codigo) + "\"");
   appendField("\"mensaje\":\"" + escapeJson(mensaje) + "\"");
 
-  String responsePayload = "\"payload\":{";
-  responsePayload += "\"state\":\"" + String(estadoTexto(state.estadoSistema)) + "\"";
-  responsePayload += ",\"risk\":" + String(state.nivelRiesgo);
-  responsePayload += ",\"valvula\":\"" + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"";
-  responsePayload += ",\"backendEnvios\":" + String(state.backendEnvios);
-  responsePayload += "}";
-  appendField(responsePayload);
+  if (payloadJson.length() > 0) {
+    appendField(payloadJson);
+  } else {
+    String responsePayload = "\"payload\":{";
+    responsePayload += "\"state\":\"" + String(estadoTexto(state.estadoSistema)) + "\"";
+    responsePayload += ",\"risk\":" + String(state.nivelRiesgo);
+    responsePayload += ",\"valvula\":\"" + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"";
+    responsePayload += ",\"backendEnvios\":" + String(state.backendEnvios);
+    responsePayload += "}";
+    appendField(responsePayload);
+  }
   payload += "}";
 
   String signature = calcularHMAC(payload, HMAC_SECRET_KEY);
@@ -718,7 +885,7 @@ void consultarComandosBackend(SystemState &state) {
   http.end();
   updateBackoff(true, s_commandBackoffMs);
 
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<4096> doc;
   DeserializationError error = deserializeJson(doc, response);
   if (error) {
     Serial.print("JSON comandos invalido: ");
@@ -741,7 +908,9 @@ void consultarComandosBackend(SystemState &state) {
 
     String codigo;
     String mensaje;
-    ejecutarComando(state, tipo, codigo, mensaje);
+    String payloadJson;
+    JsonObject commandPayload = comando["payload"].as<JsonObject>();
+    ejecutarComando(state, tipo, commandPayload, codigo, mensaje, payloadJson);
     state.comandosBackend++;
     state.ultimoComandoBackend = tipo;
 
@@ -752,7 +921,14 @@ void consultarComandosBackend(SystemState &state) {
     Serial.print(" -> ");
     Serial.println(mensaje);
 
-    bool responded = responderComandoBackend(state, commandId, codigo, mensaje);
+    bool responded = responderComandoBackend(state, commandId, codigo, mensaje, payloadJson);
+    if (tipo == "ACTUALIZAR_CONFIG" && codigo == "OK" && wifiChangeUncommitted) {
+      if (responded) {
+        confirmarCambioWifi();
+      } else {
+        descartarCambioWifiNoConfirmado();
+      }
+    }
     if (responded && tipo == "REINICIAR" && codigo == "OK") {
       Serial.println("Reiniciando ESP32 por comando remoto...");
       delay(500);
@@ -845,19 +1021,29 @@ static void apagarBuzzer() {
   ledcWrite(buzzerPin, 0);
 }
 
-static void encenderBuzzerContinuo() {
-  ledcWrite(buzzerPin, 128);
+// Buzzer suave intermitente para ALERTA (800 Hz, duty bajo)
+static void encenderBuzzerAlerta() {
+  ledcChangeFrequency(buzzerPin, 800, 8);
+  ledcWrite(buzzerPin, 60);
+}
+
+// Buzzer fuerte y continuo para FUGA (2500 Hz, duty alto)
+static void encenderBuzzerFuga() {
+  ledcChangeFrequency(buzzerPin, 2500, 8);
+  ledcWrite(buzzerPin, 200);
 }
 
 void initActuadores() {
   pinMode(flowPin, INPUT);
   pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(ledAzul, OUTPUT);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledNaranja, OUTPUT);
   pinMode(ledRojo, OUTPUT);
   pinMode(relayPin, OUTPUT);
   pinMode(valveIndicatorPin, OUTPUT);
 
+  digitalWrite(ledAzul, LOW);
   digitalWrite(ledVerde, LOW);
   digitalWrite(ledNaranja, LOW);
   digitalWrite(ledRojo, LOW);
@@ -915,32 +1101,34 @@ void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
       break;
 
     case ESTADO_ALERTA:
-      apagarBuzzer();
-      digitalWrite(ledVerde, LOW);
-      digitalWrite(ledRojo, LOW);
+      // Buzzer: pitidos intermitentes suaves
       if (millis() - lastBlink >= 300) {
         lastBlink = millis();
         state.ledBlinkState = !state.ledBlinkState;
         digitalWrite(ledNaranja, state.ledBlinkState);
+        if (state.ledBlinkState) {
+          encenderBuzzerAlerta();
+        } else {
+          apagarBuzzer();
+        }
       }
+      digitalWrite(ledVerde, LOW);
+      digitalWrite(ledRojo, LOW);
       break;
 
     case ESTADO_FUGA:
+      // Buzzer: tono alto y fuerte continuo
+      encenderBuzzerFuga();
       digitalWrite(ledVerde, LOW);
       digitalWrite(ledNaranja, LOW);
       digitalWrite(ledRojo, HIGH);
-      encenderBuzzerContinuo();
       break;
 
     case ESTADO_ERROR:
       apagarBuzzer();
       digitalWrite(ledVerde, LOW);
       digitalWrite(ledNaranja, LOW);
-      if (millis() - lastBlink >= 700) {
-        lastBlink = millis();
-        state.ledBlinkState = !state.ledBlinkState;
-        digitalWrite(ledRojo, state.ledBlinkState);
-      }
+      digitalWrite(ledRojo, LOW);
       break;
   }
 }
@@ -1078,13 +1266,7 @@ void handleCommands(SystemState &state) {
     Serial.print(" CMD=");
     Serial.println(state.ultimoComandoBackend);
   } else if (pendingCommand == "HELP") {
-    Serial.println("CMD:HELP PING | STATUS | RESET_WIFI | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
-  } else if (pendingCommand == "RESET_WIFI") {
-    WiFiManager wm;
-    wm.resetSettings();
-    Serial.println("CMD:RESET_WIFI OK. Reiniciando para abrir portal...");
-    delay(1000);
-    ESP.restart();
+    Serial.println("CMD:HELP PING | STATUS | FORCE NORMAL|ALERTA|FUGA|ERROR|AUTO");
   } else if (pendingCommand.startsWith("FORCE ")) {
     String arg = pendingCommand.substring(6);
     arg.trim();

@@ -13,12 +13,14 @@ static void encenderBuzzerContinuo() {
 void initActuadores() {
   pinMode(flowPin, INPUT);
   pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(ledAzul, OUTPUT);
   pinMode(ledVerde, OUTPUT);
   pinMode(ledNaranja, OUTPUT);
   pinMode(ledRojo, OUTPUT);
   pinMode(relayPin, OUTPUT);
   pinMode(valveIndicatorPin, OUTPUT);
 
+  digitalWrite(ledAzul, LOW);
   digitalWrite(ledVerde, LOW);
   digitalWrite(ledNaranja, LOW);
   digitalWrite(ledRojo, LOW);
@@ -98,12 +100,7 @@ void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
       apagarBuzzer();
       digitalWrite(ledVerde, LOW);
       digitalWrite(ledNaranja, LOW);
-
-      if (millis() - lastBlink >= 700) {
-        lastBlink = millis();
-        state.ledBlinkState = !state.ledBlinkState;
-        digitalWrite(ledRojo, state.ledBlinkState);
-      }
+      digitalWrite(ledRojo, LOW);
       break;
   }
 }

@@ -687,18 +687,20 @@
       }
     </div>
 
-    <label class="wifi-modal-form__field">
-      <span>Contraseña</span>
-      <input
-        type="password"
-        name="wifiPassword"
-        maxlength="64"
-        [ngModel]="wifiPasswordInput()"
-        (ngModelChange)="wifiPasswordInput.set($event)"
-        placeholder="Tu clave WiFi"
-      />
-      <small>Déjala vacía si tu red no tiene clave.</small>
-    </label>
+    @if (wifiPasswordVisible()) {
+      <label class="wifi-modal-form__field">
+        <span>Contraseña</span>
+        <input
+          type="password"
+          name="wifiPassword"
+          maxlength="64"
+          [ngModel]="wifiPasswordInput()"
+          (ngModelChange)="wifiPasswordInput.set($event)"
+          placeholder="Tu clave WiFi"
+        />
+        <small>Déjala vacía si tu red no tiene clave.</small>
+      </label>
+    }
 
     <div class="wifi-modal-form__actions">
       <button type="button" class="wifi-modal-form__ghost" (click)="closeWifiModal()" [disabled]="wifiModalSaving()">

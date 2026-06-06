@@ -80,12 +80,13 @@ const unsigned long BACKEND_TIMEOUT_MS = 5000;
 const int flowPin    = 27;
 const int flowControlPin = 35;
 const int pressurePin = 34;
-const int ledVerde   = 2;
+const int ledAzul    = 5;
+const int ledVerde   = 4;
 const int ledNaranja = 15;
-const int ledRojo    = 4;
+const int ledRojo    = 2;
 const int buzzerPin  = 16;
 const int relayPin   = 17;
-const int valveIndicatorPin = 5;
+const int valveIndicatorPin = ledAzul;
 const int buttonPin  = 13;
 
 // Calibracion comprobada en hardware real.

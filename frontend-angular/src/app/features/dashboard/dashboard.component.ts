@@ -190,6 +190,7 @@ export class DashboardComponent {
   readonly wifiTargetDeviceId = signal<number | null>(null);
   readonly wifiSsidInput = signal('');
   readonly wifiPasswordInput = signal('');
+  readonly wifiPasswordVisible = signal(false);
 
   readonly uniqueDevices = computed(() => {
     const payload = this.payload();
@@ -778,6 +779,7 @@ export class DashboardComponent {
     this.wifiTargetDeviceId.set(target.id);
     this.wifiSsidInput.set(target.wifiSsid || '');
     this.wifiPasswordInput.set('');
+    this.wifiPasswordVisible.set(false);
     this.wifiNetworks.set([]);
     this.wifiScanMessage.set('');
     this.wifiModalOpen.set(true);
@@ -787,6 +789,7 @@ export class DashboardComponent {
     if (this.wifiModalSaving() || this.wifiScanLoading()) return;
     this.wifiModalOpen.set(false);
     this.wifiPasswordInput.set('');
+    this.wifiPasswordVisible.set(false);
     this.wifiScanMessage.set('');
   }
 
@@ -839,6 +842,8 @@ export class DashboardComponent {
 
   protected selectWifiNetwork(network: WifiNetwork): void {
     this.wifiSsidInput.set(network.ssid);
+    this.wifiPasswordInput.set('');
+    this.wifiPasswordVisible.set(true);
   }
 
   protected async submitWifiChange(): Promise<void> {
@@ -877,14 +882,31 @@ export class DashboardComponent {
           }
         })
       );
+      const commandId = response.comando?.id;
+      if (!commandId) {
+        throw new Error('El backend no devolvió el ID del comando.');
+      }
+
+      this.actionMessage.set(`Esperando que el ESP32 pruebe la red ${wifiSsid}...`);
+      this.wifiScanMessage.set('Probando conexión en el dispositivo. Se conserva la red anterior si falla.');
+      const commandResponse = await this.waitForCommandResponse(
+        commandId,
+        18,
+        2200,
+        'El ESP32 aún no confirma el cambio de red WiFi.'
+      );
+      if (String(commandResponse.codigo_resultado || '').toUpperCase() !== 'OK') {
+        throw new Error(commandResponse.mensaje || 'El ESP32 no pudo conectarse a esa red. Se conservó la red anterior.');
+      }
+
       this.updateDeviceWifiLocally(device.id, wifiSsid);
       await this.loadCommandHistory(false);
-      this.actionMessage.set(
-        `Comando #${response.comando?.id || 'nuevo'} enviado. El dispositivo aplicará la red en el próximo ciclo de comandos.`
-      );
-      this.toast.success('Cambio de WiFi enviado al dispositivo.');
+      this.actionMessage.set(`WiFi actualizado en ${device.name || `Dispositivo #${device.id}`}.`);
+      this.toast.success('El ESP32 cambió de red correctamente.');
       this.wifiModalOpen.set(false);
       this.wifiPasswordInput.set('');
+      this.wifiPasswordVisible.set(false);
+      this.wifiScanMessage.set('');
     } catch (error) {
       const message = resolveErrorMessage(error, 'No fue posible enviar el cambio de red WiFi.');
       this.actionMessage.set(message);
@@ -927,10 +949,15 @@ export class DashboardComponent {
     }
   }
 
-  private async waitForWifiScanResponse(commandId: number): Promise<CommandResponseItem> {
-    for (let attempt = 0; attempt < 8; attempt++) {
+  private async waitForCommandResponse(
+    commandId: number,
+    attempts = 8,
+    delayMs = 1800,
+    timeoutMessage = 'El dispositivo aún no respondió.'
+  ): Promise<CommandResponseItem> {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       if (attempt > 0) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1800));
+        await new Promise((resolve) => window.setTimeout(resolve, delayMs));
       }
 
       const response = await firstValueFrom(
@@ -943,7 +970,11 @@ export class DashboardComponent {
       if (item) return item;
     }
 
-    throw new Error('El dispositivo aún no respondió el escaneo WiFi.');
+    throw new Error(timeoutMessage);
+  }
+
+  private async waitForWifiScanResponse(commandId: number): Promise<CommandResponseItem> {
+    return this.waitForCommandResponse(commandId, 8, 1800, 'El dispositivo aún no respondió el escaneo WiFi.');
   }
 
   protected tabBadge(tab: DashboardTab) {
