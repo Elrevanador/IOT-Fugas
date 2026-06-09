@@ -7,7 +7,13 @@ static void apagarBuzzer() {
 }
 
 static void encenderBuzzerContinuo() {
-  ledcWrite(buzzerPin, 128);
+  ledcChangeFrequency(buzzerPin, 1050, 8);
+  ledcWrite(buzzerPin, 120);
+}
+
+static void encenderBuzzerError() {
+  ledcChangeFrequency(buzzerPin, 650, 8);
+  ledcWrite(buzzerPin, 90);
 }
 
 void initActuadores() {
@@ -27,7 +33,7 @@ void initActuadores() {
   digitalWrite(relayPin, LOW);
   digitalWrite(valveIndicatorPin, LOW);
 
-  const int buzzerFreq = 1500;
+  const int buzzerFreq = 1050;
   const int buzzerResolution = 8;
 
   if (!ledcAttach(buzzerPin, buzzerFreq, buzzerResolution)) {
@@ -97,7 +103,7 @@ void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
       break;
 
     case ESTADO_ERROR:
-      apagarBuzzer();
+      encenderBuzzerError();
       digitalWrite(ledVerde, LOW);
       digitalWrite(ledNaranja, LOW);
       digitalWrite(ledRojo, LOW);

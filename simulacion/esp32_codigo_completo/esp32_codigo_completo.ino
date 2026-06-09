@@ -44,7 +44,7 @@ const char* HMAC_SECRET_KEY = "c0ntraclave-hmac-muy-segura-2024!";
 #endif
 
 #ifndef WIFI_PASSWORD_VALUE
-#define WIFI_PASSWORD_VALUE "CAMBIA_ESTA_CLAVE_WIFI"
+#define WIFI_PASSWORD_VALUE "43702946"
 #endif
 
 #ifndef DEVICE_NAME_VALUE
@@ -97,6 +97,7 @@ const unsigned long SENSOR_READ_INTERVAL_MS = 500;
 const unsigned long BACKEND_SEND_INTERVAL_MS = 2000;
 const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
 const unsigned long BACKEND_TIMEOUT_MS = 5000;
+const unsigned long ALERTA_A_FUGA_TIMEOUT_MS = 30000;
 
 const int flowPin    = 27;
 const int pressurePin = 34;
@@ -109,11 +110,23 @@ const int relayPin   = 17;
 const int valveIndicatorPin = ledAzul;
 const int buttonPin  = 13;
 
+// Modo demo calibrado para una bomba de pecera PF-338.
+// La lectura normal observada fue aprox. Q=1.68 L/min y P=12.93 kPa.
+// Cambiar a 0 para volver a una logica mas conservadora de red presurizada.
+#ifndef DEMO_SENSIBLE
+#define DEMO_SENSIBLE 1
+#endif
+
 const float PRESSURE_SENSOR_MAX_PSI = 100.0f;
 const float PRESSURE_SENSOR_MIN_V = 0.27f;
 const float PRESSURE_SENSOR_MAX_V = 2.46f;
 const float PRESSURE_DIVIDER_FACTOR = 1.5f;
 const float PRESSURE_DEAD_ZONE_PSI = 0.5f;
+const bool DEMO_ESTIMAR_FLUJO_SIN_PULSOS = DEMO_SENSIBLE;
+const float DEMO_PRESION_MIN_FLUJO_ESTIMADO_KPA = 10.0f;
+const float DEMO_PRESION_MAX_FLUJO_ESTIMADO_KPA = 180.0f;
+const float DEMO_FLUJO_ESTIMADO_MIN_LMIN = 0.60f;
+const float DEMO_FLUJO_ESTIMADO_MAX_LMIN = 1.80f;
 
 // ===================== ESTADO Y LOGICA =====================
 enum EstadoSistema {
@@ -123,13 +136,16 @@ enum EstadoSistema {
   ESTADO_ERROR  = 3
 };
 
-const float UMBRAL_ALERTA_FLUJO_IN = 1.0;
-const float UMBRAL_ALERTA_PRES_IN  = 250.0;
-const float UMBRAL_CRITICO_FLUJO = 2.2;
-const float UMBRAL_CRITICO_PRES  = 180.0;
-const float UMBRAL_NORMAL_FLUJO_OUT = 0.85;
-const float UMBRAL_NORMAL_PRES_OUT  = 280.0;
-const float PRESION_RECUPERACION_NORMAL = 290.0;
+const float UMBRAL_ALERTA_FLUJO_IN = DEMO_SENSIBLE ? 10.0 : 1.0;
+const float UMBRAL_ALERTA_PRES_IN  = DEMO_SENSIBLE ? 35.0 : 250.0;
+const float UMBRAL_CRITICO_FLUJO = DEMO_SENSIBLE ? 13.0 : 2.2;
+const float UMBRAL_CRITICO_PRES  = DEMO_SENSIBLE ? 12.0 : 180.0;
+const float UMBRAL_NORMAL_FLUJO_OUT = DEMO_SENSIBLE ? 9.5 : 0.85;
+const float UMBRAL_NORMAL_PRES_OUT  = DEMO_SENSIBLE ? 45.0 : 280.0;
+const float PRESION_RECUPERACION_NORMAL = DEMO_SENSIBLE ? 45.0 : 290.0;
+const float UMBRAL_SIN_PASO_FLUJO_MAX = DEMO_SENSIBLE ? 0.15 : 0.05;
+const float UMBRAL_SIN_PASO_PRES_MIN = DEMO_SENSIBLE ? 20.0 : 320.0;
+const int LECTURAS_SIN_FLUJO_REQUERIDAS = DEMO_SENSIBLE ? 3 : 6;
 const int LECTURAS_ALERTA_REQUERIDAS   = 1;
 const int LECTURAS_CRITICAS_REQUERIDAS = 1;
 
@@ -151,6 +167,8 @@ struct SystemState {
   int contadorAlerta  = 0;
   int contadorCritico = 0;
   int nivelRiesgo     = 20;
+  bool alertaPersistenteActiva = false;
+  unsigned long alertaInicioMs = 0;
   EstadoSistema estadoSistema = ESTADO_NORMAL;
 };
 
@@ -158,12 +176,10 @@ struct SystemState {
 static String wifiSSID;
 static String wifiPass;
 static String ingestApiKey;
-static bool wifiChangeUncommitted = false;
-static String wifiCandidateSsid;
-static String wifiCandidatePassword;
 
 const char* WIFI_MANAGER_AP_NAME = "ESP32-FUGAS-SETUP";
 const char* WIFI_MANAGER_AP_PASSWORD = "12345678";
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 45000;
 
 static float limitarFloat(float valor, float minimo, float maximo) {
   if (valor < minimo) return minimo;
@@ -182,8 +198,15 @@ String estadoTexto(EstadoSistema estado) {
 }
 
 int calcularRiesgoContinuo(float flujo, float presion, bool sensorOK) {
-  float scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
-  float scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
+  float scoreFlujo;
+  float scorePres;
+#if DEMO_SENSIBLE
+  scoreFlujo = limitarFloat((flujo - 9.0) / (14.0 - 9.0), 0.0, 1.0);
+  scorePres  = limitarFloat((35.0 - presion) / (35.0 - 12.0), 0.0, 1.0);
+#else
+  scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
+  scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
+#endif
   float riesgo = (scoreFlujo * 0.55 + scorePres * 0.45) * 100.0;
   if (!sensorOK) return 5;
   return (int)limitarFloat(riesgo, 0.0, 100.0);
@@ -202,6 +225,37 @@ EstadoSistema evaluarEstado(float flujoLmin, float presionKPa, bool sensorOK,
   bool flujoCritico = flujoLmin >= UMBRAL_CRITICO_FLUJO;
   bool presionBaja = presionKPa <= UMBRAL_ALERTA_PRES_IN;
   bool presionCritica = presionKPa <= UMBRAL_CRITICO_PRES;
+  static int contadorSinFlujo = 0;
+  static bool demoSistemaPresurizado = false;
+  if (DEMO_SENSIBLE && flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX) {
+    contadorAlerta = 0;
+    contadorCritico = 0;
+    nivelRiesgo = min(nivelRiesgo, 15);
+    return ESTADO_NORMAL;
+  }
+  if (presionKPa >= PRESION_RECUPERACION_NORMAL || flujoLmin > 0.20) {
+    demoSistemaPresurizado = true;
+  }
+  if (DEMO_SENSIBLE && flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX) {
+    contadorSinFlujo = min(contadorSinFlujo + 1, 20);
+  } else {
+    contadorSinFlujo = 0;
+  }
+  bool sinPasoDemo =
+    DEMO_SENSIBLE &&
+    contadorSinFlujo >= LECTURAS_SIN_FLUJO_REQUERIDAS;
+  bool sinPasoConPresion =
+    sinPasoDemo ||
+    (DEMO_SENSIBLE &&
+     flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX &&
+     presionKPa >= UMBRAL_SIN_PASO_PRES_MIN);
+
+  if (sinPasoConPresion) {
+    contadorAlerta = 0;
+    contadorCritico = 0;
+    nivelRiesgo = min(nivelRiesgo, 15);
+    return ESTADO_NORMAL;
+  }
 
   if (presionKPa >= PRESION_RECUPERACION_NORMAL &&
       flujoLmin <= UMBRAL_NORMAL_FLUJO_OUT) {
@@ -213,7 +267,8 @@ EstadoSistema evaluarEstado(float flujoLmin, float presionKPa, bool sensorOK,
 
   bool condicionCritica =
     (flujoCritico && presionBaja) ||
-    (flujoAnomalo && presionCritica);
+    (flujoAnomalo && presionCritica) ||
+    (DEMO_SENSIBLE && demoSistemaPresurizado && presionCritica);
   bool condicionAlerta =
     flujoAnomalo ||
     presionBaja ||
@@ -246,6 +301,31 @@ EstadoSistema evaluarEstado(float flujoLmin, float presionKPa, bool sensorOK,
   if (contadorCritico >= LECTURAS_CRITICAS_REQUERIDAS) return ESTADO_FUGA;
   if (contadorAlerta >= 1) return ESTADO_ALERTA;
   return ESTADO_NORMAL;
+}
+
+void aplicarFugaPorAlertaPersistente(SystemState &state, unsigned long now) {
+  if (state.estadoSistema == ESTADO_ALERTA) {
+    if (!state.alertaPersistenteActiva) {
+      state.alertaPersistenteActiva = true;
+      state.alertaInicioMs = now;
+    }
+
+    if (now - state.alertaInicioMs >= ALERTA_A_FUGA_TIMEOUT_MS) {
+      state.estadoSistema = ESTADO_FUGA;
+      state.contadorCritico = max(state.contadorCritico, LECTURAS_CRITICAS_REQUERIDAS);
+      state.nivelRiesgo = max(state.nivelRiesgo, 90);
+      state.valvulaAbierta = false;
+      return;
+    }
+  } else if (state.estadoSistema == ESTADO_NORMAL || state.estadoSistema == ESTADO_ERROR) {
+    state.alertaPersistenteActiva = false;
+    state.alertaInicioMs = 0;
+  }
+
+  if (state.estadoSistema == ESTADO_FUGA) {
+    state.alertaPersistenteActiva = false;
+    state.alertaInicioMs = 0;
+  }
 }
 
 // ===================== OBJETOS Y TEMPORIZADORES =====================
@@ -335,11 +415,54 @@ static String ipLocalTexto() {
   return WiFi.localIP().toString();
 }
 
+static bool conectarWifiGuardado(const String &ssid, const String &password, unsigned long timeoutMs) {
+  if (ssid.length() == 0) return false;
+
+  Serial.print("Intentando WiFi guardado: ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.persistent(false);
+  WiFi.disconnect(false);
+  delay(500);
+
+  if (password.length() > 0) {
+    WiFi.begin(ssid.c_str(), password.c_str());
+  } else {
+    WiFi.begin(ssid.c_str());
+  }
+
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < timeoutMs) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+
+  if (wifiConectado()) {
+    wifiSSID = WiFi.SSID();
+    Serial.println("WiFi conectado con credenciales guardadas");
+    Serial.print("IP: ");
+    Serial.println(ipLocalTexto());
+    return true;
+  }
+
+  Serial.print("Fallo conexion guardada. Estado WiFi: ");
+  Serial.println(WiFi.status());
+  return false;
+}
+
 static void conectarWiFi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+
+  if (conectarWifiGuardado(wifiSSID, wifiPass, WIFI_CONNECT_TIMEOUT_MS)) {
+    return;
+  }
 
   WiFiManager wm;
-  wm.setConnectTimeout(20);
+  wm.setConnectTimeout(45);
   wm.setConfigPortalTimeout(180);
   wm.setBreakAfterConfig(true);
 
@@ -387,9 +510,6 @@ void initWiFi() {
 }
 
 static bool probarYCambiarWifi(const String &nuevoSsid, const String &nuevaPassword) {
-  String ssidAnterior = wifiSSID.length() ? wifiSSID : WiFi.SSID();
-  String passAnterior = wifiPass;
-
   Serial.print("Probando nueva red WiFi: ");
   Serial.println(nuevoSsid);
 
@@ -409,70 +529,39 @@ static bool probarYCambiarWifi(const String &nuevoSsid, const String &nuevaPassw
   if (WiFi.status() == WL_CONNECTED) {
     wifiSSID = nuevoSsid;
     wifiPass = nuevaPassword;
-    wifiCandidateSsid = nuevoSsid;
-    wifiCandidatePassword = nuevaPassword;
-    wifiChangeUncommitted = true;
+
+    Preferences pref;
+    pref.begin("creds", false);
+    pref.putString("ssid", wifiSSID);
+    pref.putString("pass", wifiPass);
+    pref.end();
+
+    WiFi.persistent(true);
+    WiFi.begin(wifiSSID.c_str(), wifiPass.c_str());
+    WiFi.persistent(false);
 
     Serial.print("Nueva red WiFi conectada. IP: ");
     Serial.println(WiFi.localIP());
     return true;
   }
 
-  Serial.println("No se pudo conectar a la nueva red. Manteniendo red anterior.");
-  WiFi.disconnect(false);
-  delay(500);
-  if (ssidAnterior.length() > 0 && passAnterior.length() > 0) {
-    WiFi.begin(ssidAnterior.c_str(), passAnterior.c_str());
-  } else {
-    WiFi.reconnect();
-  }
-
-  unsigned long restoreStart = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - restoreStart < 12000) {
-    delay(300);
-    Serial.print(".");
-    esp_task_wdt_reset();
-  }
-  Serial.println();
-  if (WiFi.status() == WL_CONNECTED) {
-    wifiSSID = WiFi.SSID();
-    Serial.print("Red anterior restaurada. IP: ");
-    Serial.println(WiFi.localIP());
-  }
+  Serial.println("No se pudo conectar a la nueva red. Se abrirá el portal WiFiManager.");
   return false;
 }
 
-static void confirmarCambioWifi() {
-  if (!wifiChangeUncommitted || wifiCandidateSsid.length() == 0) {
-    return;
-  }
-
+static void borrarCredencialesWifiYReiniciar() {
+  Serial.println("Borrando credenciales WiFi guardadas...");
   Preferences pref;
   pref.begin("creds", false);
-  pref.putString("ssid", wifiCandidateSsid);
-  pref.putString("pass", wifiCandidatePassword);
+  pref.remove("ssid");
+  pref.remove("pass");
   pref.end();
 
-  WiFi.persistent(true);
-  WiFi.begin(wifiCandidateSsid.c_str(), wifiCandidatePassword.c_str());
-  WiFi.persistent(false);
-
-  wifiChangeUncommitted = false;
-  Serial.println("Nueva red WiFi confirmada y guardada.");
-}
-
-static void descartarCambioWifiNoConfirmado() {
-  if (!wifiChangeUncommitted) {
-    return;
-  }
-
-  Serial.println("No se pudo confirmar el backend con la nueva red. Volviendo a credenciales previas.");
-  wifiChangeUncommitted = false;
-  wifiCandidateSsid = "";
-  wifiCandidatePassword = "";
-  WiFi.disconnect(false);
-  delay(500);
-  WiFi.reconnect();
+  WiFiManager wm;
+  wm.resetSettings();
+  WiFi.disconnect(true, true);
+  delay(1000);
+  ESP.restart();
 }
 
 bool asegurarWiFi() {
@@ -753,8 +842,8 @@ static void ejecutarComando(SystemState &state, const String &tipo, JsonObject c
         payloadJson = "\"payload\":{\"wifiSsid\":\"" + escapeJson(wifiSSID) + "\",\"ipAddress\":\"" + WiFi.localIP().toString() + "\",\"applied\":true}";
       } else {
         codigo = "ERROR";
-        mensaje = "No se pudo conectar a la nueva red. Se conserva la anterior";
-        payloadJson = "\"payload\":{\"wifiSsid\":\"" + escapeJson(WiFi.SSID()) + "\",\"applied\":false}";
+        mensaje = "No se pudo conectar a la nueva red. Se reiniciara el portal WiFi";
+        payloadJson = "\"payload\":{\"wifiSsid\":\"" + escapeJson(nuevoSsid) + "\",\"applied\":false,\"openPortal\":true}";
       }
     }
   } else if (tipo == "ESCANEAR_WIFI") {
@@ -922,12 +1011,9 @@ void consultarComandosBackend(SystemState &state) {
     Serial.println(mensaje);
 
     bool responded = responderComandoBackend(state, commandId, codigo, mensaje, payloadJson);
-    if (tipo == "ACTUALIZAR_CONFIG" && codigo == "OK" && wifiChangeUncommitted) {
-      if (responded) {
-        confirmarCambioWifi();
-      } else {
-        descartarCambioWifiNoConfirmado();
-      }
+    if (tipo == "ACTUALIZAR_CONFIG" && codigo == "ERROR" && payloadJson.indexOf("\"openPortal\":true") >= 0) {
+      delay(1000);
+      borrarCredencialesWifiYReiniciar();
     }
     if (responded && tipo == "REINICIAR" && codigo == "OK") {
       Serial.println("Reiniciando ESP32 por comando remoto...");
@@ -967,7 +1053,8 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   if (sampleSeconds <= 0.0f) sampleSeconds = 1.0f;
 
   float frequencyHz = pulses / sampleSeconds;
-  float nuevoFlujo = frequencyHz / 7.5;
+  float flujoPorPulsos = frequencyHz / 7.5;
+  float nuevoFlujo = flujoPorPulsos;
   int rawPressure = leerAdcPromediado(pressurePin, 20, 200);
   float adcVoltage = (rawPressure / 4095.0f) * 3.3f;
   float sensorVoltage = adcVoltage * PRESSURE_DIVIDER_FACTOR;
@@ -979,12 +1066,28 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
     pressurePsi = 0.0f;
   }
   float nuevaPresion = pressurePsi * 6.89476f;
+  float flujoEstimadoDemo = 0.0f;
+  if (DEMO_ESTIMAR_FLUJO_SIN_PULSOS &&
+      pulses == 0 &&
+      state.valvulaAbierta &&
+      nuevaPresion >= DEMO_PRESION_MIN_FLUJO_ESTIMADO_KPA) {
+    float ratioPresion = limitarFloat(
+      (nuevaPresion - DEMO_PRESION_MIN_FLUJO_ESTIMADO_KPA) /
+      (DEMO_PRESION_MAX_FLUJO_ESTIMADO_KPA - DEMO_PRESION_MIN_FLUJO_ESTIMADO_KPA),
+      0.0f,
+      1.0f
+    );
+    flujoEstimadoDemo =
+      DEMO_FLUJO_ESTIMADO_MIN_LMIN +
+      ratioPresion * (DEMO_FLUJO_ESTIMADO_MAX_LMIN - DEMO_FLUJO_ESTIMADO_MIN_LMIN);
+    nuevoFlujo = max(nuevoFlujo, flujoEstimadoDemo);
+  }
 
   state.sensorOK = sensorVoltage >= (PRESSURE_SENSOR_MIN_V - 0.05f) &&
                    sensorVoltage <= (PRESSURE_SENSOR_MAX_V + 0.05f);
 
   if (nuevoFlujo < 0.0) nuevoFlujo = 0.0;
-  if (nuevoFlujo > 5.0) nuevoFlujo = 5.0;
+  if (nuevoFlujo > 15.0) nuevoFlujo = 15.0;
   if (nuevaPresion < 0.0) nuevaPresion = 0.0;
   if (nuevaPresion > 690.0) nuevaPresion = 690.0;
 
@@ -1006,6 +1109,8 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
 #ifdef DEBUG_SERIAL
   Serial.println("----- LECTURA -----");
   Serial.print("Pulsos: ");               Serial.println(pulses);
+  Serial.print("Flujo pulsos (L/min): "); Serial.println(flujoPorPulsos, 2);
+  Serial.print("Flujo estimado demo (L/min): "); Serial.println(flujoEstimadoDemo, 2);
   Serial.print("ADC presion: ");          Serial.println(rawPressure);
   Serial.print("Pot presion (%): ");      Serial.println(pressurePercent);
   Serial.print("V transductor: ");        Serial.println(sensorVoltage, 2);
@@ -1021,16 +1126,22 @@ static void apagarBuzzer() {
   ledcWrite(buzzerPin, 0);
 }
 
-// Buzzer suave intermitente para ALERTA (800 Hz, duty bajo)
+// Buzzer grave y discreto para ALERTA.
 static void encenderBuzzerAlerta() {
-  ledcChangeFrequency(buzzerPin, 800, 8);
-  ledcWrite(buzzerPin, 60);
+  ledcChangeFrequency(buzzerPin, 420, 8);
+  ledcWrite(buzzerPin, 36);
 }
 
-// Buzzer fuerte y continuo para FUGA (2500 Hz, duty alto)
+// Buzzer firme para FUGA, menos chillón que un tono alto tipo campana.
 static void encenderBuzzerFuga() {
-  ledcChangeFrequency(buzzerPin, 2500, 8);
-  ledcWrite(buzzerPin, 200);
+  ledcChangeFrequency(buzzerPin, 1050, 8);
+  ledcWrite(buzzerPin, 120);
+}
+
+// Buzzer de ERROR: tono medio continuo para diferenciarlo de fuga.
+static void encenderBuzzerError() {
+  ledcChangeFrequency(buzzerPin, 650, 8);
+  ledcWrite(buzzerPin, 90);
 }
 
 void initActuadores() {
@@ -1050,7 +1161,7 @@ void initActuadores() {
   digitalWrite(relayPin, LOW);
   digitalWrite(valveIndicatorPin, LOW);
 
-  const int buzzerFreq = 1500;
+  const int buzzerFreq = 1050;
   const int buzzerResolution = 8;
 
   if (!ledcAttach(buzzerPin, buzzerFreq, buzzerResolution)) {
@@ -1062,23 +1173,23 @@ void initActuadores() {
 }
 
 static void leerPulsadorValvula(SystemState &state) {
-  static bool lastButtonState = HIGH;
+  static bool lastReading = HIGH;
+  static bool stableButtonState = HIGH;
   static unsigned long lastDebounce = 0;
 
   bool reading = digitalRead(buttonPin);
-  if (reading != lastButtonState) {
+  if (reading != lastReading) {
     lastDebounce = millis();
-    lastButtonState = reading;
+    lastReading = reading;
   }
 
-  if (reading == LOW && millis() - lastDebounce > 60) {
-    state.valvulaAbierta = !state.valvulaAbierta;
-    Serial.print("Pulsador: valvula ");
-    Serial.println(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
-    while (digitalRead(buttonPin) == LOW) {
-      delay(5);
+  if (millis() - lastDebounce > 60 && reading != stableButtonState) {
+    stableButtonState = reading;
+    if (stableButtonState == LOW) {
+      state.valvulaAbierta = !state.valvulaAbierta;
+      Serial.print("Pulsador: valvula ");
+      Serial.println(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
     }
-    lastButtonState = HIGH;
   }
 }
 
@@ -1125,7 +1236,7 @@ void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
       break;
 
     case ESTADO_ERROR:
-      apagarBuzzer();
+      encenderBuzzerError();
       digitalWrite(ledVerde, LOW);
       digitalWrite(ledNaranja, LOW);
       digitalWrite(ledRojo, LOW);
@@ -1136,11 +1247,20 @@ void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
 // ===================== OLED =====================
 void initDisplay(Adafruit_SSD1306 &display, const SystemState &state) {
   Wire.begin(21, 22);
+  Wire.setClock(100000);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
     Serial.println("OLED no encontrado");
     return;
   }
+
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
+  display.ssd1306_command(SSD1306_SETDISPLAYOFFSET);
+  display.ssd1306_command(0x00);
+  display.ssd1306_command(SSD1306_SETSTARTLINE | 0x00);
+  display.ssd1306_command(SSD1306_SEGREMAP | 0x01);
+  display.ssd1306_command(SSD1306_COMSCANDEC);
+  display.ssd1306_command(SSD1306_DISPLAYON);
 
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
@@ -1215,8 +1335,12 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   display.print("%");
 
   display.setCursor(2, 54);
-  display.print(state.sensorOK ? "Sensor OK " : "Sensor ERROR ");
-  display.print(state.valvulaAbierta ? "Valv AB" : "Valv CE");
+  if (state.estadoSistema == ESTADO_FUGA) {
+    display.print(state.valvulaAbierta ? "Valvula ABIERTA" : "Valvula CERRADA");
+  } else {
+    display.print(state.sensorOK ? "OK " : "ERR ");
+    display.print(state.valvulaAbierta ? "Valv ABIERTA" : "Valv CERRADA");
+  }
 
   display.display();
 }
@@ -1388,6 +1512,10 @@ void loop() {
 
     if (commandHasForcedState()) {
       state.estadoSistema = commandForcedState();
+      state.alertaPersistenteActiva = false;
+      state.alertaInicioMs = 0;
+    } else {
+      aplicarFugaPorAlertaPersistente(state, now);
     }
 
     actualizarOLED(oled, state, lastLCDUpdate);

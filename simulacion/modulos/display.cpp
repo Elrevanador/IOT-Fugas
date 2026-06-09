@@ -1,12 +1,24 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include "modulos/display.h"
 
 void initDisplay(Adafruit_SSD1306 &display, const SystemState &state) {
+  Wire.begin(21, 22);
+  Wire.setClock(100000);
+
   // Address 0x3C is standard for 128x64 SSD1306 OLED
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("Fallo al iniciar SSD1306");
     return;
   }
+
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
+  display.ssd1306_command(SSD1306_SETDISPLAYOFFSET);
+  display.ssd1306_command(0x00);
+  display.ssd1306_command(SSD1306_SETSTARTLINE | 0x00);
+  display.ssd1306_command(SSD1306_SEGREMAP | 0x01);
+  display.ssd1306_command(SSD1306_COMSCANDEC);
+  display.ssd1306_command(SSD1306_DISPLAYON);
   
   display.clearDisplay();
   display.setTextSize(1);
@@ -83,11 +95,11 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   }
 
   // Indicador de Cloud/Conexion
-  display.setCursor(95, 4);
+  display.setCursor(98, 4);
   if (state.backendOnline) {
-    display.print("[Cloud]");
+    display.print("ON");
   } else {
-    display.print("[NoCloud]");
+    display.print("OFF");
   }
 
   // Contenido de mediciones
@@ -117,4 +129,3 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
 
   display.display();
 }
-

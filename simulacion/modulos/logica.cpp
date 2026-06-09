@@ -18,8 +18,15 @@ String estadoTexto(EstadoSistema estado) {
 }
 
 int calcularRiesgoContinuo(float flujo, float presion, bool sensorOK) {
-  float scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
-  float scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
+  float scoreFlujo;
+  float scorePres;
+#if DEMO_SENSIBLE
+  scoreFlujo = limitarFloat((flujo - 9.0) / (14.0 - 9.0), 0.0, 1.0);
+  scorePres  = limitarFloat((35.0 - presion) / (35.0 - 12.0), 0.0, 1.0);
+#else
+  scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
+  scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
+#endif
 
   float riesgo = (scoreFlujo * 0.55 + scorePres * 0.45) * 100.0;
 
@@ -48,6 +55,37 @@ EstadoSistema evaluarEstado(
   bool flujoCritico = flujoLmin >= UMBRAL_CRITICO_FLUJO;
   bool presionBaja = presionKPa <= UMBRAL_ALERTA_PRES_IN;
   bool presionCritica = presionKPa <= UMBRAL_CRITICO_PRES;
+  static int contadorSinFlujo = 0;
+  static bool demoSistemaPresurizado = false;
+  if (DEMO_SENSIBLE && flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX) {
+    contadorAlerta = 0;
+    contadorCritico = 0;
+    nivelRiesgo = min(nivelRiesgo, 15);
+    return ESTADO_NORMAL;
+  }
+  if (presionKPa >= PRESION_RECUPERACION_NORMAL || flujoLmin > 0.20) {
+    demoSistemaPresurizado = true;
+  }
+  if (DEMO_SENSIBLE && flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX) {
+    contadorSinFlujo = min(contadorSinFlujo + 1, 20);
+  } else {
+    contadorSinFlujo = 0;
+  }
+  bool sinPasoDemo =
+    DEMO_SENSIBLE &&
+    contadorSinFlujo >= LECTURAS_SIN_FLUJO_REQUERIDAS;
+  bool sinPasoConPresion =
+    sinPasoDemo ||
+    (DEMO_SENSIBLE &&
+     flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX &&
+     presionKPa >= UMBRAL_SIN_PASO_PRES_MIN);
+
+  if (sinPasoConPresion) {
+    contadorAlerta = 0;
+    contadorCritico = 0;
+    nivelRiesgo = min(nivelRiesgo, 15);
+    return ESTADO_NORMAL;
+  }
 
   // Recuperacion rapida: solo volvemos a NORMAL cuando presion y flujo estan sanos.
   if (presionKPa >= PRESION_RECUPERACION_NORMAL &&
@@ -60,7 +98,8 @@ EstadoSistema evaluarEstado(
 
   bool condicionCritica =
     (flujoCritico && presionBaja) ||
-    (flujoAnomalo && presionCritica);
+    (flujoAnomalo && presionCritica) ||
+    (DEMO_SENSIBLE && demoSistemaPresurizado && presionCritica);
 
   bool condicionAlerta =
     flujoAnomalo ||

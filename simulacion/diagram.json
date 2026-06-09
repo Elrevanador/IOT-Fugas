@@ -155,7 +155,7 @@
     [ "rValve:2", "valve1:A", "cyan", [ "v0" ] ],
     [ "valve1:C", "esp1:GND.2", "black", [ "v0" ] ],
 
-    [ "esp1:D2", "rG:1", "green", [ "v0" ] ],
+    [ "esp1:D4", "rG:1", "green", [ "v0" ] ],
     [ "rG:2", "ledG:A", "green", [ "v0" ] ],
     [ "ledG:C", "esp1:GND.1", "black", [ "v0" ] ],
 
@@ -163,7 +163,7 @@
     [ "rY:2", "ledY:A", "gold", [ "v0" ] ],
     [ "ledY:C", "esp1:GND.1", "black", [ "v0" ] ],
 
-    [ "esp1:D4", "rR:1", "red", [ "v0" ] ],
+    [ "esp1:D2", "rR:1", "red", [ "v0" ] ],
     [ "rR:2", "ledR:A", "red", [ "v0" ] ],
     [ "ledR:C", "esp1:GND.1", "black", [ "v0" ] ],
 

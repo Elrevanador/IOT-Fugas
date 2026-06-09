@@ -5,7 +5,7 @@
   --dash-shadow: var(--shadow-panel);
   --dash-muted: var(--muted);
   --dash-text: var(--text);
-  --dash-accent: #0d9488;
+  --dash-accent: #008fb0;
   --dash-accent-soft: var(--accent-soft);
 }
 
@@ -27,8 +27,8 @@
 }
 
 .glass-panel--inner {
-  background: #111827;
-  box-shadow: inset 0 0 0 1px #1f2937;
+  background: #102a3a;
+  box-shadow: inset 0 0 0 1px #18374a;
 }
 
 .glass-panel::after {
@@ -36,7 +36,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(120deg, rgba(20, 184, 166, 0.08), transparent 42%);
+  background: linear-gradient(120deg, rgba(0, 166, 200, 0.08), transparent 42%);
   opacity: 0;
   transition: opacity 220ms ease;
 }
@@ -54,7 +54,7 @@
   padding: clamp(0.2rem, 0.5vw, 0.28rem) clamp(0.4rem, 0.8vw, 0.55rem);
   border-radius: 999px;
   background: var(--dash-accent-soft);
-  color: #5eead4;
+  color: #67e8f9;
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -151,14 +151,14 @@
 }
 
 .dashboard-side-button:hover {
-  border-color: #334155;
-  background: #111827;
+  border-color: #28556b;
+  background: #102a3a;
 }
 
 .dashboard-side-button--active {
   border-color: var(--dash-accent);
   background: var(--dash-accent-soft);
-  color: #5eead4;
+  color: #67e8f9;
 }
 
 .dashboard-side-button i {
@@ -169,7 +169,7 @@
 }
 
 .dashboard-side-button--active i {
-  color: #5eead4;
+  color: #67e8f9;
 }
 
 .dashboard-side-button span {
@@ -201,7 +201,7 @@
   height: 1.35rem;
   padding: 0 0.35rem;
   border-radius: 999px;
-  background: #0b1220;
+  background: #061826;
   color: #cbd5e1;
   font-style: normal;
   font-size: 0.68rem;
@@ -237,8 +237,8 @@ h2 {
 .metric-card {
   padding: clamp(0.8rem, 1.5vw, 1rem);
   border-radius: clamp(8px, 1.5vw, 10px);
-  background: #111827;
-  border: 1px solid #1f2937;
+  background: #102a3a;
+  border: 1px solid #18374a;
 }
 
 .metric-card span,
@@ -325,13 +325,13 @@ h2 {
 .dashboard-tabs__viewport::before {
   left: 0;
   float: left;
-  background: linear-gradient(90deg, #0f172a 0%, rgba(15, 23, 42, 0) 100%);
+  background: linear-gradient(90deg, #092033 0%, rgba(15, 23, 42, 0) 100%);
 }
 
 .dashboard-tabs__viewport::after {
   right: 0;
   float: right;
-  background: linear-gradient(270deg, #0f172a 0%, rgba(15, 23, 42, 0) 100%);
+  background: linear-gradient(270deg, #092033 0%, rgba(15, 23, 42, 0) 100%);
 }
 
 .dashboard-tabs__viewport--left::before {
@@ -359,14 +359,14 @@ h2 {
   font-size: 1.2rem;
   line-height: 1;
   color: var(--dash-text);
-  background: #0b1220;
+  background: #061826;
   transition: transform 180ms ease, background 180ms ease, opacity 180ms ease;
 }
 
 .dashboard-tabs__arrow:hover {
   transform: translateY(-1px);
   background: var(--dash-accent-soft);
-  border-color: #14b8a6;
+  border-color: #00a6c8;
 }
 
 .dashboard-tabs__arrow:disabled {
@@ -389,7 +389,7 @@ h2 {
   cursor: pointer;
   text-align: left;
   color: var(--dash-text);
-  background: #0b1220;
+  background: #061826;
   transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
@@ -438,7 +438,7 @@ h2 {
   height: 1.35rem;
   padding-inline: 0.33rem;
   border-radius: 999px;
-  background: #0b1220;
+  background: #061826;
   color: var(--dash-text);
   font-size: 0.68rem;
   font-weight: 700;
@@ -453,12 +453,12 @@ h2 {
 .dashboard-tab:hover {
   transform: translateY(-1px);
   background: var(--dash-accent-soft);
-  border-color: #5eead4;
+  border-color: #67e8f9;
   box-shadow: 0 2px 8px rgba(13, 148, 136, 0.12);
 }
 
 .dashboard-tab--active .dashboard-tab__title i {
-  color: #5eead4;
+  color: #67e8f9;
 }
 
 .metric-bars__bar {
@@ -482,7 +482,7 @@ h2 {
   padding: 0.55rem 0.85rem;
   cursor: pointer;
   color: var(--dash-text);
-  background: #0b1220;
+  background: #061826;
   font: inherit;
   transition: transform 180ms ease, background 180ms ease;
 }
@@ -490,9 +490,9 @@ h2 {
 .pane-filter--active,
 .pane-filter:hover {
   transform: translateY(-1px);
-  color: #5eead4;
+  color: #67e8f9;
   background: var(--dash-accent-soft);
-  border-color: #5eead4;
+  border-color: #67e8f9;
 }
 
 .dashboard-pane--overview {
@@ -534,8 +534,8 @@ h2 {
 .history-card__status {
   padding: 0.95rem 1rem;
   border-radius: 10px;
-  background: #0b1220;
-  border: 1px solid #1f2937;
+  background: #061826;
+  border: 1px solid #18374a;
 }
 
 .health-card__grid span {
@@ -568,14 +568,14 @@ h2 {
   padding: 0.6rem 0.9rem;
   cursor: pointer;
   color: var(--dash-text);
-  background: #0b1220;
+  background: #061826;
   font: inherit;
 }
 
 .range-switch__button--active {
-  color: #5eead4;
+  color: #67e8f9;
   background: var(--dash-accent-soft);
-  border-color: #5eead4;
+  border-color: #67e8f9;
 }
 
 .history-card__status {
@@ -617,7 +617,7 @@ h2 {
 .risk-meter__track {
   height: 0.85rem;
   border-radius: 999px;
-  background: #1f2937;
+  background: #18374a;
   overflow: hidden;
 }
 
@@ -681,7 +681,7 @@ h2 {
 }
 
 .hardware-card[data-tone='active'] {
-  border-color: rgba(45, 212, 191, 0.32);
+  border-color: rgba(56, 213, 232, 0.32);
 }
 
 .hardware-card[data-tone='alert'] {
@@ -710,7 +710,7 @@ h2 {
   height: 2.55rem;
   border-radius: 8px;
   background: rgba(2, 6, 23, 0.5);
-  color: #5eead4;
+  color: #67e8f9;
   border: 1px solid rgba(94, 234, 212, 0.2);
 }
 
@@ -795,7 +795,7 @@ h2 {
   width: 0.85rem;
   height: 0.85rem;
   border-radius: 50%;
-  background: #334155;
+  background: #28556b;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
@@ -944,8 +944,8 @@ h2 {
   min-width: 8rem;
   padding: 0.85rem 1rem;
   border-radius: 10px;
-  background: #0b1220;
-  border: 1px solid #1f2937;
+  background: #061826;
+  border: 1px solid #18374a;
 }
 
 .critical-banner__stat strong {
@@ -965,8 +965,8 @@ h2 {
   gap: 0.85rem;
   padding: 1rem;
   border-radius: 10px;
-  background: #111827;
-  border: 1px solid #1f2937;
+  background: #102a3a;
+  border: 1px solid #18374a;
 }
 
 .timeline__item[data-state='FUGA'] {
@@ -1011,7 +1011,7 @@ h2 {
   gap: 0.55rem;
   padding: 1.2rem;
   border-radius: 12px;
-  background: #111827;
+  background: #102a3a;
   border: 1px dashed rgba(148, 163, 184, 0.32);
 }
 
@@ -1040,8 +1040,8 @@ h2 {
 .alert-item {
   padding: 1rem;
   border-radius: 10px;
-  background: #111827;
-  border: 1px solid #1f2937;
+  background: #102a3a;
+  border: 1px solid #18374a;
   border-left: 4px solid transparent;
 }
 
@@ -1085,7 +1085,7 @@ h2 {
 
 .action-message {
   margin: 0.9rem 0 0;
-  color: #5eead4;
+  color: #67e8f9;
 }
 
 pre {
@@ -1093,9 +1093,9 @@ pre {
   margin: 1rem 0 0;
   padding: 1rem;
   border-radius: 10px;
-  background: #111827;
+  background: #102a3a;
   color: #cbd5e1;
-  border: 1px solid #1f2937;
+  border: 1px solid #18374a;
 }
 
 .skeleton-grid {
@@ -1190,7 +1190,7 @@ pre {
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 700;
-  background: #0b1220;
+  background: #061826;
   color: var(--dash-text);
 }
 
@@ -1217,8 +1217,8 @@ pre {
 .device-card__wifi {
   border: 1px solid rgba(94, 234, 212, 0.28);
   border-radius: 999px;
-  background: rgba(20, 184, 166, 0.12);
-  color: #5eead4;
+  background: rgba(0, 166, 200, 0.12);
+  color: #67e8f9;
   font: inherit;
   font-size: 0.76rem;
   font-weight: 700;
@@ -1230,7 +1230,7 @@ pre {
 }
 
 .device-card__wifi:hover {
-  background: rgba(20, 184, 166, 0.22);
+  background: rgba(0, 166, 200, 0.22);
 }
 
 .device-card__metrics {
@@ -1242,8 +1242,8 @@ pre {
 .device-card__metrics div {
   padding: 0.85rem;
   border-radius: 10px;
-  background: #111827;
-  border: 1px solid #1f2937;
+  background: #102a3a;
+  border: 1px solid #18374a;
 }
 
 .device-card__metrics span {

@@ -20,7 +20,7 @@
   width: 280px;
   height: 280px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.22), transparent 68%);
+  background: radial-gradient(circle, rgba(0, 166, 200, 0.22), transparent 68%);
   pointer-events: none;
 }
 
@@ -34,10 +34,10 @@
   place-items: center;
   font-size: clamp(1.2rem, 3vw, 1.6rem);
   font-weight: 800;
-  color: #5eead4;
-  background: linear-gradient(145deg, rgba(20, 184, 166, 0.28), rgba(15, 23, 42, 0.9));
-  border: 1px solid rgba(45, 212, 191, 0.35);
-  box-shadow: 0 12px 32px rgba(20, 184, 166, 0.12);
+  color: #67e8f9;
+  background: linear-gradient(145deg, rgba(0, 166, 200, 0.28), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(56, 213, 232, 0.35);
+  box-shadow: 0 12px 32px rgba(0, 166, 200, 0.12);
 }
 
 .profile-hero__copy {
@@ -79,9 +79,9 @@
 }
 
 .chip--role {
-  border-color: rgba(45, 212, 191, 0.35);
-  background: rgba(20, 184, 166, 0.12);
-  color: #5eead4;
+  border-color: rgba(56, 213, 232, 0.35);
+  background: rgba(0, 166, 200, 0.12);
+  color: #67e8f9;
 }
 
 .chip--active {
@@ -145,7 +145,7 @@
 
 .profile-card__icon {
   font-size: 1.35rem;
-  color: #5eead4;
+  color: #67e8f9;
   opacity: 0.85;
 }
 
@@ -225,9 +225,9 @@
 }
 
 .profile-btn--primary {
-  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  background: linear-gradient(135deg, #008fb0, #00a6c8);
   color: #042f2e;
-  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.22);
+  box-shadow: 0 10px 24px rgba(0, 166, 200, 0.22);
 }
 
 .profile-btn--primary:hover:not(:disabled) {
@@ -267,7 +267,7 @@
   min-width: 2.85rem;
   padding: 0;
   border-radius: var(--radius-sm);
-  background: #111827;
+  background: #102a3a;
   border: 1px solid var(--border);
   color: #cbd5e1;
   cursor: pointer;
@@ -275,7 +275,7 @@
 
 .password-field__toggle:hover {
   border-color: var(--accent);
-  color: #5eead4;
+  color: #67e8f9;
 }
 
 @media (max-width: 960px) {

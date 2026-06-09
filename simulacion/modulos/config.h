@@ -1,6 +1,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#ifndef DEMO_SENSIBLE
+#define DEMO_SENSIBLE 1
+#endif
+
 // ---------------- WiFi / Backend ----------------
 extern const char* ssid;
 extern const char* password;

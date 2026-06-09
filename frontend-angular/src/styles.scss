@@ -1,20 +1,20 @@
 :root {
   color-scheme: dark;
-  --bg: #070d18;
-  --bg-elevated: #0b1220;
-  --panel: #101827;
-  --panel-2: #0f172a;
-  --panel-3: #111827;
-  --border: #1f2937;
-  --border-strong: #334155;
+  --bg: #04111f;
+  --bg-elevated: #061826;
+  --panel: #0b2536;
+  --panel-2: #092033;
+  --panel-3: #102a3a;
+  --border: #18374a;
+  --border-strong: #28556b;
   --text: #e5e7eb;
   --text-strong: #f8fafc;
   --muted: #94a3b8;
   --muted-2: #64748b;
-  --accent: #14b8a6;
-  --accent-strong: #2dd4bf;
-  --accent-soft: rgba(20, 184, 166, 0.16);
-  --focus-ring: rgba(45, 212, 191, 0.28);
+  --accent: #00a6c8;
+  --accent-strong: #38d5e8;
+  --accent-soft: rgba(0, 166, 200, 0.16);
+  --focus-ring: rgba(56, 213, 232, 0.28);
   --shadow-panel: 0 18px 46px rgba(2, 6, 23, 0.36);
   --shadow-soft: 0 10px 28px rgba(2, 6, 23, 0.26);
   --radius-xs: 6px;
@@ -71,7 +71,7 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   background:
-    radial-gradient(circle at 14% 0%, rgba(20, 184, 166, 0.08), transparent 30%),
+    radial-gradient(circle at 14% 0%, rgba(0, 166, 200, 0.08), transparent 30%),
     radial-gradient(circle at 88% 8%, rgba(59, 130, 246, 0.06), transparent 28%),
     linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
   color: var(--text);
@@ -112,7 +112,7 @@ textarea:focus-visible {
 }
 
 ::selection {
-  background: rgba(45, 212, 191, 0.28);
+  background: rgba(56, 213, 232, 0.28);
   color: var(--text-strong);
 }
 
@@ -136,7 +136,7 @@ textarea:focus-visible {
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: #5eead4;
+  color: #67e8f9;
   font-size: var(--fs-xs);
   font-weight: 750;
   letter-spacing: 0.06em;
@@ -194,9 +194,9 @@ textarea:focus-visible {
 .primary-action,
 .submit-button,
 .alert-item__ack {
-  background: #0d9488;
+  background: #008fb0;
   color: #f8fafc;
-  border: 1px solid rgba(45, 212, 191, 0.24);
+  border: 1px solid rgba(56, 213, 232, 0.24);
   box-shadow: none;
 }
 
@@ -361,8 +361,8 @@ textarea::placeholder {
   gap: 1rem;
   padding: 0.95rem 1rem;
   border-radius: 10px;
-  background: #0b1220;
-  border: 1px solid #1f2937;
+  background: #061826;
+  border: 1px solid #18374a;
 }
 
 .command-item span {
@@ -374,8 +374,8 @@ textarea::placeholder {
   border: 1px solid rgba(94, 234, 212, 0.35);
   border-radius: 12px;
   padding: 0.8rem 1rem;
-  color: #5eead4;
-  background: linear-gradient(145deg, rgba(20, 184, 166, 0.2), rgba(15, 23, 42, 0.8));
+  color: #67e8f9;
+  background: linear-gradient(145deg, rgba(0, 166, 200, 0.2), rgba(15, 23, 42, 0.8));
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -386,8 +386,8 @@ textarea::placeholder {
 }
 
 .command-panel__wifi-action:hover {
-  border-color: #5eead4;
-  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.22);
+  border-color: #67e8f9;
+  box-shadow: 0 10px 24px rgba(0, 166, 200, 0.22);
 }
 
 .command-panel__wifi-action:disabled {
@@ -408,7 +408,7 @@ textarea::placeholder {
   border-radius: 12px;
   padding: 0.72rem 0.85rem;
   color: #cbd5e1;
-  background: #0b1220;
+  background: #061826;
   font: inherit;
   font-weight: 750;
   cursor: pointer;
@@ -420,7 +420,7 @@ textarea::placeholder {
 }
 
 .command-panel__quick-action:hover {
-  border-color: #5eead4;
+  border-color: #67e8f9;
   color: #f8fafc;
 }
 
@@ -457,10 +457,10 @@ textarea::placeholder {
   gap: 0.9rem;
   align-items: stretch;
   padding: 0.9rem;
-  border: 1px solid #1f2937;
+  border: 1px solid #18374a;
   border-left: 4px solid #64748b;
   border-radius: 12px;
-  background: #0b1220;
+  background: #061826;
 }
 
 .command-history-item[data-state='PENDIENTE'] {
@@ -490,7 +490,7 @@ textarea::placeholder {
 }
 
 .command-history-item__type {
-  color: #5eead4;
+  color: #67e8f9;
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -524,8 +524,8 @@ textarea::placeholder {
 .command-history-item__response {
   padding: 0.55rem 0.75rem;
   border-radius: 10px;
-  background: rgba(20, 184, 166, 0.1);
-  border: 1px solid rgba(20, 184, 166, 0.22);
+  background: rgba(0, 166, 200, 0.1);
+  border: 1px solid rgba(0, 166, 200, 0.22);
 }
 
 .command-history-item__response--pending {
@@ -560,9 +560,9 @@ textarea::placeholder {
 
 .wifi-modal-form__field input {
   width: 100%;
-  border: 1px solid #334155;
+  border: 1px solid #28556b;
   border-radius: 10px;
-  background: #0b1220;
+  background: #061826;
   color: var(--dash-text);
   padding: 0.72rem 0.82rem;
   font: inherit;
@@ -570,8 +570,8 @@ textarea::placeholder {
 
 .wifi-modal-form__field input:focus {
   outline: none;
-  border-color: #14b8a6;
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.2);
+  border-color: #00a6c8;
+  box-shadow: 0 0 0 2px rgba(0, 166, 200, 0.2);
 }
 
 .wifi-modal-form__field small {
@@ -583,7 +583,7 @@ textarea::placeholder {
   display: grid;
   gap: 0.55rem;
   padding: 0.75rem;
-  border: 1px solid #334155;
+  border: 1px solid #28556b;
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.72);
 }
@@ -623,15 +623,15 @@ textarea::placeholder {
   padding: 0.62rem 0.68rem;
   border: 1px solid rgba(51, 65, 85, 0.9);
   border-radius: 9px;
-  background: #0b1220;
+  background: #061826;
   color: var(--dash-text);
   cursor: pointer;
   text-align: left;
 }
 
 .wifi-network-item:hover {
-  border-color: #14b8a6;
-  background: rgba(20, 184, 166, 0.12);
+  border-color: #00a6c8;
+  background: rgba(0, 166, 200, 0.12);
 }
 
 .wifi-network-item span {
@@ -647,7 +647,7 @@ textarea::placeholder {
 
 .wifi-network-item em {
   flex: 0 0 auto;
-  color: #99f6e4;
+  color: #a5f3fc;
   font-style: normal;
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
@@ -671,14 +671,14 @@ textarea::placeholder {
 }
 
 .wifi-modal-form__ghost {
-  border-color: #334155;
+  border-color: #28556b;
   color: #cbd5e1;
-  background: #0b1220;
+  background: #061826;
 }
 
 .wifi-modal-form__submit {
   color: #042f2e;
-  background: linear-gradient(145deg, #5eead4, #99f6e4);
+  background: linear-gradient(145deg, #67e8f9, #a5f3fc);
 }
 
 .wifi-modal-form__ghost:disabled,

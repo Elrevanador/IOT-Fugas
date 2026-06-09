@@ -19,7 +19,7 @@ static int leerAdcPromediado(int pin, int muestras, unsigned int pausaUs) {
 
 static void aplicarLecturaSuavizada(SystemState &state, float nuevoFlujo, float nuevaPresion) {
   if (nuevoFlujo < 0.0f) nuevoFlujo = 0.0f;
-  if (nuevoFlujo > 5.0f) nuevoFlujo = 5.0f;
+  if (nuevoFlujo > 15.0f) nuevoFlujo = 15.0f;
   if (nuevaPresion < 0.0f) nuevaPresion = 0.0f;
   if (nuevaPresion > 690.0f) nuevaPresion = 690.0f;
 
