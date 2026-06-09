@@ -331,6 +331,7 @@ export class AdminComponent {
   readonly selectedAudit = signal<AuditItem | null>(null);
   readonly deviceCredential = signal<{ name: string; apiKey: string } | null>(null);
   readonly message = signal('Cargando consola administrativa...');
+  readonly scenePickerOpen = signal(false);
 
   readonly showHouseModal = signal(false);
   readonly showUserModal = signal(false);
@@ -488,6 +489,7 @@ export class AdminComponent {
     { id: 'states', label: 'Estados', detail: 'estado_sistema', icon: 'fa-solid fa-signal' },
     { id: 'audit', label: 'Auditoría', detail: 'auditoria_sistema', icon: 'fa-solid fa-clipboard-check' }
   ] as const;
+  readonly activeSceneConfig = computed(() => this.scenes.find((scene) => scene.id === this.activeScene()) || this.scenes[0]);
 
   readonly stats = computed(() => ({
     houses: this.houses().length,
@@ -768,6 +770,7 @@ export class AdminComponent {
     this.activeScene.set(scene);
     this.page.set(1);
     this.clearSelection();
+    this.scenePickerOpen.set(false);
   }
 
   protected updateQuery(value: string) {

@@ -62,6 +62,20 @@
       </aside>
 
       <div class="admin-workspace__content">
+      <section class="admin-mobile-scene-control" aria-label="Selector de módulo administrativo">
+        <button type="button" class="admin-scene-trigger" (click)="scenePickerOpen.set(true)">
+          <span class="admin-scene-trigger__icon">
+            <i [class]="activeSceneConfig().icon" aria-hidden="true"></i>
+          </span>
+          <span class="admin-scene-trigger__copy">
+            <span>Módulo</span>
+            <strong>{{ activeSceneConfig().label }}</strong>
+            <small>{{ activeSceneConfig().detail }}</small>
+          </span>
+          <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
+        </button>
+      </section>
+
       <section class="scene-toolbar" aria-label="Filtros de administración">
         <label class="scene-search">
           <span>Buscar</span>
@@ -789,6 +803,48 @@
     </section>
       </div>
     </section>
+
+    @if (scenePickerOpen()) {
+      <div class="admin-scene-overlay" role="dialog" aria-modal="true" aria-label="Seleccionar módulo de administración">
+        <button class="admin-scene-overlay__backdrop" type="button" (click)="scenePickerOpen.set(false)" aria-label="Cerrar selector"></button>
+        <section class="admin-scene-sheet">
+          <header class="admin-scene-sheet__header">
+            <div>
+              <span>Administración</span>
+              <strong>Selecciona un módulo</strong>
+            </div>
+            <button type="button" class="admin-scene-sheet__close" (click)="scenePickerOpen.set(false)" aria-label="Cerrar selector">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </header>
+
+          <a routerLink="/dashboard" class="admin-scene-sheet__dashboard" (click)="scenePickerOpen.set(false)">
+            <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+            <span>Dashboard</span>
+          </a>
+
+          <div class="admin-scene-sheet__list">
+            @for (scene of scenes; track scene.id) {
+              <button
+                type="button"
+                class="admin-scene-option"
+                [class.admin-scene-option--active]="activeScene() === scene.id"
+                (click)="setScene(scene.id)"
+              >
+                <i [class]="scene.icon" aria-hidden="true"></i>
+                <span>
+                  <strong>{{ scene.label }}</strong>
+                  <small>{{ scene.detail }}</small>
+                </span>
+                @if (activeScene() === scene.id) {
+                  <i class="fa-solid fa-check" aria-hidden="true"></i>
+                }
+              </button>
+            }
+          </div>
+        </section>
+      </div>
+    }
 
     <app-modal [isOpen]="showHouseModal()" [title]="editingHouse() ? 'Editar casa' : 'Nueva casa'" (close)="closeHouseModal()">
       <form class="admin-form" [formGroup]="houseForm" (ngSubmit)="submitHouse()">

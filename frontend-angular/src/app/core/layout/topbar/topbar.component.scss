@@ -12,7 +12,7 @@
   top: 0;
   z-index: 80;
   animation: fade-up 320ms ease;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .menu-button {
@@ -42,14 +42,16 @@
 
 .page-title {
   flex: 1;
-  min-width: 150px;
+  min-width: 0;
 }
 
 .page-title h1 {
   margin: 0;
   font-size: var(--fs-xl);
   color: #e5e7eb;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .page-title p {
@@ -63,7 +65,9 @@
   display: flex;
   align-items: center;
   gap: clamp(0.7rem, 1.5vw, 1rem);
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .user-card {
@@ -202,6 +206,10 @@
     height: clamp(52px, 8vh, 60px);
   }
 
+  .user-card {
+    display: none;
+  }
+
   .page-title h1 {
     font-size: var(--fs-lg);
   }
@@ -212,8 +220,13 @@
 
   .logout-button {
     font-size: clamp(0.7rem, 1.5vw, 0.75rem);
-    padding: 0 clamp(0.5rem, 1vw, 0.7rem);
+    padding: 0;
+    width: clamp(32px, 6vw, 36px);
     height: clamp(32px, 5vw, 36px);
+  }
+
+  .logout-button span {
+    display: none;
   }
 
   .menu-button {
