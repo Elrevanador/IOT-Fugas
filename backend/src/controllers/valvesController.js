@@ -2,6 +2,7 @@ const { Electrovalvula, AccionValvula, Device, House, ComandoRemoto, User } = re
 const { getUserHouseScope, isOperator } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
 const { recordAudit } = require("../services/audit");
+const { broadcastDashboardUpdate } = require("../services/dashboardStream");
 
 const VALID_MODES = ["AUTO", "MANUAL", "BLOQUEADA"];
 const VALID_ACTIONS = ["ABRIR", "CERRAR", "RESETEAR", "CAMBIAR_MODO"];
@@ -137,6 +138,8 @@ const triggerValveAction = async (req, res, next) => {
       detalle: { deviceId, modo: patch.modo, comandoId: comando?.id || null },
       req
     });
+
+    broadcastDashboardUpdate().catch(() => {});
 
     return res.json({ ok: true, valvula: valve, accion, comando });
   } catch (error) {

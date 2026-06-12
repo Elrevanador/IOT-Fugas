@@ -151,6 +151,9 @@ export interface DashboardReading {
   pressure_kpa: number;
   risk: number;
   state: 'NORMAL' | 'ALERTA' | 'FUGA' | 'ERROR' | 'SIN_DATOS';
+  ipAddress?: string | null;
+  wifiSsid?: string | null;
+  internetConnected?: boolean;
   is_anomaly?: boolean;
   processed_at?: string;
 }

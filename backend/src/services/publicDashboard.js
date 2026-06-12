@@ -69,7 +69,10 @@ const mapReading = (reading) => ({
   flow_lmin: reading.flow_lmin,
   pressure_kpa: reading.pressure_kpa,
   risk: reading.risk,
-  state: reading.state
+  state: reading.state,
+  ipAddress: reading.Device?.ip_address || null,
+  wifiSsid: reading.Device?.wifi_ssid || null,
+  internetConnected: Boolean(reading.Device?.internet_connected)
 });
 
 const mapAlert = (alert) => ({
@@ -103,7 +106,10 @@ const mapDeviceReading = (reading, device) => {
     flow_lmin: reading.flow_lmin,
     pressure_kpa: reading.pressure_kpa,
     risk: reading.risk,
-    state: reading.state
+    state: reading.state,
+    ipAddress: device.ip_address || null,
+    wifiSsid: device.wifi_ssid || null,
+    internetConnected: Boolean(device.internet_connected)
   };
 };
 

@@ -558,6 +558,19 @@ export class DashboardComponent {
     if (!valve || valve.estado === 'DESCONOCIDO') return 'Sin reporte';
     return valve.estado === 'ABIERTA' ? 'Abierta' : 'Cerrada';
   });
+  readonly contextDevice = computed(() => this.selectedDevice() || this.highlightedDevice() || this.uniqueDevices()[0] || null);
+  readonly contextWifiSsid = computed(() =>
+    this.contextDevice()?.wifiSsid || this.latestReading()?.wifiSsid || this.payload()?.latestReading?.wifiSsid || 'No reportada'
+  );
+  readonly contextIpAddress = computed(() =>
+    this.contextDevice()?.ipAddress || this.latestReading()?.ipAddress || this.payload()?.latestReading?.ipAddress || 'Sin IP'
+  );
+  readonly contextDeviceOnline = computed(() => {
+    const device = this.contextDevice();
+    if (device) return device.isOnline;
+    const latest = this.latestReading() || this.payload()?.latestReading || null;
+    return Boolean(latest?.internetConnected) && this.isOnlineAt(latest?.ts || null);
+  });
   readonly ranges: Array<{ id: TimeRange; label: string }> = [
     { id: '1h', label: '1H' },
     { id: '6h', label: '6H' },
@@ -1115,9 +1128,9 @@ export class DashboardComponent {
       lastTs: reading.ts,
       latestReading: reading,
       isOnline: this.isOnlineAt(reading.ts),
-      ipAddress: null,
-      wifiSsid: null,
-      internetConnected: this.isOnlineAt(reading.ts),
+      ipAddress: reading.ipAddress || null,
+      wifiSsid: reading.wifiSsid || null,
+      internetConnected: Boolean(reading.internetConnected ?? this.isOnlineAt(reading.ts)),
       electrovalvula: null
     };
   }

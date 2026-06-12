@@ -339,15 +339,15 @@
               </div>
               <div class="command-item">
                 <span>Dispositivo online</span>
-                <strong>{{ scopedDeviceOnline() ? 'Sí' : 'No' }}</strong>
+                <strong>{{ contextDeviceOnline() ? 'Sí' : 'No' }}</strong>
               </div>
               <div class="command-item">
                 <span>Red WiFi</span>
-                <strong>{{ selectedDevice()?.wifiSsid || highlightedDevice()?.wifiSsid || 'No reportada' }}</strong>
+                <strong>{{ contextWifiSsid() }}</strong>
               </div>
               <div class="command-item">
                 <span>IP del dispositivo</span>
-                <strong>{{ selectedDevice()?.ipAddress || highlightedDevice()?.ipAddress || 'Sin IP' }}</strong>
+                <strong>{{ contextIpAddress() }}</strong>
               </div>
               <div class="command-item">
                 <span>Último paquete</span>
