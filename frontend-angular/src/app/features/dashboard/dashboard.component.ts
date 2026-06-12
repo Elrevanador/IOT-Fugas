@@ -553,6 +553,11 @@ export class DashboardComponent {
     if (this.transport() === 'snapshot') return 'Modo respaldo';
     return 'Sin conexion';
   });
+  readonly valveStateLabel = computed(() => {
+    const valve = this.selectedDevice()?.electrovalvula || this.highlightedDevice()?.electrovalvula || this.uniqueDevices()[0]?.electrovalvula || null;
+    if (!valve || valve.estado === 'DESCONOCIDO') return 'Sin reporte';
+    return valve.estado === 'ABIERTA' ? 'Abierta' : 'Cerrada';
+  });
   readonly ranges: Array<{ id: TimeRange; label: string }> = [
     { id: '1h', label: '1H' },
     { id: '6h', label: '6H' },

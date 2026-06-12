@@ -100,6 +100,17 @@
               ›
             </button>
           </div>
+          <div class="dashboard-top-actions">
+            <button
+              type="button"
+              class="dashboard-top-action"
+              [disabled]="!wifiCommandDevice()"
+              (click)="openWifiModal()"
+            >
+              <i class="fa-solid fa-router" aria-hidden="true"></i>
+              Cambiar WiFi
+            </button>
+          </div>
         </div>
       </section>
 
@@ -122,6 +133,10 @@
         <div>
           <span>Enlace</span>
           <strong>{{ scopedDeviceOnline() ? 'Online' : 'Observación' }}</strong>
+        </div>
+        <div>
+          <span>Electroválvula</span>
+          <strong>{{ valveStateLabel() }}</strong>
         </div>
         <div>
           <span>Último paquete</span>
@@ -343,15 +358,6 @@
                 <strong>{{ activeAlerts().length }}</strong>
               </div>
             </div>
-            <button
-              type="button"
-              class="command-panel__wifi-action"
-              [disabled]="!wifiCommandDevice()"
-              (click)="openWifiModal()"
-            >
-              <i class="fa-solid fa-router" aria-hidden="true"></i>
-              Cambiar WiFi del dispositivo
-            </button>
             <div class="command-panel__actions">
               <button type="button" class="command-panel__quick-action" [disabled]="!wifiCommandDevice()" (click)="sendValveAction('ABRIR')">
                 <i class="fa-solid fa-toggle-on" aria-hidden="true"></i>

@@ -277,7 +277,7 @@ h2 {
 
 .dashboard-control-row {
   display: grid;
-  grid-template-columns: clamp(4rem, 15vw, 5.5rem) minmax(0, 1fr);
+  grid-template-columns: clamp(4rem, 15vw, 5.5rem) minmax(0, 1fr) auto;
   gap: clamp(0.5rem, 1vw, 0.7rem);
   align-items: center;
   min-width: 0;
@@ -297,6 +297,40 @@ h2 {
   gap: 0.45rem;
   align-items: center;
   min-width: 0;
+}
+
+.dashboard-top-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.dashboard-top-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(103, 232, 249, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 47, 73, 0.78);
+  color: #cffafe;
+  font-size: var(--fs-sm);
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.dashboard-top-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.72);
+  background: rgba(14, 116, 144, 0.38);
+}
+
+.dashboard-top-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .dashboard-tabs__viewport {
@@ -884,7 +918,7 @@ h2 {
 
 .operational-summary__metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
   min-width: 0;
 }
@@ -1291,6 +1325,10 @@ pre {
     grid-template-columns: minmax(12rem, 13.5rem) minmax(0, 1fr);
   }
 
+  .operational-summary__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .metrics-grid,
   .skeleton-grid,
   .hardware-grid,
@@ -1335,6 +1373,15 @@ pre {
   .dashboard-control-row,
   .dashboard-tabs__rail {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-top-actions {
+    justify-content: stretch;
+    min-width: 0;
+  }
+
+  .dashboard-top-action {
+    width: 100%;
   }
 
   .dashboard-control-label {
