@@ -17,6 +17,26 @@ static int leerAdcPromediado(int pin, int muestras, unsigned int pausaUs) {
   return (int)(suma / muestras);
 }
 
+static float calcularPresionVirtualPorFlujo(float flujoLmin) {
+  float ratioFuga = limitarPresion(
+    (flujoLmin - DEMO_FLUJO_NORMAL_LMIN) /
+    (DEMO_FLUJO_FUGA_LMIN - DEMO_FLUJO_NORMAL_LMIN),
+    0.0f,
+    1.0f
+  );
+  float presion = DEMO_PRESION_VIRTUAL_MAX_KPA -
+                  ratioFuga * (DEMO_PRESION_VIRTUAL_MAX_KPA - DEMO_PRESION_VIRTUAL_MIN_KPA);
+  float ondulacion = sin(millis() / 700.0f) * 0.6f;
+
+  if (flujoLmin <= 0.15f) {
+    presion = DEMO_PRESION_VIRTUAL_MAX_KPA + ondulacion;
+  } else {
+    presion += ondulacion;
+  }
+
+  return limitarPresion(presion, DEMO_PRESION_VIRTUAL_MIN_KPA, DEMO_PRESION_VIRTUAL_MAX_KPA);
+}
+
 static void aplicarLecturaSuavizada(SystemState &state, float nuevoFlujo, float nuevaPresion) {
   if (nuevoFlujo < 0.0f) nuevoFlujo = 0.0f;
   if (nuevoFlujo > 15.0f) nuevoFlujo = 15.0f;
@@ -90,10 +110,13 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   if (pressurePsi < PRESSURE_DEAD_ZONE_PSI) {
     pressurePsi = 0.0f;
   }
-  float nuevaPresion = pressurePsi * 6.89476f;
+  float presionRealKPa = pressurePsi * 6.89476f;
+  float presionVirtualKPa = calcularPresionVirtualPorFlujo(nuevoFlujo);
+  float nuevaPresion = DEMO_PRESION_VIRTUAL_DESDE_FLUJO ? presionVirtualKPa : presionRealKPa;
 
-  state.sensorOK = sensorVoltage >= (PRESSURE_SENSOR_MIN_V - 0.05f) &&
-                   sensorVoltage <= (PRESSURE_SENSOR_MAX_V + 0.05f);
+  state.sensorOK = DEMO_PRESION_VIRTUAL_DESDE_FLUJO ||
+                   (sensorVoltage >= (PRESSURE_SENSOR_MIN_V - 0.05f) &&
+                    sensorVoltage <= (PRESSURE_SENSOR_MAX_V + 0.05f));
 
   aplicarLecturaSuavizada(state, nuevoFlujo, nuevaPresion);
 
@@ -106,6 +129,7 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   Serial.print("Pot presion (%): ");      Serial.println(pressurePercent);
   Serial.print("V transductor: ");        Serial.println(sensorVoltage, 2);
   Serial.print("Presion (PSI): ");        Serial.println(pressurePsi, 2);
+  Serial.print("Presion virtual (kPa): "); Serial.println(presionVirtualKPa, 2);
   Serial.print("Flujo real detectado: "); Serial.println(state.flujoRealDetectado ? "SI" : "NO");
   Serial.print("Flujo (L/min): ");        Serial.println(state.flujoLmin, 2);
   Serial.print("Presion (kPa): ");        Serial.println(state.presionKPa, 2);

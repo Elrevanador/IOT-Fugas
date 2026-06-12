@@ -160,6 +160,7 @@ export class DashboardComponent {
   private readonly toast = inject(ToastService);
   private reconnectTimer: number | null = null;
   private lastCriticalToastKey = '';
+  private lastCommandHistoryRefreshAt = 0;
 
   readonly payload = signal<DashboardPayload | null>(null);
   readonly isLoading = signal(true);
@@ -1225,7 +1226,15 @@ export class DashboardComponent {
     this.payload.set(payload);
     this.ensureSelectedDeviceIsVisible();
     this.notifyCriticalPayload(payload);
+    this.refreshCommandHistoryFromLivePayload();
     queueMicrotask(() => this.updateDeviceTabsScrollState());
+  }
+
+  private refreshCommandHistoryFromLivePayload() {
+    const now = Date.now();
+    if (this.commandsLoading() || now - this.lastCommandHistoryRefreshAt < 5000) return;
+    this.lastCommandHistoryRefreshAt = now;
+    void this.loadCommandHistory(false);
   }
 
   private updateDeviceWifiLocally(deviceId: number, wifiSsid: string) {

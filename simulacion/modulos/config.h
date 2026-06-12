@@ -48,5 +48,10 @@ extern const float PRESSURE_SENSOR_MIN_V;
 extern const float PRESSURE_SENSOR_MAX_V;
 extern const float PRESSURE_DIVIDER_FACTOR;
 extern const float PRESSURE_DEAD_ZONE_PSI;
+extern const bool DEMO_PRESION_VIRTUAL_DESDE_FLUJO;
+extern const float DEMO_PRESION_VIRTUAL_MAX_KPA;
+extern const float DEMO_PRESION_VIRTUAL_MIN_KPA;
+extern const float DEMO_FLUJO_NORMAL_LMIN;
+extern const float DEMO_FLUJO_FUGA_LMIN;
 
 #endif

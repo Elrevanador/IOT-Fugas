@@ -147,6 +147,107 @@ const hasSustainedLeak = async (deviceId, config, now, { transaction } = {}) => 
   }
 };
 
+const ensureAutoCloseCommand = async ({ device, incidente, now, transaction }) => {
+  const existingCommand = await ComandoRemoto.findOne({
+    where: {
+      device_id: device.id,
+      tipo: "CERRAR_VALVULA",
+      estado: { [Op.in]: ["PENDIENTE", "ENVIADO"] }
+    },
+    transaction
+  });
+
+  if (existingCommand) return false;
+
+  const [valvula] = await Electrovalvula.findOrCreate({
+    where: { device_id: device.id },
+    defaults: { device_id: device.id, estado: "DESCONOCIDO", modo: "AUTO" },
+    transaction
+  });
+
+  const accion = modelApiAvailable(AccionValvula, ["create"])
+    ? await AccionValvula.create(
+        {
+          valvula_id: valvula.id,
+          user_id: null,
+          tipo: "CERRAR",
+          origen: "AUTO_FUGA",
+          estado_resultado: "PENDIENTE",
+          ts: now,
+          detalle: `Auto-cierre por incidente #${incidente.id}`
+        },
+        { transaction }
+      )
+    : null;
+
+  await ComandoRemoto.create(
+    {
+      device_id: device.id,
+      user_id: null,
+      tipo: "CERRAR_VALVULA",
+      payload: { motivo: "auto_cierre_por_fuga", incidente_id: incidente.id, accion_id: accion?.id || null },
+      estado: "PENDIENTE",
+      prioridad: "CRITICA"
+    },
+    { transaction }
+  );
+
+  return true;
+};
+
+const openIncidentFromReading = async ({ device, reading, config, now, reason, transaction }) => {
+  const incidente = await IncidenteFuga.create(
+    {
+      device_id: device.id,
+      detected_at: now,
+      flow_promedio_lmin: Number(reading.flow_lmin) || 0,
+      duracion_minutos: 1,
+      volumen_estimado_l: Number(reading.flow_lmin) || 0,
+      estado: "ABIERTO",
+      umbral_flow_lmin: config.umbral_flow_lmin,
+      ventana_minutos: config.ventana_minutos
+    },
+    { transaction }
+  );
+
+  const existingAlert = await Alert.findOne({
+    where: {
+      device_id: device.id,
+      severity: "FUGA",
+      acknowledged: false
+    },
+    transaction
+  });
+
+  if (!existingAlert) {
+    await Alert.create(
+      {
+        device_id: device.id,
+        ts: now,
+        severity: "FUGA",
+        tipo: "FUGA",
+        message: `${reason} | Flujo ${Number(reading.flow_lmin || 0).toFixed(2)} L/min | Riesgo ${reading.risk}`,
+        incidente_id: incidente.id,
+        acknowledged: false
+      },
+      { transaction }
+    );
+  }
+
+  await EstadoSistema.create(
+    {
+      device_id: device.id,
+      ts: now,
+      estado: "FUGA",
+      motivo: reason,
+      metadata: { incidente_id: incidente.id, flow: Number(reading.flow_lmin) || 0, risk: reading.risk }
+    },
+    { transaction }
+  );
+
+  return incidente;
+};
+
 /**
  * Pipeline completo de deteccion llamado tras crear una lectura.
  * - Abre incidente si hay fuga sostenida y no hay uno ABIERTO.
@@ -168,6 +269,23 @@ const runLeakDetection = async ({ device, reading, transaction }) => {
     where: { device_id: device.id, estado: "ABIERTO" },
     transaction
   });
+
+  if (reading.state === "FUGA") {
+    const incidente = openIncident || await openIncidentFromReading({
+      device,
+      reading,
+      config,
+      now,
+      reason: "Fuga reportada por dispositivo",
+      transaction
+    });
+
+    const commandQueued = config.auto_cierre_valvula
+      ? await ensureAutoCloseCommand({ device, incidente, now, transaction })
+      : false;
+
+    return { incidente, commandQueued, reportedByDevice: true };
+  }
 
   const sustained = await hasSustainedLeak(device.id, config, now, { transaction });
 
@@ -211,41 +329,9 @@ const runLeakDetection = async ({ device, reading, transaction }) => {
       { transaction }
     );
 
-    let commandQueued = false;
-    if (config.auto_cierre_valvula) {
-      const [valvula] = await Electrovalvula.findOrCreate({
-        where: { device_id: device.id },
-        defaults: { device_id: device.id, estado: "DESCONOCIDO", modo: "AUTO" },
-        transaction
-      });
-      const accion = modelApiAvailable(AccionValvula, ["create"])
-        ? await AccionValvula.create(
-            {
-              valvula_id: valvula.id,
-              user_id: null,
-              tipo: "CERRAR",
-              origen: "AUTO_FUGA",
-              estado_resultado: "PENDIENTE",
-              ts: now,
-              detalle: `Auto-cierre por incidente #${incidente.id}`
-            },
-            { transaction }
-          )
-        : null;
-
-      await ComandoRemoto.create(
-        {
-          device_id: device.id,
-          user_id: null,
-          tipo: "CERRAR_VALVULA",
-          payload: { motivo: "auto_cierre_por_fuga", incidente_id: incidente.id, accion_id: accion?.id || null },
-          estado: "PENDIENTE",
-          prioridad: "CRITICA"
-        },
-        { transaction }
-      );
-      commandQueued = true;
-    }
+    const commandQueued = config.auto_cierre_valvula
+      ? await ensureAutoCloseCommand({ device, incidente, now, transaction })
+      : false;
 
     await recordAudit({
       entidad: "IncidenteFuga",

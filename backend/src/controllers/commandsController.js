@@ -1,8 +1,9 @@
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 const { ComandoRemoto, RespuestaComando, Device, House, Electrovalvula, AccionValvula } = require("../models");
 const { getUserHouseScope, isOperator } = require("../middlewares/authorize");
 const { resolvePagination } = require("../utils/pagination");
 const { recordAudit } = require("../services/audit");
+const { broadcastDashboardUpdate } = require("../services/dashboardStream");
 const logger = require("../utils/logger");
 
 const VALID_TYPES = [
@@ -19,6 +20,7 @@ const VALID_ESTADOS = ["PENDIENTE", "ENVIADO", "EJECUTADO", "ERROR", "EXPIRADO"]
 const MAX_PAYLOAD_SIZE = 10000; // 10KB máximo para payload
 const MAX_MENSAJE_LENGTH = 255;
 const MAX_CODIGO_RESULTADO_LENGTH = 40;
+const COMMAND_DELIVERY_TIMEOUT_MS = 30000;
 
 const ensureHouseScope = async (req, deviceId) => {
   const device = await Device.findByPk(deviceId, { attributes: ["id", "name", "house_id"] });
@@ -254,6 +256,10 @@ const createCommand = async (req, res, next) => {
       tipo
     });
 
+    broadcastDashboardUpdate().catch((error) => {
+      logger.warn("Dashboard broadcast falló tras crear comando", { comandoId: comando.id, error: error.message });
+    });
+
     return res.status(201).json({ ok: true, comando });
   } catch (error) {
     logger.error("Error creando comando", {
@@ -278,6 +284,7 @@ const pollPendingCommandsForDevice = async (req, res, next) => {
     }
 
     const now = new Date();
+    const staleSentBefore = new Date(now.getTime() - COMMAND_DELIVERY_TIMEOUT_MS);
     await ComandoRemoto.update(
       { estado: "EXPIRADO" },
       {
@@ -285,6 +292,30 @@ const pollPendingCommandsForDevice = async (req, res, next) => {
           device_id: device.id,
           estado: "PENDIENTE",
           expires_at: { [Op.lte]: now }
+        }
+      }
+    );
+
+    const staleSentCommands = await ComandoRemoto.findAll({
+      where: {
+        device_id: device.id,
+        estado: "ENVIADO",
+        sent_at: { [Op.lte]: staleSentBefore },
+        retry_count: { [Op.lt]: Sequelize.col("max_retries") },
+        [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: now } }]
+      }
+    });
+
+    await Promise.all(staleSentCommands.map((c) => c.update({ estado: "PENDIENTE" })));
+
+    await ComandoRemoto.update(
+      { estado: "EXPIRADO" },
+      {
+        where: {
+          device_id: device.id,
+          estado: "ENVIADO",
+          sent_at: { [Op.lte]: staleSentBefore },
+          retry_count: { [Op.gte]: Sequelize.col("max_retries") }
         }
       }
     );
@@ -304,7 +335,13 @@ const pollPendingCommandsForDevice = async (req, res, next) => {
 
     // Marca los comandos como ENVIADO
     await Promise.all(
-      pending.map((c) => c.update({ estado: "ENVIADO", sent_at: now }))
+      pending.map((c) =>
+        c.update({
+          estado: "ENVIADO",
+          sent_at: now,
+          retry_count: Number(c.retry_count || 0) + 1
+        })
+      )
     );
 
     return res.json({ ok: true, comandos: pending });
@@ -413,6 +450,10 @@ const submitCommandResponse = async (req, res, next) => {
       respuestaId: respuesta.id,
       comandoId,
       estado: nuevoEstado
+    });
+
+    broadcastDashboardUpdate().catch((error) => {
+      logger.warn("Dashboard broadcast falló tras responder comando", { comandoId, error: error.message });
     });
 
     return res.status(201).json({ ok: true, respuesta, comando });

@@ -21,8 +21,8 @@ int calcularRiesgoContinuo(float flujo, float presion, bool sensorOK) {
   float scoreFlujo;
   float scorePres;
 #if DEMO_SENSIBLE
-  scoreFlujo = limitarFloat((flujo - 9.0) / (14.0 - 9.0), 0.0, 1.0);
-  scorePres  = limitarFloat((35.0 - presion) / (35.0 - 12.0), 0.0, 1.0);
+  scoreFlujo = limitarFloat((flujo - 3.8) / (7.5 - 3.8), 0.0, 1.0);
+  scorePres  = limitarFloat((20.0 - presion) / (20.0 - 12.0), 0.0, 1.0);
 #else
   scoreFlujo = limitarFloat((flujo - 0.6) / (2.8 - 0.6), 0.0, 1.0);
   scorePres  = limitarFloat((300.0 - presion) / (300.0 - 170.0), 0.0, 1.0);
@@ -57,6 +57,17 @@ EstadoSistema evaluarEstado(
   bool presionCritica = presionKPa <= UMBRAL_CRITICO_PRES;
   static int contadorSinFlujo = 0;
   static bool demoSistemaPresurizado = false;
+
+  if (DEMO_SENSIBLE &&
+      flujoLmin <= UMBRAL_REPOSO_FLUJO_DEMO_MAX &&
+      presionKPa >= UMBRAL_REPOSO_PRES_DEMO_MIN) {
+    contadorAlerta = 0;
+    contadorCritico = 0;
+    contadorSinFlujo = 0;
+    nivelRiesgo = 0;
+    return ESTADO_NORMAL;
+  }
+
   if (DEMO_SENSIBLE && flujoLmin <= UMBRAL_SIN_PASO_FLUJO_MAX) {
     contadorAlerta = 0;
     contadorCritico = 0;

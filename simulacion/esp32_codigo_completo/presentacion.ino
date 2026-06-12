@@ -76,7 +76,7 @@ const unsigned long SENSOR_READ_INTERVAL_MS        = 500;
 const unsigned long BACKEND_SEND_INTERVAL_MS       = 2000;
 const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
 const unsigned long BACKEND_TIMEOUT_MS             = 5000;
-const unsigned long ALERTA_A_FUGA_TIMEOUT_MS       = 8000;
+const unsigned long ALERTA_A_FUGA_TIMEOUT_MS       = 30000;
 
 // ---- Pines (actualizados según tu asignación) ----
 const int flowPin    = 27;
@@ -104,6 +104,22 @@ const float DEMO_PRESION_MIN_FLUJO_ESTIMADO_KPA      = 10.0f;
 const float DEMO_PRESION_MAX_FLUJO_ESTIMADO_KPA      = 180.0f;
 const float DEMO_FLUJO_ESTIMADO_MIN_LMIN             = 0.60f;
 const float DEMO_FLUJO_ESTIMADO_MAX_LMIN             = 1.80f;
+
+// Demo fisica con bomba PF338:
+// La bomba puede generar flujo real aunque el transductor de presion este en
+// cero, sin agua suficiente en la linea o desconectado. Para la presentacion
+// no marcamos ERROR solo por P=0 si el YF-S201 esta midiendo caudal real.
+const bool  PF338_SIMULAR_PRESION_EN_DEMO             = true;
+const bool  PF338_PRESION_OPCIONAL_EN_DEMO            = true;
+const float PF338_FLUJO_REAL_MIN_LMIN                 = 0.25f;
+const float PF338_FUGA_FLUJO_BAJO_LMIN                = 0.90f;
+const float PF338_FLUJO_NORMAL_MIN_LMIN               = 1.20f;
+const unsigned long PF338_ALERTA_A_FUGA_MS            = 8000;
+const float PF338_PRESION_VIRTUAL_REPOSO_KPA          = 28.0f;
+const float PF338_PRESION_VIRTUAL_NORMAL_ALTA_KPA     = 24.0f;
+const float PF338_PRESION_VIRTUAL_NORMAL_BAJA_KPA     = 20.0f;
+const float PF338_PRESION_VIRTUAL_ALERTA_KPA          = 16.0f;
+const float PF338_PRESION_VIRTUAL_FUGA_KPA            = 9.0f;
 
 // ===================== ESTADO Y LÓGICA =====================
 enum EstadoSistema {
@@ -168,6 +184,8 @@ struct SystemState {
   //         LECTURAS_ARRANQUE lecturas estables o haya visto presión real.
   int  lecturasArranque      = 0;
   bool sistemaCalibrado      = false;
+  unsigned long lastBackoffAttempt        = 0;
+  unsigned long lastCommandBackoffAttempt = 0;
 };
 
 static String wifiSSID;
@@ -230,6 +248,45 @@ EstadoSistema evaluarEstado(SystemState &state) {
   bool flujoAnomalo  = flujoLmin >= UMBRAL_ALERTA_FLUJO_IN;
   bool flujoCritico  = flujoLmin >= UMBRAL_CRITICO_FLUJO;
   bool presionCritica= presionKPa <= UMBRAL_CRITICO_PRES;
+
+  if (PF338_SIMULAR_PRESION_EN_DEMO) {
+    bool flujoNormalPF338 = flujoLmin >= PF338_FLUJO_NORMAL_MIN_LMIN;
+    bool flujoBajoAnormal = flujoLmin >= PF338_FLUJO_REAL_MIN_LMIN &&
+                            flujoLmin < PF338_FLUJO_NORMAL_MIN_LMIN;
+
+    if (flujoNormalPF338 || flujoLmin < PF338_FLUJO_REAL_MIN_LMIN) {
+      state.contadorAlerta = 0;
+      state.contadorCritico = 0;
+      state.contadorSinFlujo = 0;
+      state.nivelRiesgo = min(state.nivelRiesgo, 15);
+      state.alertaPersistenteActiva = false;
+      state.alertaInicioMs = 0;
+      return ESTADO_NORMAL;
+    }
+
+    if (flujoBajoAnormal) {
+      if (!state.alertaPersistenteActiva) {
+        state.alertaPersistenteActiva = true;
+        state.alertaInicioMs = millis();
+      }
+
+      unsigned long alertaMs = millis() - state.alertaInicioMs;
+      state.contadorAlerta = min(state.contadorAlerta + 1, 10);
+      state.nivelRiesgo = max(state.nivelRiesgo, 60);
+
+      if (alertaMs >= PF338_ALERTA_A_FUGA_MS) {
+        state.contadorCritico = min(state.contadorCritico + 1, 10);
+        state.nivelRiesgo = max(state.nivelRiesgo, 90);
+        state.valvulaAbierta = false;
+        state.alertaPersistenteActiva = false;
+        state.alertaInicioMs = 0;
+        return ESTADO_FUGA;
+      }
+
+      state.contadorCritico = 0;
+      return ESTADO_ALERTA;
+    }
+  }
 
   // FIX #4: el sistema se considera "calibrado" cuando ha acumulado
   //         8 lecturas sin flujo ni presión anómalos, O cuando detecta
@@ -337,22 +394,22 @@ EstadoSistema evaluarEstado(SystemState &state) {
 }
 
 void aplicarFugaPorAlertaPersistente(SystemState &state, unsigned long now) {
+  if (PF338_SIMULAR_PRESION_EN_DEMO) {
+    return;
+  }
+
   if (state.estadoSistema == ESTADO_ALERTA) {
     if (!state.alertaPersistenteActiva) {
       state.alertaPersistenteActiva = true;
       state.alertaInicioMs = now;
     }
-#ifdef DEBUG_SERIAL
-    Serial.print("Alerta sostenida (s): ");
-    Serial.print((now - state.alertaInicioMs) / 1000);
-    Serial.print(" / ");
-    Serial.println(ALERTA_A_FUGA_TIMEOUT_MS / 1000);
-#endif
     if (now - state.alertaInicioMs >= ALERTA_A_FUGA_TIMEOUT_MS) {
       state.estadoSistema   = ESTADO_FUGA;
       state.contadorCritico = max(state.contadorCritico, LECTURAS_CRITICAS_REQUERIDAS);
       state.nivelRiesgo     = max(state.nivelRiesgo, 90);
       state.valvulaAbierta  = false;
+      state.alertaPersistenteActiva = false;
+      state.alertaInicioMs = 0;
       return;
     }
   } else if (state.estadoSistema == ESTADO_NORMAL || state.estadoSistema == ESTADO_ERROR) {
@@ -479,7 +536,12 @@ static void conectarWiFi() {
   oled.setCursor(0, 40); oled.print("Clave: "); oled.print(WIFI_MANAGER_AP_PASSWORD);
   oled.display();
 
+  // WiFiManager puede bloquear la loopTask durante el portal/configuracion.
+  // En demo fisica evitamos que el watchdog reinicie el ESP32 en ese tramo.
+  esp_task_wdt_delete(NULL);
   bool conectado = wm.autoConnect(WIFI_MANAGER_AP_NAME, WIFI_MANAGER_AP_PASSWORD);
+  esp_task_wdt_add(NULL);
+  esp_task_wdt_reset();
   if (!conectado && WiFi.status() != WL_CONNECTED) {
     Serial.println("No se pudo configurar WiFi. Reiniciando...");
     delay(1000);
@@ -673,15 +735,14 @@ void enviarBackend(SystemState &state) {
     return;
   }
   if (s_backoffMs > 0) {
-    static unsigned long lastBackoffAttempt = 0;
     unsigned long now = millis();
-    if (now - lastBackoffAttempt < s_backoffMs) {
+    if (now - state.lastBackoffAttempt < s_backoffMs) {
 #ifdef DEBUG_SERIAL
       Serial.print("Backoff activo: esperando "); Serial.print(s_backoffMs); Serial.println(" ms.");
 #endif
       return;
     }
-    lastBackoffAttempt = now;
+    state.lastBackoffAttempt = now;
   }
 
   WiFiClient client;
@@ -714,6 +775,7 @@ void enviarBackend(SystemState &state) {
   appendField("\"pressure_kpa\":"       + String(state.presionKPa, 2));
   appendField("\"risk\":"               + String(state.nivelRiesgo));
   appendField("\"state\":\""            + estadoTexto(state.estadoSistema) + "\"");
+  appendField("\"valveState\":\""       + String(state.valvulaAbierta ? "ABIERTA" : "CERRADA") + "\"");
   payload += "}";
 
   String signature = calcularHMAC(payload, HMAC_SECRET_KEY);
@@ -880,15 +942,14 @@ static bool responderComandoBackend(SystemState &state, unsigned long commandId,
 void consultarComandosBackend(SystemState &state) {
   if (!asegurarWiFi()) return;
   if (s_commandBackoffMs > 0) {
-    static unsigned long lastCommandBackoffAttempt = 0;
     unsigned long now = millis();
-    if (now - lastCommandBackoffAttempt < s_commandBackoffMs) {
+    if (now - state.lastCommandBackoffAttempt < s_commandBackoffMs) {
 #ifdef DEBUG_SERIAL
       Serial.print("Backoff comandos activo: esperando "); Serial.print(s_commandBackoffMs); Serial.println(" ms.");
 #endif
       return;
     }
-    lastCommandBackoffAttempt = now;
+    state.lastCommandBackoffAttempt = now;
   }
 
   WiFiClient client;
@@ -969,6 +1030,47 @@ static int leerAdcPromediado(int pin, int muestras, unsigned int pausaUs) {
   return (int)(suma / muestras);
 }
 
+static float calcularPresionVirtualPF338(float flujoLmin, bool valvulaAbierta) {
+  float ondulacion = sin(millis() / 900.0f) * 0.8f;
+
+  if (!valvulaAbierta) {
+    return 0.0f;
+  }
+
+  if (flujoLmin <= 0.15f) {
+    return PF338_PRESION_VIRTUAL_REPOSO_KPA + ondulacion;
+  }
+
+  float presion;
+  if (flujoLmin < PF338_FLUJO_REAL_MIN_LMIN) {
+    presion = PF338_PRESION_VIRTUAL_REPOSO_KPA;
+  } else if (flujoLmin <= PF338_FUGA_FLUJO_BAJO_LMIN) {
+    float ratio = limitarFloat(
+      (flujoLmin - PF338_FLUJO_REAL_MIN_LMIN) /
+      (PF338_FUGA_FLUJO_BAJO_LMIN - PF338_FLUJO_REAL_MIN_LMIN),
+      0.0f,
+      1.0f
+    );
+    presion = PF338_PRESION_VIRTUAL_ALERTA_KPA -
+              ratio * (PF338_PRESION_VIRTUAL_ALERTA_KPA - PF338_PRESION_VIRTUAL_FUGA_KPA);
+  } else if (flujoLmin < PF338_FLUJO_NORMAL_MIN_LMIN) {
+    float ratio = limitarFloat(
+      (flujoLmin - PF338_FUGA_FLUJO_BAJO_LMIN) /
+      (PF338_FLUJO_NORMAL_MIN_LMIN - PF338_FUGA_FLUJO_BAJO_LMIN),
+      0.0f,
+      1.0f
+    );
+    presion = PF338_PRESION_VIRTUAL_ALERTA_KPA +
+              ratio * (PF338_PRESION_VIRTUAL_NORMAL_ALTA_KPA - PF338_PRESION_VIRTUAL_ALERTA_KPA);
+  } else {
+    float ratio = limitarFloat((flujoLmin - PF338_FLUJO_NORMAL_MIN_LMIN) / 1.5f, 0.0f, 1.0f);
+    presion = PF338_PRESION_VIRTUAL_NORMAL_ALTA_KPA -
+              ratio * (PF338_PRESION_VIRTUAL_NORMAL_ALTA_KPA - PF338_PRESION_VIRTUAL_NORMAL_BAJA_KPA);
+  }
+
+  return limitarFloat(presion + ondulacion, PF338_PRESION_VIRTUAL_FUGA_KPA, PF338_PRESION_VIRTUAL_REPOSO_KPA + 2.0f);
+}
+
 void initSensores(SystemState &state) {
   pinMode(pressurePin, INPUT);
   analogReadResolution(12);
@@ -1012,6 +1114,13 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   float pressurePsi    = limitarFloat(pressureRatio, 0.0f, 1.0f) * PRESSURE_SENSOR_MAX_PSI;
   if (pressurePsi < PRESSURE_DEAD_ZONE_PSI) pressurePsi = 0.0f;
   float nuevaPresion   = pressurePsi * 6.89476f;
+  bool presionDisponible = nuevaPresion > 1.0f;
+  bool flujoRealPF338 = flujoPorPulsos >= PF338_FLUJO_REAL_MIN_LMIN ||
+                        state.flujoRealDetectado;
+  float presionVirtualPF338 = calcularPresionVirtualPF338(
+    nuevoFlujo,
+    state.valvulaAbierta
+  );
 
   float flujoEstimadoDemo = 0.0f;
   if (DEMO_ESTIMAR_FLUJO_SIN_PULSOS &&
@@ -1030,6 +1139,18 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
 
   state.sensorOK = sensorVoltage >= (PRESSURE_SENSOR_MIN_V - 0.05f) &&
                    sensorVoltage <= (PRESSURE_SENSOR_MAX_V + 0.05f);
+
+  if (PF338_SIMULAR_PRESION_EN_DEMO && !presionDisponible) {
+    // Para la presentacion con PF338, la presion se simula si el transductor
+    // esta en cero. Asi el sistema puede mostrar reposo presurizado, flujo
+    // normal y caida de presion por fuga sin depender del sensor fisico.
+    nuevaPresion = presionVirtualPF338;
+    state.sensorOK = true;
+  } else if (PF338_PRESION_OPCIONAL_EN_DEMO && flujoRealPF338 && !presionDisponible) {
+    // Respaldo: si hay flujo real, nunca bloqueamos la demo solo por P=0.
+    nuevaPresion = PF338_PRESION_VIRTUAL_NORMAL_BAJA_KPA;
+    state.sensorOK = true;
+  }
 
   nuevoFlujo   = limitarFloat(nuevoFlujo,   0.0f,  15.0f);
   nuevaPresion = limitarFloat(nuevaPresion, 0.0f, 690.0f);
@@ -1058,6 +1179,20 @@ void readSensores(SystemState &state, unsigned long sampleIntervalMs) {
   Serial.print("Pot presion (%): ");           Serial.println(pressurePercent);
   Serial.print("V transductor: ");             Serial.println(sensorVoltage, 2);
   Serial.print("Presion (PSI): ");             Serial.println(pressurePsi, 2);
+  Serial.print("Presion real disponible: ");   Serial.println(presionDisponible ? "SI" : "NO");
+  Serial.print("Presion virtual PF338 (kPa): "); Serial.println(presionVirtualPF338, 2);
+  Serial.print("Modo PF338 simula presion: "); Serial.println(PF338_SIMULAR_PRESION_EN_DEMO ? "SI" : "NO");
+  Serial.print("PF338 rangos bajo/normal: <=");
+  Serial.print(PF338_FUGA_FLUJO_BAJO_LMIN, 2);
+  Serial.print(" fuga, ");
+  Serial.print(PF338_FUGA_FLUJO_BAJO_LMIN, 2);
+  Serial.print("-");
+  Serial.print(PF338_FLUJO_NORMAL_MIN_LMIN, 2);
+  Serial.print(" alerta, >=");
+  Serial.print(PF338_FLUJO_NORMAL_MIN_LMIN, 2);
+  Serial.println(" normal");
+  Serial.print("PF338 fuga tras alerta (s): ");
+  Serial.println(PF338_ALERTA_A_FUGA_MS / 1000);
   Serial.print("Flujo real detectado: ");      Serial.println(state.flujoRealDetectado ? "SI" : "NO");
   Serial.print("Flujo (L/min): ");             Serial.println(state.flujoLmin, 2);
   Serial.print("Presion (kPa): ");             Serial.println(state.presionKPa, 2);
@@ -1131,7 +1266,9 @@ static void leerPulsadorValvula(SystemState &state) {
 void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
   leerPulsadorValvula(state);
 
-  if (state.estadoSistema == ESTADO_FUGA) state.valvulaAbierta = false;
+  if (state.estadoSistema == ESTADO_FUGA) {
+    state.valvulaAbierta = false;
+  }
 
   digitalWrite(relayPin,          state.valvulaAbierta ? HIGH : LOW);
   digitalWrite(valveIndicatorPin, state.valvulaAbierta ? HIGH : LOW);
@@ -1200,54 +1337,197 @@ void initDisplay(Adafruit_SSD1306 &display, const SystemState &state) {
   Serial.println("OLED OK");
 }
 
-void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigned long &lastDisplayUpdate) {
-  static int  ultimoEstado      = -1;
-  static int  ultimoRiesgo      = -1;
-  static int  ultimoFlujo10     = -1;
-  static int  ultimaPresion     = -1;
-  static bool ultimoSensorOK    = true;
-  static bool ultimoBackendOnline = false;
-  static bool ultimaValvula     = false;
+static void oledRoundRect(Adafruit_SSD1306 &d, int x, int y, int w, int h) {
+  d.drawRoundRect(x, y, w, h, 2, SSD1306_WHITE);
+}
 
+static void oledRoundRectFill(Adafruit_SSD1306 &d, int x, int y, int w, int h) {
+  d.fillRoundRect(x, y, w, h, 2, SSD1306_WHITE);
+}
+
+static void oledDrawStatePill(Adafruit_SSD1306 &d, EstadoSistema estado, bool blinkOn) {
+  const int PW = 50, PH = 9, PX = 77, PY = 1;
+  bool filled = estado == ESTADO_FUGA || (estado == ESTADO_ALERTA && blinkOn);
+
+  if (filled) {
+    oledRoundRectFill(d, PX, PY, PW, PH);
+    d.setTextColor(SSD1306_BLACK);
+  } else {
+    oledRoundRect(d, PX, PY, PW, PH);
+    d.setTextColor(SSD1306_WHITE);
+  }
+
+  if (estado == ESTADO_FUGA) {
+    d.setCursor(PX + 4, PY + 1); d.print("!! FUGA");
+  } else if (estado == ESTADO_ALERTA) {
+    d.setCursor(PX + 3, PY + 1); d.print("! ALERTA");
+  } else if (estado == ESTADO_ERROR) {
+    d.setCursor(PX + 8, PY + 1); d.print("ERROR");
+  } else {
+    d.setCursor(PX + 5, PY + 1); d.print("NORMAL");
+  }
+  d.setTextColor(SSD1306_WHITE);
+}
+
+static void oledProgressBar(Adafruit_SSD1306 &d, int x, int y, int w, int h, int pct) {
+  pct = constrain(pct, 0, 100);
+  d.drawRect(x, y, w, h, SSD1306_WHITE);
+  int fill = (int)((w - 2) * pct / 100.0f);
+  if (fill > 0) d.fillRect(x + 1, y + 1, fill, h - 2, SSD1306_WHITE);
+}
+
+static void oledSparkline(Adafruit_SSD1306 &d, int x, int y, int w, int h,
+                          const float *buf, int len, int start, float vMin, float vMax) {
+  if (len < 2 || vMax <= vMin) return;
+  float range = vMax - vMin;
+  int prevX = x;
+  int prevY = y + h - 1;
+
+  for (int i = 0; i < len; i++) {
+    int idx = (start + i) % len;
+    float v = buf[idx];
+    int px = x + (int)(i * (w - 1) / (float)(len - 1));
+    int py = y + h - 1 - (int)(((v - vMin) / range) * (h - 1));
+    py = constrain(py, y, y + h - 1);
+    if (i > 0) d.drawLine(prevX, prevY, px, py, SSD1306_WHITE);
+    prevX = px;
+    prevY = py;
+  }
+}
+
+static void oledDrawLeakWave(Adafruit_SSD1306 &d, int frame, bool intense) {
+  int yBase = intense ? 61 : 62;
+  for (int x = 0; x < 128; x += 4) {
+    int phase = (x + frame * 3) % 16;
+    int y = yBase - (phase < 8 ? phase / 4 : (15 - phase) / 4);
+    d.drawPixel(x, y, SSD1306_WHITE);
+    d.drawPixel(x + 1, y, SSD1306_WHITE);
+  }
+}
+
+static float sparkBuf[16] = {};
+static int sparkIdx = 0;
+static bool sparkFull = false;
+
+void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigned long &lastDisplayUpdate) {
+  static int  ultimoEstado       = -1;
+  static int  ultimoRiesgo       = -1;
+  static int  ultimoFlujo10      = -1;
+  static int  ultimaPresion      = -1;
+  static bool ultimoSensorOK     = true;
+  static bool ultimoBackendOnline= false;
+  static bool ultimaValvula      = false;
+  static int  animFrame          = 0;
+
+  unsigned long now = millis();
+  bool animando = state.estadoSistema == ESTADO_ALERTA || state.estadoSistema == ESTADO_FUGA;
   int flujo10 = (int)(state.flujoLmin * 10.0f);
   int presion = (int)(state.presionKPa + 0.5f);
 
-  if ((int)state.estadoSistema == ultimoEstado &&
-      state.nivelRiesgo        == ultimoRiesgo &&
-      flujo10                  == ultimoFlujo10 &&
-      presion                  == ultimaPresion &&
-      state.sensorOK           == ultimoSensorOK &&
-      state.backendOnline      == ultimoBackendOnline &&
-      state.valvulaAbierta     == ultimaValvula &&
-      millis() - lastDisplayUpdate < 500) return;
+  bool changed =
+    (int)state.estadoSistema != ultimoEstado ||
+    state.nivelRiesgo        != ultimoRiesgo ||
+    flujo10                  != ultimoFlujo10 ||
+    presion                  != ultimaPresion ||
+    state.sensorOK           != ultimoSensorOK ||
+    state.backendOnline      != ultimoBackendOnline ||
+    state.valvulaAbierta     != ultimaValvula;
 
-  ultimoEstado       = (int)state.estadoSistema;
-  ultimoRiesgo       = state.nivelRiesgo;
-  ultimoFlujo10      = flujo10;
-  ultimaPresion      = presion;
-  ultimoSensorOK     = state.sensorOK;
-  ultimoBackendOnline= state.backendOnline;
-  ultimaValvula      = state.valvulaAbierta;
-  lastDisplayUpdate  = millis();
+  unsigned long frameMs = animando ? 160 : 500;
+  if (!changed && now - lastDisplayUpdate < frameMs) return;
 
-  display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(2,  2); display.print("ESP32-FISICO ");
-  display.print(state.backendOnline ? "ON" : "OFF");
-  display.drawFastHLine(0, 12, 128, SSD1306_WHITE);
-  display.setCursor(2, 18); display.print("Estado: "); display.print(estadoTexto(state.estadoSistema));
-  display.setCursor(2, 30); display.print("Q: "); display.print(state.flujoLmin, 1); display.print(" L/min");
-  display.setCursor(2, 42);
-  display.print("P: "); display.print(state.presionKPa, 0);
-  display.print(" kPa R:"); display.print(state.nivelRiesgo); display.print("%");
-  display.setCursor(2, 54);
-  if (state.estadoSistema == ESTADO_FUGA) {
-    display.print(state.valvulaAbierta ? "Valvula ABIERTA" : "Valvula CERRADA");
-  } else {
-    display.print(state.sensorOK ? "OK " : "ERR ");
-    display.print(state.valvulaAbierta ? "Valv ABIERTA" : "Valv CERRADA");
+  if (changed || now - lastDisplayUpdate >= 500) {
+    sparkBuf[sparkIdx] = state.flujoLmin;
+    sparkIdx = (sparkIdx + 1) % 16;
+    if (sparkIdx == 0) sparkFull = true;
   }
+  animFrame++;
+
+  ultimoEstado        = (int)state.estadoSistema;
+  ultimoRiesgo        = state.nivelRiesgo;
+  ultimoFlujo10       = flujo10;
+  ultimaPresion       = presion;
+  ultimoSensorOK      = state.sensorOK;
+  ultimoBackendOnline = state.backendOnline;
+  ultimaValvula       = state.valvulaAbierta;
+  lastDisplayUpdate   = now;
+
+  int sparkLen = sparkFull ? 16 : sparkIdx;
+  float sMin = 0.0f;
+  float sMax = 1.0f;
+  if (sparkLen > 0) {
+    sMin = sparkBuf[0];
+    sMax = sparkBuf[0];
+    for (int i = 1; i < sparkLen; i++) {
+      if (sparkBuf[i] < sMin) sMin = sparkBuf[i];
+      if (sparkBuf[i] > sMax) sMax = sparkBuf[i];
+    }
+    if (sMax - sMin < 0.5f) { sMin -= 0.25f; sMax += 0.25f; }
+  }
+
+  bool blinkOn = (animFrame % 4) < 2;
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setCursor(1, 1);
+  display.print("ESP32-FISICO");
+  oledDrawStatePill(display, state.estadoSistema, blinkOn);
+  display.drawFastHLine(0, 11, 128, SSD1306_WHITE);
+
+  display.setCursor(1, 14);
+  display.print("Q");
+  display.setTextSize(2);
+  display.setCursor(13, 13);
+  display.print(state.flujoLmin, 1);
+  display.setTextSize(1);
+  display.setCursor(49, 21);
+  display.print("L/m");
+
+  display.setCursor(1, 35);
+  display.print("P");
+  display.setTextSize(2);
+  display.setCursor(13, 34);
+  display.print((int)state.presionKPa);
+  display.setTextSize(1);
+  display.setCursor(49, 42);
+  display.print("kPa");
+
+  display.drawFastVLine(66, 11, 48, SSD1306_WHITE);
+  display.setCursor(69, 14);
+  display.print("RIESGO ");
+  display.print(state.nivelRiesgo);
+  display.print("%");
+  oledProgressBar(display, 69, 23, 56, 5, state.nivelRiesgo);
+
+  display.setCursor(69, 31);
+  display.print("Q hist.");
+  if (sparkLen >= 2) {
+    int start = sparkFull ? sparkIdx : 0;
+    oledSparkline(display, 69, 39, 56, 12, sparkBuf, sparkLen, start, sMin, sMax);
+  }
+
+  display.setCursor(1, 55);
+  if (state.estadoSistema == ESTADO_ALERTA && state.alertaPersistenteActiva) {
+    unsigned long transcurrido = now - state.alertaInicioMs;
+    int restante = (int)((PF338_SIMULAR_PRESION_EN_DEMO ? PF338_ALERTA_A_FUGA_MS : ALERTA_A_FUGA_TIMEOUT_MS) - transcurrido) / 1000 + 1;
+    if (restante < 0) restante = 0;
+    display.print("FUGA EN ");
+    display.print(restante);
+    display.print("s");
+  } else if (state.estadoSistema == ESTADO_FUGA) {
+    if (blinkOn) display.print("VALVULA CERRADA");
+    else         display.print("FUGA DETECTADA");
+  } else {
+    display.print(state.sensorOK ? "SNS:OK " : "SNS:ERR ");
+    display.print(state.valvulaAbierta ? "VLV:AB " : "VLV:CE ");
+    display.print(state.backendOnline ? "WF:OK" : "WF:--");
+  }
+
+  if (animando) {
+    oledDrawLeakWave(display, animFrame, state.estadoSistema == ESTADO_FUGA);
+  }
+
   display.display();
 }
 
@@ -1290,6 +1570,12 @@ void handleCommands(SystemState &state) {
     String arg = pendingCommand.substring(6); arg.trim();
     if (arg == "AUTO") {
       forcedStateEnabled = false;
+      state.valvulaAbierta = true;
+      state.primeraLectura = true;
+      state.contadorAlerta = 0;
+      state.contadorCritico = 0;
+      state.alertaPersistenteActiva = false;
+      state.alertaInicioMs = 0;
       Serial.println("CMD:FORCE AUTO");
     } else {
       EstadoSistema parsedState = ESTADO_NORMAL;
@@ -1397,6 +1683,14 @@ void loop() {
       state.estadoSistema           = commandForcedState();
       state.alertaPersistenteActiva = false;
       state.alertaInicioMs          = 0;
+      if (state.estadoSistema == ESTADO_FUGA) {
+        state.valvulaAbierta = false;
+        state.flujoLmin = 0.0f;
+        state.presionKPa = 0.0f;
+        state.nivelRiesgo = 100;
+      } else {
+        state.valvulaAbierta = true;
+      }
     } else {
       aplicarFugaPorAlertaPersistente(state, now);
     }
