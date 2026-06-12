@@ -538,7 +538,7 @@
             @for (command of deviceScopedCommands(); track command.id) {
               <article class="command-history-item" [attr.data-state]="command.estado">
                 <div class="command-history-item__main">
-                  <span class="command-history-item__type">{{ command.tipo }}</span>
+                  <span class="command-history-item__type">{{ commandLabel(command) }}</span>
                   <strong>{{ command.Device?.name || selectedDevice()?.name || 'Dispositivo #' + command.device_id }}</strong>
                   <small>
                     Creado {{ command.created_at | date:'shortTime' }}
@@ -553,8 +553,8 @@
                 </div>
                 @if (command.respuesta; as respuesta) {
                   <div class="command-history-item__response">
-                    <strong>{{ respuesta.codigo_resultado }}</strong>
-                    <span>{{ respuesta.mensaje || 'Respuesta recibida' }}</span>
+                    <strong>{{ commandResultLabel(command) }}</strong>
+                    <span>{{ commandResponseMessage(command) }}</span>
                   </div>
                 } @else {
                   <div class="command-history-item__response command-history-item__response--pending">

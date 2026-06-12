@@ -104,6 +104,7 @@ type CommandResponseItem = {
   comando_id: number;
   codigo_resultado: string;
   mensaje?: string | null;
+  recibido_at?: string | null;
   payload?: {
     networks?: WifiNetwork[];
     count?: number;
@@ -331,11 +332,23 @@ export class DashboardComponent {
   });
 
   readonly activeAlerts = computed(() => this.deviceScopedAlerts().filter((alert: DashboardAlert) => !alert.acknowledged));
-  readonly deviceScopedCommands = computed(() => {
+  readonly commandTimeline = computed(() => {
     const selectedId = this.selectedDeviceId();
-    const commands = this.commandHistory();
-    if (!selectedId) return commands;
-    return commands.filter((command) => Number(command.device_id) === selectedId);
+    const responsesByCommand = new Map<number, CommandResponseItem>();
+    for (const response of this.commandResponses()) {
+      responsesByCommand.set(Number(response.comando_id), response);
+    }
+
+    return this.commandHistory()
+      .map((command) => ({
+        ...command,
+        respuesta: command.respuesta || responsesByCommand.get(Number(command.id)) || null
+      }))
+      .filter((command) => !selectedId || Number(command.device_id) === selectedId)
+      .sort((a, b) => this.commandTimestampMs(b) - this.commandTimestampMs(a));
+  });
+  readonly deviceScopedCommands = computed(() => {
+    return this.commandTimeline();
   });
   readonly pendingCommands = computed(() =>
     this.deviceScopedCommands().filter((command) => command.estado === 'PENDIENTE' || command.estado === 'ENVIADO')
@@ -347,9 +360,27 @@ export class DashboardComponent {
   });
   readonly filteredReadings = computed(() => {
     const filter = this.readingFilter();
-    const readings = this.deviceScopedReadings();
+    const readings = this.timelineReadings();
     if (filter === 'ALL') return readings;
     return readings.filter((reading: DashboardReading) => reading.state === filter);
+  });
+  readonly timelineReadings = computed(() => {
+    const selectedDeviceId = this.selectedDeviceId();
+    const readings = new Map<string, DashboardReading | HistoryReading>();
+    const addReading = (reading: DashboardReading | HistoryReading | null | undefined) => {
+      if (!reading) return;
+      if (selectedDeviceId && Number(reading.deviceId) !== Number(selectedDeviceId)) return;
+      const key = `${reading.deviceId}-${reading.id ?? ''}-${reading.ts}`;
+      readings.set(key, reading);
+    };
+
+    this.deviceScopedReadings().forEach(addReading);
+    this.historicalReadings().forEach(addReading);
+    addReading(this.latestReading());
+
+    return Array.from(readings.values())
+      .sort((a, b) => this.timestampMs(b.ts) - this.timestampMs(a.ts))
+      .slice(0, 80) as DashboardReading[];
   });
   readonly filteredAlerts = computed(() => {
     const filter = this.alertFilter();
@@ -677,6 +708,7 @@ export class DashboardComponent {
       });
       this.actionMessage.set('Alerta confirmada. El stream seguira sincronizando el estado.');
       this.toast.success('Alerta confirmada correctamente.');
+      this.refreshDashboardAfterAction();
     } catch (error) {
       const message = resolveErrorMessage(error, 'No fue posible confirmar la alerta en este momento.');
       this.actionMessage.set(message);
@@ -707,6 +739,9 @@ export class DashboardComponent {
   protected changeTab(tab: DashboardTab) {
     this.activeTab.set(tab);
     localStorage.setItem(this.dashboardTabKey, tab);
+    if (tab === 'commands') {
+      void this.loadCommandHistory(false);
+    }
     this.scrollActiveTabIntoView();
   }
 
@@ -995,6 +1030,39 @@ export class DashboardComponent {
     }
   }
 
+  protected commandLabel(command: CommandItem): string {
+    switch (command.tipo) {
+      case 'ABRIR_VALVULA':
+        return 'Abrir electroválvula';
+      case 'CERRAR_VALVULA':
+        return 'Cerrar electroválvula';
+      case 'ACTUALIZAR_CONFIG':
+        return 'Actualizar WiFi';
+      case 'ESCANEAR_WIFI':
+        return 'Escanear redes WiFi';
+      case 'SOLICITAR_ESTADO':
+        return 'Solicitar estado';
+      case 'REINICIAR':
+        return 'Reiniciar ESP32';
+      default:
+        return command.tipo;
+    }
+  }
+
+  protected commandResultLabel(command: CommandItem): string {
+    const ok = String(command.respuesta?.codigo_resultado || '').toUpperCase() === 'OK';
+    if (command.tipo === 'ABRIR_VALVULA') return ok ? 'Electroválvula abierta' : 'No se pudo abrir';
+    if (command.tipo === 'CERRAR_VALVULA') return ok ? 'Electroválvula cerrada' : 'No se pudo cerrar';
+    return command.respuesta?.codigo_resultado || 'Respuesta recibida';
+  }
+
+  protected commandResponseMessage(command: CommandItem): string {
+    const fallback = command.respuesta?.mensaje || 'Respuesta recibida desde el ESP32.';
+    if (command.tipo === 'ABRIR_VALVULA') return command.respuesta?.mensaje || 'El ESP32 confirmó apertura de la electroválvula.';
+    if (command.tipo === 'CERRAR_VALVULA') return command.respuesta?.mensaje || 'El ESP32 confirmó cierre de la electroválvula.';
+    return fallback;
+  }
+
   private toDeviceView(device: DashboardDeviceSummary): DashboardDeviceView {
     return {
       id: device.id,
@@ -1195,6 +1263,7 @@ export class DashboardComponent {
 
       this.commandHistory.set(commands.comandos || []);
       this.commandResponses.set(responses.respuestas || []);
+      this.lastCommandHistoryRefreshAt = Date.now();
       if (showToast) this.toast.success('Comandos actualizados.');
     } catch (error) {
       if (showToast) {
@@ -1237,6 +1306,18 @@ export class DashboardComponent {
     void this.loadCommandHistory(false);
   }
 
+  private refreshDashboardAfterAction() {
+    this.dashboardService
+      .snapshot()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (payload) => this.applyDashboardPayload(payload),
+        error: () => {}
+      });
+    void this.loadHistory();
+    void this.loadCommandHistory(false);
+  }
+
   private updateDeviceWifiLocally(deviceId: number, wifiSsid: string) {
     this.registeredDevices.update((devices) =>
       devices.map((device) => {
@@ -1248,6 +1329,13 @@ export class DashboardComponent {
         };
       })
     );
+  }
+
+  private commandTimestampMs(command: CommandItem): number {
+    const responseTime = command.respuesta?.recibido_at ? this.timestampMs(command.respuesta.recibido_at) : 0;
+    const sentTime = command.sent_at ? this.timestampMs(command.sent_at) : 0;
+    const createdTime = command.created_at ? this.timestampMs(command.created_at) : 0;
+    return Math.max(responseTime, sentTime, createdTime);
   }
 
   private chartReadings() {

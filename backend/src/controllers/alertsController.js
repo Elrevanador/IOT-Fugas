@@ -7,7 +7,6 @@ const logger = require("../utils/logger");
 
 // Constantes de seguridad
 const MAX_ACK_NOTES_LENGTH = 500;
-const ALERT_ACK_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 horas para acknowledge
 
 const listAlerts = async (req, res, next) => {
   try {
@@ -118,20 +117,6 @@ const ackAlert = async (req, res, next) => {
       return res.status(400).json({
         ok: false,
         msg: `La nota de reconocimiento no puede exceder ${MAX_ACK_NOTES_LENGTH} caracteres`
-      });
-    }
-
-    // Verificar que la alerta no sea demasiado antigua para reconocer
-    const alertAge = Date.now() - new Date(alert.ts).getTime();
-    if (alertAge > ALERT_ACK_TIMEOUT_MS) {
-      logger.warn("Intento de reconocer alerta demasiado antigua", {
-        alertId: alert.id,
-        alertAge: alertAge,
-        userId: req.user.id
-      });
-      return res.status(400).json({
-        ok: false,
-        msg: "La alerta es demasiado antigua para ser reconocida"
       });
     }
 

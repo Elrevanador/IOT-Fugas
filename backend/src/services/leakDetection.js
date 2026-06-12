@@ -26,6 +26,7 @@ const MIN_WINDOW_MINUTES = 5;
 const MAX_WINDOW_MINUTES = 1440; // 24 horas
 const MIN_FLOW_THRESHOLD = 0.1;
 const MAX_FLOW_THRESHOLD = 1000;
+const ALERT_DUPLICATE_WINDOW_MS = 30_000;
 
 const getDetectionConfig = async (deviceId, { transaction } = {}) => {
   try {
@@ -214,7 +215,8 @@ const openIncidentFromReading = async ({ device, reading, config, now, reason, t
     where: {
       device_id: device.id,
       severity: "FUGA",
-      acknowledged: false
+      acknowledged: false,
+      ts: { [Op.gte]: new Date(now.getTime() - ALERT_DUPLICATE_WINDOW_MS) }
     },
     transaction
   });

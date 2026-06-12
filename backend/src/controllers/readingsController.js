@@ -18,6 +18,7 @@ const logger = require("../utils/logger");
 
 const FUTURE_TOLERANCE_MS = 5_000;
 const MAX_READINGS_PER_REQUEST = 1000;
+const ALERT_DUPLICATE_WINDOW_MS = 30_000;
 const VALID_STATES = ["NORMAL", "ALERTA", "FUGA", "ERROR"];
 const DEFAULT_DEVICE_SENSORS = [
   {
@@ -396,7 +397,6 @@ const createReading = async (req, res, next) => {
         transaction
       });
 
-      const previousStatus = device.status || "NORMAL";
       const defaultSensors = await ensureDefaultSensors(device, transaction);
       await ensureDefaultActuators(device, { valveState: valveState || valvula, transaction });
       await ensureDetectionConfig(device, transaction);
@@ -448,13 +448,15 @@ const createReading = async (req, res, next) => {
         { transaction }
       );
 
-      // Crear alerta si el estado cambió a problemático
-      if (state !== "NORMAL" && previousStatus !== state) {
+      // Crear alerta para estados problemáticos, evitando solo duplicados inmediatos.
+      if (state !== "NORMAL") {
+        const duplicateWindowStart = new Date(timestamp.getTime() - ALERT_DUPLICATE_WINDOW_MS);
         const recentOpenAlert = await Alert.findOne({
           where: {
             device_id: device.id,
             severity: state,
-            acknowledged: false
+            acknowledged: false,
+            ts: { [Op.gte]: duplicateWindowStart }
           },
           order: [["ts", "DESC"]],
           limit: 1,
