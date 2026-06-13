@@ -558,6 +558,32 @@ export class DashboardComponent {
     if (!valve || valve.estado === 'DESCONOCIDO') return 'Sin reporte';
     return valve.estado === 'ABIERTA' ? 'Abierta' : 'Cerrada';
   });
+  readonly valveLiveStatus = computed(() => {
+    const valve = this.selectedDevice()?.electrovalvula || this.highlightedDevice()?.electrovalvula || this.uniqueDevices()[0]?.electrovalvula || null;
+    const state = valve?.estado || 'DESCONOCIDO';
+
+    if (state === 'ABIERTA') {
+      return {
+        label: 'Electroválvula abierta',
+        icon: 'fa-solid fa-toggle-on',
+        tone: 'open'
+      };
+    }
+
+    if (state === 'CERRADA') {
+      return {
+        label: 'Electroválvula cerrada',
+        icon: 'fa-solid fa-toggle-off',
+        tone: 'closed'
+      };
+    }
+
+    return {
+      label: 'Electroválvula sin reporte',
+      icon: 'fa-solid fa-circle-question',
+      tone: 'unknown'
+    };
+  });
   readonly contextDevice = computed(() => this.selectedDevice() || this.highlightedDevice() || this.uniqueDevices()[0] || null);
   readonly contextWifiSsid = computed(() =>
     this.contextDevice()?.wifiSsid || this.latestReading()?.wifiSsid || this.payload()?.latestReading?.wifiSsid || 'No reportada'

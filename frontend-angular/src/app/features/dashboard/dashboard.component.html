@@ -119,6 +119,10 @@
       <div class="operational-summary__copy">
         <span class="eyebrow">Estado actual</span>
         <h2>{{ currentState() || 'NORMAL' }}</h2>
+        <div class="operational-summary__valve" [attr.data-tone]="valveLiveStatus().tone" aria-live="polite">
+          <i [class]="valveLiveStatus().icon" aria-hidden="true"></i>
+          <strong>{{ valveLiveStatus().label }}</strong>
+        </div>
         <p>
           {{ highlightedReading()?.deviceName || highlightedDevice()?.name || latestReading()?.deviceName || 'Dispositivo principal' }}
           · {{ highlightedReading()?.houseName || latestReading()?.houseName || 'Casa sin asignar' }}
