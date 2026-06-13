@@ -533,6 +533,45 @@ textarea::placeholder {
   border-color: rgba(148, 163, 184, 0.18);
 }
 
+@media (max-width: 900px) {
+  .command-history-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .command-history-item__response {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .command-history-panel__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .command-history-panel__header .command-panel__quick-action {
+    width: 100%;
+  }
+
+  .command-history-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+
+  .command-history-item__status,
+  .command-history-item__response {
+    grid-column: auto;
+    min-width: 0;
+    justify-items: start;
+  }
+
+  .command-history-item__type {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+}
+
 .wifi-modal-form {
   display: grid;
   gap: 0.9rem;

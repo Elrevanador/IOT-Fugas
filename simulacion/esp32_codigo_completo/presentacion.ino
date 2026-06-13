@@ -143,6 +143,7 @@ const float UMBRAL_SIN_PASO_PRES_MIN     = DEMO_SENSIBLE ? 20.0 : 320.0;
 const int   LECTURAS_SIN_FLUJO_REQUERIDAS = DEMO_SENSIBLE ? 3 : 6;
 const int   LECTURAS_ALERTA_REQUERIDAS    = 1;
 const int   LECTURAS_CRITICAS_REQUERIDAS  = DEMO_SENSIBLE ? 6 : 3;
+const int   LECTURAS_RECUPERACION_FUGA_REQUERIDAS = 3;
 
 // ===================== STRUCT ESTADO =====================
 // FIX #1: contadorSinFlujo y demoSistemaPresurizado ahora son parte del
@@ -170,6 +171,7 @@ struct SystemState {
   String ultimoComandoBackend = "Sin comandos";
   int contadorAlerta  = 0;
   int contadorCritico = 0;
+  int contadorRecuperacionFuga = 0;
   int nivelRiesgo     = 20;
   bool alertaPersistenteActiva = false;
   unsigned long alertaInicioMs = 0;
@@ -238,6 +240,38 @@ EstadoSistema evaluarEstado(SystemState &state) {
 
   state.nivelRiesgo = calcularRiesgoContinuo(flujoLmin, presionKPa, sensorOK);
 
+  // Una fuga confirmada queda estable, pero puede recuperarse si el flujo
+  // vuelve al rango normal durante varias lecturas seguidas.
+  if (state.estadoSistema == ESTADO_FUGA) {
+    bool fugaRecuperadaPF338 =
+      PF338_SIMULAR_PRESION_EN_DEMO &&
+      flujoLmin >= PF338_FLUJO_NORMAL_MIN_LMIN;
+
+    if (fugaRecuperadaPF338) {
+      state.contadorRecuperacionFuga = min(state.contadorRecuperacionFuga + 1, 10);
+      if (state.contadorRecuperacionFuga >= LECTURAS_RECUPERACION_FUGA_REQUERIDAS) {
+        state.contadorAlerta = 0;
+        state.contadorCritico = 0;
+        state.contadorRecuperacionFuga = 0;
+        state.nivelRiesgo = min(state.nivelRiesgo, 15);
+        state.valvulaAbierta = true;
+        state.alertaPersistenteActiva = false;
+        state.alertaInicioMs = 0;
+        return ESTADO_NORMAL;
+      }
+    } else {
+      state.contadorRecuperacionFuga = 0;
+    }
+
+    state.contadorAlerta  = max(state.contadorAlerta, LECTURAS_ALERTA_REQUERIDAS);
+    state.contadorCritico = max(state.contadorCritico, LECTURAS_CRITICAS_REQUERIDAS);
+    state.nivelRiesgo     = max(state.nivelRiesgo, 90);
+    state.valvulaAbierta  = false;
+    state.alertaPersistenteActiva = false;
+    state.alertaInicioMs = 0;
+    return ESTADO_FUGA;
+  }
+
   if (!sensorOK) {
     state.contadorAlerta  = 0;
     state.contadorCritico = 0;
@@ -276,6 +310,7 @@ EstadoSistema evaluarEstado(SystemState &state) {
 
       if (alertaMs >= PF338_ALERTA_A_FUGA_MS) {
         state.contadorCritico = min(state.contadorCritico + 1, 10);
+        state.contadorRecuperacionFuga = 0;
         state.nivelRiesgo = max(state.nivelRiesgo, 90);
         state.valvulaAbierta = false;
         state.alertaPersistenteActiva = false;
@@ -1574,6 +1609,7 @@ void handleCommands(SystemState &state) {
       state.primeraLectura = true;
       state.contadorAlerta = 0;
       state.contadorCritico = 0;
+      state.contadorRecuperacionFuga = 0;
       state.alertaPersistenteActiva = false;
       state.alertaInicioMs = 0;
       Serial.println("CMD:FORCE AUTO");
