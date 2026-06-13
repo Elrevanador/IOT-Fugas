@@ -1793,7 +1793,8 @@ export class AdminComponent {
       return;
     }
 
-    await this.runBusy(async () => {
+    this.busy.set(true);
+    try {
       const [
         houses,
         users,
@@ -1814,60 +1815,116 @@ export class AdminComponent {
         states,
         audit
       ] = await Promise.all([
-        firstValueFrom(this.api.get<{ houses: House[] }>('/api/houses')),
-        firstValueFrom(this.api.get<{ users: User[] }>('/api/users')),
-        firstValueFrom(this.api.get<{ roles: Role[] }>('/api/roles')),
-        firstValueFrom(this.api.get<{ userRoles: UserRole[] }>('/api/user-roles')),
-        firstValueFrom(this.api.get<{ resources: ResourceItem[] }>('/api/resources')),
-        firstValueFrom(this.api.get<{ roleResources: RoleResourceAssignment[] }>('/api/role-resources')),
-        firstValueFrom(this.api.get<{ devices: Device[] }>('/api/devices', { limit: 200 })),
-        firstValueFrom(this.api.get<{ ubicaciones: LocationItem[] }>('/api/locations', { limit: 200 })),
-        firstValueFrom(this.api.get<{ sensores: SensorItem[] }>('/api/sensors', { limit: 200 })),
-        firstValueFrom(this.api.get<{ readings: Reading[] }>('/api/readings', { limit: 200 })),
-        firstValueFrom(this.api.get<{ alerts: AlertItem[] }>('/api/alerts', { limit: 200 })),
-        firstValueFrom(this.api.get<{ incidentes?: Incident[]; incidents?: Incident[] }>('/api/incidents', { limit: 200 })),
-        firstValueFrom(this.api.get<{ valvulas: Valve[] }>('/api/valves', { limit: 200 })),
-        firstValueFrom(this.api.get<{ acciones: ValveAction[] }>('/api/valves/actions', { limit: 200 })),
-        firstValueFrom(this.api.get<{ comandos: CommandItem[] }>('/api/commands', { limit: 200 })),
-        firstValueFrom(this.api.get<{ respuestas: CommandResponse[] }>('/api/commands/responses', { limit: 200 })),
-        firstValueFrom(this.api.get<{ estados: SystemState[] }>('/api/system-states', { limit: 200 })),
-        firstValueFrom(this.api.get<{ auditoria: AuditItem[] }>('/api/audit', { limit: 200 }))
+        this.loadAdminResource('casas', firstValueFrom(this.api.get<{ houses: House[] }>('/api/houses'))),
+        this.loadAdminResource('usuarios', firstValueFrom(this.api.get<{ users: User[] }>('/api/users'))),
+        this.loadAdminResource('roles', firstValueFrom(this.api.get<{ roles: Role[] }>('/api/roles'))),
+        this.loadAdminResource('roles de usuario', firstValueFrom(this.api.get<{ userRoles: UserRole[] }>('/api/user-roles'))),
+        this.loadAdminResource('recursos', firstValueFrom(this.api.get<{ resources: ResourceItem[] }>('/api/resources'))),
+        this.loadAdminResource('permisos', firstValueFrom(this.api.get<{ roleResources: RoleResourceAssignment[] }>('/api/role-resources'))),
+        this.loadAdminResource('dispositivos', firstValueFrom(this.api.get<{ devices: Device[] }>('/api/devices', { limit: 200 }))),
+        this.loadAdminResource('ubicaciones', firstValueFrom(this.api.get<{ ubicaciones: LocationItem[] }>('/api/locations', { limit: 200 }))),
+        this.loadAdminResource('sensores', firstValueFrom(this.api.get<{ sensores: SensorItem[] }>('/api/sensors', { limit: 200 }))),
+        this.loadAdminResource('lecturas', firstValueFrom(this.api.get<{ readings: Reading[] }>('/api/readings', { limit: 200 }))),
+        this.loadAdminResource('alertas', firstValueFrom(this.api.get<{ alerts: AlertItem[] }>('/api/alerts', { limit: 200 }))),
+        this.loadAdminResource('incidentes', firstValueFrom(this.api.get<{ incidentes?: Incident[]; incidents?: Incident[] }>('/api/incidents', { limit: 200 }))),
+        this.loadAdminResource('valvulas', firstValueFrom(this.api.get<{ valvulas: Valve[] }>('/api/valves', { limit: 200 }))),
+        this.loadAdminResource('acciones de valvula', firstValueFrom(this.api.get<{ acciones: ValveAction[] }>('/api/valves/actions', { limit: 200 }))),
+        this.loadAdminResource('comandos', firstValueFrom(this.api.get<{ comandos: CommandItem[] }>('/api/commands', { limit: 200 }))),
+        this.loadAdminResource('respuestas', firstValueFrom(this.api.get<{ respuestas: CommandResponse[] }>('/api/commands/responses', { limit: 200 }))),
+        this.loadAdminResource('estados', firstValueFrom(this.api.get<{ estados: SystemState[] }>('/api/system-states', { limit: 200 }))),
+        this.loadAdminResource('auditoria', firstValueFrom(this.api.get<{ auditoria: AuditItem[] }>('/api/audit', { limit: 200 })))
       ]);
 
-      const deviceList = devices.devices || [];
-      const configs = await Promise.all(
+      const failedLabels = [
+        houses,
+        users,
+        roles,
+        userRoles,
+        resources,
+        roleResources,
+        devices,
+        locations,
+        sensors,
+        readings,
+        alerts,
+        incidents,
+        valves,
+        valveActions,
+        commands,
+        responses,
+        states,
+        audit
+      ].filter((result) => result.error).map((result) => result.label);
+
+      const deviceList = devices.data?.devices || this.devices();
+      const configResults = await Promise.all(
         deviceList.map(async (device) => {
-          const response = await firstValueFrom(
-            this.api.get<{ config: DetectionConfig }>(`/api/detection-config/${device.id}`)
+          const result = await this.loadAdminResource(
+            `configuracion de ${device.name}`,
+            firstValueFrom(this.api.get<{ config: DetectionConfig }>(`/api/detection-config/${device.id}`))
           );
-          return { ...response.config, Device: device };
+          return {
+            ...result,
+            data: result.data ? { ...result.data.config, Device: device } : null
+          };
         })
       );
+      failedLabels.push(
+        ...configResults.filter((result) => result.error).map((result) => result.label)
+      );
 
-      this.houses.set(houses.houses || []);
-      this.users.set(users.users || []);
-      this.roles.set(roles.roles || []);
-      this.userRoles.set(userRoles.userRoles || []);
-      this.resources.set(resources.resources || []);
-      this.roleResources.set(roleResources.roleResources || []);
-      this.devices.set(deviceList);
-      this.locations.set(locations.ubicaciones || []);
-      this.sensors.set(sensors.sensores || []);
-      this.readings.set(readings.readings || []);
-      this.alerts.set(alerts.alerts || []);
-      this.incidents.set(incidents.incidentes || incidents.incidents || []);
-      this.valves.set(valves.valvulas || []);
-      this.valveActions.set(valveActions.acciones || []);
-      this.detectionConfigs.set(configs);
-      this.commands.set(commands.comandos || []);
-      this.responses.set(responses.respuestas || []);
-      this.states.set(states.estados || []);
-      this.audit.set(audit.auditoria || []);
-      this.page.set(Math.min(this.page(), this.totalPages()));
-      if (showMessage) {
-        this.message.set('Consola sincronizada con todas las tablas principales del backend.');
+      if (houses.data) this.houses.set(houses.data.houses || []);
+      if (users.data) this.users.set(users.data.users || []);
+      if (roles.data) this.roles.set(roles.data.roles || []);
+      if (userRoles.data) this.userRoles.set(userRoles.data.userRoles || []);
+      if (resources.data) this.resources.set(resources.data.resources || []);
+      if (roleResources.data) this.roleResources.set(roleResources.data.roleResources || []);
+      if (devices.data) this.devices.set(deviceList);
+      if (locations.data) this.locations.set(locations.data.ubicaciones || []);
+      if (sensors.data) this.sensors.set(sensors.data.sensores || []);
+      if (readings.data) this.readings.set(readings.data.readings || []);
+      if (alerts.data) this.alerts.set(alerts.data.alerts || []);
+      if (incidents.data) this.incidents.set(incidents.data.incidentes || incidents.data.incidents || []);
+      if (valves.data) this.valves.set(valves.data.valvulas || []);
+      if (valveActions.data) this.valveActions.set(valveActions.data.acciones || []);
+      if (configResults.some((result) => result.data)) {
+        this.detectionConfigs.set(
+          configResults.flatMap((result) => result.data ? [result.data] : [])
+        );
       }
-    });
+      if (commands.data) this.commands.set(commands.data.comandos || []);
+      if (responses.data) this.responses.set(responses.data.respuestas || []);
+      if (states.data) this.states.set(states.data.estados || []);
+      if (audit.data) this.audit.set(audit.data.auditoria || []);
+      this.page.set(Math.min(this.page(), this.totalPages()));
+
+      const statusMessage = failedLabels.length
+        ? `Carga parcial. No respondieron: ${failedLabels.join(', ')}.`
+        : 'Consola sincronizada con todas las tablas principales del backend.';
+      this.message.set(statusMessage);
+      if (showMessage) {
+        if (failedLabels.length) this.toast.warning(statusMessage);
+        else this.toast.success(statusMessage);
+      }
+    } catch (error) {
+      const message = resolveErrorMessage(error, 'No fue posible sincronizar la consola administrativa.');
+      this.message.set(message);
+      if (showMessage) this.toast.error(message);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  private async loadAdminResource<T>(label: string, request: Promise<T>) {
+    try {
+      return { label, data: await request, error: null };
+    } catch (error) {
+      return {
+        label,
+        data: null,
+        error: resolveErrorMessage(error, `No fue posible cargar ${label}.`)
+      };
+    }
   }
 
   private matchesTerm(term: string, values: Array<string | number | boolean | null | undefined>) {
