@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators, type AbstractControl } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -290,10 +290,14 @@ type DetailType = 'device' | 'alert' | 'incident' | 'valve' | 'command' | 'audit
 export class AdminComponent {
   private readonly api = inject(ApiService);
   private readonly fb = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly pageSize = 7;
+  private readonly liveSyncIntervalMs = 5000;
   private readonly passwordPolicy = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
+  private liveSyncInProgress = false;
+  private liveSyncTimer: ReturnType<typeof setInterval> | null = null;
   readonly auth = inject(AuthService);
 
   readonly houses = signal<House[]>([]);
@@ -331,6 +335,8 @@ export class AdminComponent {
   readonly selectedAudit = signal<AuditItem | null>(null);
   readonly deviceCredential = signal<{ name: string; apiKey: string } | null>(null);
   readonly message = signal('Cargando consola administrativa...');
+  readonly lastSyncedAt = signal<Date | null>(null);
+  readonly liveSyncing = signal(false);
   readonly scenePickerOpen = signal(false);
 
   readonly showHouseModal = signal(false);
@@ -763,7 +769,14 @@ export class AdminComponent {
 
   constructor() {
     this.configureUserPasswordValidators(false);
-    void this.load();
+    void this.load().then(() => this.startLiveSync());
+    this.destroyRef.onDestroy(() => {
+      if (this.liveSyncTimer) clearInterval(this.liveSyncTimer);
+    });
+  }
+
+  protected refreshAdminData() {
+    void this.syncLiveData(true);
   }
 
   protected setScene(scene: Scene) {
@@ -1897,6 +1910,7 @@ export class AdminComponent {
       if (states.data) this.states.set(states.data.estados || []);
       if (audit.data) this.audit.set(audit.data.auditoria || []);
       this.page.set(Math.min(this.page(), this.totalPages()));
+      this.lastSyncedAt.set(new Date());
 
       const statusMessage = failedLabels.length
         ? `Carga parcial. No respondieron: ${failedLabels.join(', ')}.`
@@ -1912,6 +1926,61 @@ export class AdminComponent {
       if (showMessage) this.toast.error(message);
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  private startLiveSync() {
+    if (this.liveSyncTimer || !this.auth.isAdmin()) return;
+    this.liveSyncTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') void this.syncLiveData(false);
+    }, this.liveSyncIntervalMs);
+  }
+
+  private async syncLiveData(showMessage: boolean) {
+    if (this.liveSyncInProgress || this.busy() || !this.auth.isAdmin()) return;
+
+    this.liveSyncInProgress = true;
+    this.liveSyncing.set(true);
+    try {
+      const [devices, readings, alerts, incidents, valves, valveActions, commands, responses, states, audit] =
+        await Promise.all([
+          this.loadAdminResource('dispositivos', firstValueFrom(this.api.get<{ devices: Device[] }>('/api/devices', { limit: 200 }))),
+          this.loadAdminResource('lecturas', firstValueFrom(this.api.get<{ readings: Reading[] }>('/api/readings', { limit: 200 }))),
+          this.loadAdminResource('alertas', firstValueFrom(this.api.get<{ alerts: AlertItem[] }>('/api/alerts', { limit: 200 }))),
+          this.loadAdminResource('incidentes', firstValueFrom(this.api.get<{ incidentes?: Incident[]; incidents?: Incident[] }>('/api/incidents', { limit: 200 }))),
+          this.loadAdminResource('valvulas', firstValueFrom(this.api.get<{ valvulas: Valve[] }>('/api/valves', { limit: 200 }))),
+          this.loadAdminResource('acciones de valvula', firstValueFrom(this.api.get<{ acciones: ValveAction[] }>('/api/valves/actions', { limit: 200 }))),
+          this.loadAdminResource('comandos', firstValueFrom(this.api.get<{ comandos: CommandItem[] }>('/api/commands', { limit: 200 }))),
+          this.loadAdminResource('respuestas', firstValueFrom(this.api.get<{ respuestas: CommandResponse[] }>('/api/commands/responses', { limit: 200 }))),
+          this.loadAdminResource('estados', firstValueFrom(this.api.get<{ estados: SystemState[] }>('/api/system-states', { limit: 200 }))),
+          this.loadAdminResource('auditoria', firstValueFrom(this.api.get<{ auditoria: AuditItem[] }>('/api/audit', { limit: 200 })))
+        ]);
+
+      if (devices.data) this.devices.set(devices.data.devices || []);
+      if (readings.data) this.readings.set(readings.data.readings || []);
+      if (alerts.data) this.alerts.set(alerts.data.alerts || []);
+      if (incidents.data) this.incidents.set(incidents.data.incidentes || incidents.data.incidents || []);
+      if (valves.data) this.valves.set(valves.data.valvulas || []);
+      if (valveActions.data) this.valveActions.set(valveActions.data.acciones || []);
+      if (commands.data) this.commands.set(commands.data.comandos || []);
+      if (responses.data) this.responses.set(responses.data.respuestas || []);
+      if (states.data) this.states.set(states.data.estados || []);
+      if (audit.data) this.audit.set(audit.data.auditoria || []);
+
+      const results = [devices, readings, alerts, incidents, valves, valveActions, commands, responses, states, audit];
+      const failedLabels = results.filter((result) => result.error).map((result) => result.label);
+      if (results.some((result) => result.data)) this.lastSyncedAt.set(new Date());
+
+      if (showMessage) {
+        if (failedLabels.length) {
+          this.toast.warning(`Sincronización parcial. No respondieron: ${failedLabels.join(', ')}.`);
+        } else {
+          this.toast.success('Datos operativos actualizados.');
+        }
+      }
+    } finally {
+      this.liveSyncInProgress = false;
+      this.liveSyncing.set(false);
     }
   }
 

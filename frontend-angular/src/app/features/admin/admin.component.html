@@ -1,8 +1,25 @@
 <section class="admin-page">
   <header class="admin-page__intro">
-    <span class="admin-page__tag">Administración</span>
-    <h1>Datos del sistema</h1>
-    <p class="admin-page__hint">{{ message() }}</p>
+    <div>
+      <span class="admin-page__tag">Administración</span>
+      <h1>Datos del sistema</h1>
+      <p class="admin-page__hint">{{ message() }}</p>
+    </div>
+    <div class="admin-sync">
+      <span>
+        @if (liveSyncing()) {
+          Sincronizando...
+        } @else if (lastSyncedAt()) {
+          Actualizado {{ lastSyncedAt() | date:'mediumTime' }}
+        } @else {
+          Sin sincronizar
+        }
+      </span>
+      <button type="button" class="ghost-action" (click)="refreshAdminData()" [disabled]="liveSyncing() || busy()">
+        <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+        Actualizar
+      </button>
+    </div>
   </header>
 
   @if (isAdmin()) {
