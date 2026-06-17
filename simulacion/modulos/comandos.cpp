@@ -18,6 +18,7 @@ void handleCommands(SystemState &state) {
     Serial.println("CMD:PONG");
   } else if (pendingCommand == "STATUS") {
     Serial.print("CMD:STATUS ");
+    Serial.print(state.sistemaEncendido ? "ENCENDIDO " : "APAGADO ");
     Serial.print(estadoTexto(state.estadoSistema));
     Serial.print(" R=");
     Serial.print(state.nivelRiesgo);

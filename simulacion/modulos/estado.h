@@ -5,6 +5,7 @@
 #include "modulos/logica.h"
 
 struct SystemState {
+  bool sistemaEncendido    = true;
   volatile uint32_t pulseCount = 0;
   float flujoLmin   = 0.0;
   float presionKPa  = 0.0;

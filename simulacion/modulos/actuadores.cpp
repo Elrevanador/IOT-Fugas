@@ -44,10 +44,11 @@ void initActuadores() {
   ledcWrite(buzzerPin, 0);
 }
 
-static void leerPulsadorValvula(SystemState &state) {
+bool actualizarBotonEncendido(SystemState &state) {
   static bool lastReading = HIGH;
   static bool stableButtonState = HIGH;
   static unsigned long lastDebounce = 0;
+  bool cambioEstado = false;
 
   bool reading = digitalRead(buttonPin);
   if (reading != lastReading) {
@@ -58,15 +59,40 @@ static void leerPulsadorValvula(SystemState &state) {
   if (millis() - lastDebounce > 60 && reading != stableButtonState) {
     stableButtonState = reading;
     if (stableButtonState == LOW) {
-      state.valvulaAbierta = !state.valvulaAbierta;
-      Serial.print("Pulsador: valvula ");
-      Serial.println(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
+      state.sistemaEncendido = !state.sistemaEncendido;
+      cambioEstado = true;
+      state.pulseCount = 0;
+      state.contadorAlerta = 0;
+      state.contadorCritico = 0;
+
+      if (!state.sistemaEncendido) {
+        state.valvulaAbierta = false;
+        state.backendOnline = false;
+      } else {
+        state.primeraLectura = true;
+        state.estadoSistema = ESTADO_NORMAL;
+        state.nivelRiesgo = 0;
+      }
+
+      Serial.print("Pulsador: sistema ");
+      Serial.println(state.sistemaEncendido ? "ENCENDIDO" : "APAGADO");
     }
   }
+
+  return cambioEstado;
 }
 
 void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
-  leerPulsadorValvula(state);
+  if (!state.sistemaEncendido) {
+    state.valvulaAbierta = false;
+    apagarBuzzer();
+    digitalWrite(ledVerde, LOW);
+    digitalWrite(ledNaranja, LOW);
+    digitalWrite(ledRojo, LOW);
+    digitalWrite(relayPin, LOW);
+    digitalWrite(valveIndicatorPin, LOW);
+    return;
+  }
 
   if (state.estadoSistema == ESTADO_FUGA) {
     state.valvulaAbierta = false;

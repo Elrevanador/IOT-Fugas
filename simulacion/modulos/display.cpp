@@ -46,6 +46,7 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   static int ultimaPresion = -1;
   static bool ultimoBackendOnline = false;
   static bool ultimaValvula = false;
+  static bool ultimoSistemaEncendido = true;
 
   int flujo10 = (int)(state.flujoLmin * 10.0f);
   int presion = (int)(state.presionKPa + 0.5f);
@@ -56,6 +57,7 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
       presion == ultimaPresion &&
       state.backendOnline == ultimoBackendOnline &&
       state.valvulaAbierta == ultimaValvula &&
+      state.sistemaEncendido == ultimoSistemaEncendido &&
       millis() - lastDisplayUpdate < 500) {
     return;
   }
@@ -66,18 +68,29 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   ultimaPresion = presion;
   ultimoBackendOnline = state.backendOnline;
   ultimaValvula = state.valvulaAbierta;
+  ultimoSistemaEncendido = state.sistemaEncendido;
   lastDisplayUpdate = millis();
 
   display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+
+  if (!state.sistemaEncendido) {
+    display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
+    display.setTextSize(2);
+    display.setCursor(20, 14);
+    display.print("SISTEMA");
+    display.setCursor(20, 36);
+    display.print("APAGADO");
+    display.display();
+    return;
+  }
 
   // Dibujar un borde o linea de cabecera
   display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
   display.drawLine(0, 14, 128, 14, SSD1306_WHITE);
 
   // Cabecera: Nombre o Estado
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  
   display.setCursor(5, 4);
   switch (state.estadoSistema) {
     case ESTADO_NORMAL:

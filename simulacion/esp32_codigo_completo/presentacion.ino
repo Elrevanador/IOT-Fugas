@@ -76,6 +76,7 @@ const unsigned long SENSOR_READ_INTERVAL_MS        = 500;
 const unsigned long BACKEND_SEND_INTERVAL_MS       = 2000;
 const unsigned long BACKEND_COMMAND_POLL_INTERVAL_MS = 5000;
 const unsigned long BACKEND_TIMEOUT_MS             = 5000;
+const unsigned long BACKEND_COMMAND_TIMEOUT_MS     = 1500;
 const unsigned long ALERTA_A_FUGA_TIMEOUT_MS       = 30000;
 
 // ---- Pines (actualizados según tu asignación) ----
@@ -143,7 +144,7 @@ const float UMBRAL_SIN_PASO_PRES_MIN     = DEMO_SENSIBLE ? 20.0 : 320.0;
 const int   LECTURAS_SIN_FLUJO_REQUERIDAS = DEMO_SENSIBLE ? 3 : 6;
 const int   LECTURAS_ALERTA_REQUERIDAS    = 1;
 const int   LECTURAS_CRITICAS_REQUERIDAS  = DEMO_SENSIBLE ? 6 : 3;
-const int   LECTURAS_RECUPERACION_FUGA_REQUERIDAS = 3;
+const int   LECTURAS_RECUPERACION_FUGA_REQUERIDAS = 1;
 
 // ===================== STRUCT ESTADO =====================
 // FIX #1: contadorSinFlujo y demoSistemaPresurizado ahora son parte del
@@ -151,6 +152,7 @@ const int   LECTURAS_RECUPERACION_FUGA_REQUERIDAS = 3;
 //         de ser variables static locales dentro de evaluarEstado que
 //         sobreviven al reset del struct tras un watchdog reboot.
 struct SystemState {
+  bool sistemaEncendido = true;
   volatile uint32_t pulseCount = 0;
   float flujoLmin   = 0.0;
   float presionKPa  = 0.0;
@@ -248,6 +250,19 @@ EstadoSistema evaluarEstado(SystemState &state) {
       flujoLmin >= PF338_FLUJO_NORMAL_MIN_LMIN;
 
     if (fugaRecuperadaPF338) {
+      // En la demo, un flujo claramente normal recupera el sistema
+      // inmediatamente aunque el loop haya estado bloqueado por HTTP.
+      if (flujoLmin >= PF338_FLUJO_NORMAL_MIN_LMIN * 1.3f) {
+        state.contadorAlerta = 0;
+        state.contadorCritico = 0;
+        state.contadorRecuperacionFuga = 0;
+        state.nivelRiesgo = min(state.nivelRiesgo, 15);
+        state.valvulaAbierta = true;
+        state.alertaPersistenteActiva = false;
+        state.alertaInicioMs = 0;
+        return ESTADO_NORMAL;
+      }
+
       state.contadorRecuperacionFuga = min(state.contadorRecuperacionFuga + 1, 10);
       if (state.contadorRecuperacionFuga >= LECTURAS_RECUPERACION_FUGA_REQUERIDAS) {
         state.contadorAlerta = 0;
@@ -996,6 +1011,9 @@ void consultarComandosBackend(SystemState &state) {
     updateBackoff(false, s_commandBackoffMs);
     return;
   }
+  // El poll de comandos no debe congelar las lecturas ni retrasar el cambio
+  // visible del dashboard durante toda la espera general del backend.
+  http.setTimeout(BACKEND_COMMAND_TIMEOUT_MS);
   http.addHeader("x-device-key", ingestApiKey);
 
   // FIX #7: deshabilitar WDT durante GET HTTPS (mismo motivo que POST)
@@ -1282,24 +1300,58 @@ void initActuadores() {
   ledcWrite(buzzerPin, 0);
 }
 
-static void leerPulsadorValvula(SystemState &state) {
+static bool actualizarBotonEncendido(SystemState &state) {
   static bool lastReading      = HIGH;
   static bool stableButtonState= HIGH;
   static unsigned long lastDebounce = 0;
+  bool cambioEstado = false;
+
   bool reading = digitalRead(buttonPin);
   if (reading != lastReading) { lastDebounce = millis(); lastReading = reading; }
   if (millis() - lastDebounce > 60 && reading != stableButtonState) {
     stableButtonState = reading;
     if (stableButtonState == LOW) {
-      state.valvulaAbierta = !state.valvulaAbierta;
-      Serial.print("Pulsador: valvula ");
-      Serial.println(state.valvulaAbierta ? "ABIERTA" : "CERRADA");
+      state.sistemaEncendido = !state.sistemaEncendido;
+      cambioEstado = true;
+      state.pulseCount = 0;
+      state.contadorAlerta = 0;
+      state.contadorCritico = 0;
+      state.contadorRecuperacionFuga = 0;
+      state.contadorSinFlujo = 0;
+      state.alertaPersistenteActiva = false;
+      state.alertaInicioMs = 0;
+
+      if (!state.sistemaEncendido) {
+        state.valvulaAbierta = false;
+        state.backendOnline = false;
+      } else {
+        state.valvulaAbierta = true;
+        state.primeraLectura = true;
+        state.lecturasArranque = 0;
+        state.sistemaCalibrado = false;
+        state.estadoSistema = ESTADO_NORMAL;
+        state.nivelRiesgo = 0;
+      }
+
+      Serial.print("Pulsador: sistema ");
+      Serial.println(state.sistemaEncendido ? "ENCENDIDO" : "APAGADO");
     }
   }
+
+  return cambioEstado;
 }
 
 void actualizarActuadores(SystemState &state, unsigned long &lastBlink) {
-  leerPulsadorValvula(state);
+  if (!state.sistemaEncendido) {
+    state.valvulaAbierta = false;
+    apagarBuzzer();
+    digitalWrite(ledVerde, LOW);
+    digitalWrite(ledNaranja, LOW);
+    digitalWrite(ledRojo, LOW);
+    digitalWrite(relayPin, LOW);
+    digitalWrite(valveIndicatorPin, LOW);
+    return;
+  }
 
   if (state.estadoSistema == ESTADO_FUGA) {
     state.valvulaAbierta = false;
@@ -1452,10 +1504,12 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   static bool ultimoSensorOK     = true;
   static bool ultimoBackendOnline= false;
   static bool ultimaValvula      = false;
+  static bool ultimoSistemaEncendido = true;
   static int  animFrame          = 0;
 
   unsigned long now = millis();
-  bool animando = state.estadoSistema == ESTADO_ALERTA || state.estadoSistema == ESTADO_FUGA;
+  bool animando = state.sistemaEncendido &&
+                  (state.estadoSistema == ESTADO_ALERTA || state.estadoSistema == ESTADO_FUGA);
   int flujo10 = (int)(state.flujoLmin * 10.0f);
   int presion = (int)(state.presionKPa + 0.5f);
 
@@ -1466,7 +1520,8 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
     presion                  != ultimaPresion ||
     state.sensorOK           != ultimoSensorOK ||
     state.backendOnline      != ultimoBackendOnline ||
-    state.valvulaAbierta     != ultimaValvula;
+    state.valvulaAbierta     != ultimaValvula ||
+    state.sistemaEncendido   != ultimoSistemaEncendido;
 
   unsigned long frameMs = animando ? 160 : 500;
   if (!changed && now - lastDisplayUpdate < frameMs) return;
@@ -1485,7 +1540,23 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   ultimoSensorOK      = state.sensorOK;
   ultimoBackendOnline = state.backendOnline;
   ultimaValvula       = state.valvulaAbierta;
+  ultimoSistemaEncendido = state.sistemaEncendido;
   lastDisplayUpdate   = now;
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+
+  if (!state.sistemaEncendido) {
+    display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
+    display.setTextSize(2);
+    display.setCursor(20, 14);
+    display.print("SISTEMA");
+    display.setCursor(20, 36);
+    display.print("APAGADO");
+    display.display();
+    return;
+  }
 
   int sparkLen = sparkFull ? 16 : sparkIdx;
   float sMin = 0.0f;
@@ -1501,9 +1572,6 @@ void actualizarOLED(Adafruit_SSD1306 &display, const SystemState &state, unsigne
   }
 
   bool blinkOn = (animFrame % 4) < 2;
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
 
   display.setCursor(1, 1);
   display.print("ESP32-FISICO");
@@ -1593,7 +1661,9 @@ void handleCommands(SystemState &state) {
   if (pendingCommand == "PING") {
     Serial.println("CMD:PONG");
   } else if (pendingCommand == "STATUS") {
-    Serial.print("CMD:STATUS "); Serial.print(estadoTexto(state.estadoSistema));
+    Serial.print("CMD:STATUS ");
+    Serial.print(state.sistemaEncendido ? "ENCENDIDO " : "APAGADO ");
+    Serial.print(estadoTexto(state.estadoSistema));
     Serial.print(" R=");  Serial.print(state.nivelRiesgo);
     Serial.print(" Q=");  Serial.print(state.flujoLmin, 2);
     Serial.print(" P=");  Serial.print(state.presionKPa, 2);
@@ -1633,7 +1703,8 @@ void handleCommands(SystemState &state) {
 #ifdef DEBUG_SERIAL
 static void printJsonEstado(const SystemState &s) {
   Serial.print("{\"device\":\""); Serial.print(DEVICE_NAME);
-  Serial.print("\",\"sensor_id\":"); Serial.print(SENSOR_ID);
+  Serial.print("\",\"powered\":"); Serial.print(s.sistemaEncendido ? "true" : "false");
+  Serial.print(",\"sensor_id\":"); Serial.print(SENSOR_ID);
   Serial.print(",\"flow_lmin\":"); Serial.print(s.flujoLmin, 2);
   Serial.print(",\"pressure_kpa\":"); Serial.print(s.presionKPa, 2);
   Serial.print(",\"risk\":"); Serial.print(s.nivelRiesgo);
@@ -1704,12 +1775,30 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+  bool estadoEnviadoInmediatamente = false;
   esp_task_wdt_reset(); // FIX #2: reset al inicio de cada ciclo
 
   handleCommands(state);
+  bool cambioEncendido = actualizarBotonEncendido(state);
+
+  if (cambioEncendido) {
+    lastMeasure = now;
+    lastSend = now;
+    lastCommandPoll = now;
+    actualizarOLED(oled, state, lastLCDUpdate);
+  }
+
+  actualizarActuadores(state, lastBlink);
+
+  if (!state.sistemaEncendido) {
+    actualizarOLED(oled, state, lastLCDUpdate);
+    delay(10);
+    return;
+  }
 
   if (now - lastMeasure >= SENSOR_READ_INTERVAL_MS) {
     unsigned long sampleIntervalMs = now - lastMeasure;
+    EstadoSistema estadoAnterior = state.estadoSistema;
     readSensores(state, sampleIntervalMs);
 
     // FIX #1: evaluarEstado ahora recibe el struct completo
@@ -1732,6 +1821,17 @@ void loop() {
     }
 
     actualizarOLED(oled, state, lastLCDUpdate);
+    actualizarActuadores(state, lastBlink);
+
+    // Los cambios de estado tienen prioridad sobre el intervalo periódico.
+    // Así el dashboard recibe NORMAL/FUGA en cuanto termina la lectura.
+    if (state.estadoSistema != estadoAnterior) {
+      enviarBackend(state);
+      unsigned long despuesDelEnvio = millis();
+      lastSend = despuesDelEnvio;
+      lastCommandPoll = despuesDelEnvio;
+      estadoEnviadoInmediatamente = true;
+    }
 
 #ifdef DEBUG_SERIAL
     Serial.print("Estado: ");        Serial.println(estadoTexto(state.estadoSistema));
@@ -1747,13 +1847,15 @@ void loop() {
 
   actualizarActuadores(state, lastBlink);
 
-  if (now - lastSend >= BACKEND_SEND_INTERVAL_MS) {
+  now = millis();
+  if (!estadoEnviadoInmediatamente && now - lastSend >= BACKEND_SEND_INTERVAL_MS) {
     enviarBackend(state);
-    lastSend = now;
+    lastSend = millis();
   }
 
+  now = millis();
   if (now - lastCommandPoll >= BACKEND_COMMAND_POLL_INTERVAL_MS) {
     consultarComandosBackend(state);
-    lastCommandPoll = now;
+    lastCommandPoll = millis();
   }
 }

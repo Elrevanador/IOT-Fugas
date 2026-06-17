@@ -49,7 +49,9 @@ bool lastReportedSensorOK  = true;
 static void printJsonEstado(const SystemState &s) {
   Serial.print("{\"device\":\"");
   Serial.print(DEVICE_NAME);
-  Serial.print("\",\"sensor_id\":");
+  Serial.print("\",\"powered\":");
+  Serial.print(s.sistemaEncendido ? "true" : "false");
+  Serial.print(",\"sensor_id\":");
   Serial.print(SENSOR_ID);
   Serial.print(",\"flow_lmin\":");
   Serial.print(s.flujoLmin, 2);
@@ -106,6 +108,22 @@ void loop() {
   unsigned long now = millis();
 
   handleCommands(state);
+  bool cambioEncendido = actualizarBotonEncendido(state);
+
+  if (cambioEncendido) {
+    lastMeasure = now;
+    lastSend = now;
+    lastCommandPoll = now;
+    actualizarOLED(oled, state, lastDisplayUpdate);
+  }
+
+  actualizarActuadores(state, lastBlink);
+
+  if (!state.sistemaEncendido) {
+    actualizarOLED(oled, state, lastDisplayUpdate);
+    delay(10);
+    return;
+  }
 
   if (now - lastMeasure >= SENSOR_READ_INTERVAL_MS) {
     unsigned long sampleIntervalMs = now - lastMeasure;
